@@ -23,6 +23,11 @@
  *
  * Accumulators are double throughout. Hidden size is 7168 and expert rows are 2048
  * wide; a float32 accumulator loses precision the reference comparisons can see.
+ *
+ * LIMITATION — this contract is for the CPU double-accumulation path only. A future
+ * tensor-core / fp32-accumulation path (e.g. C500 __builtin_mxc_mma_16x16x16bf16) has
+ * a precision ceiling of ~1e-6 (fp32 accum) or ~1e-3 (+bf16 activ) and MUST NOT be
+ * judged by the 1e-6 gate in test_expert.c. See docs/notes/mxfp4-c500-kernel.md.
  */
 #include "k3.h"
 

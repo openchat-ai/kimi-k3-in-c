@@ -215,7 +215,12 @@ int main(int argc, char **argv)
              * what proves the fused MXFP4 matmul agrees with dequantise-then-multiply on
              * released checkpoint bytes. The comparison must assert, not merely print, or a broken
              * nibble order or a mis-biased E8M0 scale printed "DISAGREE  <-- BUG" and the
-             * process still exited 0. Record it so main can return it. */
+             * process still exited 0. Record it so main can return it.
+             *
+             * WARNING: the 1e-6 gate is a property of the CPU double-accumulation path.
+             * A future tensor-core / fp32-accumulation kernel (e.g. C500 MMA) has a
+             * precision ceiling of ~1e-6 (fp32 accum) or ~1e-3 (+bf16 activ) and must
+             * use its own gate, not this one. See docs/notes/mxfp4-c500-kernel.md. */
             if (!(maxrel < 1e-6)) g_bad++;
             printf("  max abs diff %.3e, relative to max |y| %.3e   %s\n",
                    maxabs, maxrel, maxrel < 1e-6 ? "AGREE" : "DISAGREE  <-- BUG");
