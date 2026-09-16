@@ -189,6 +189,7 @@ component at a time.
 - [Documentation](#documentation)
 - [Development](#development)
 - [License](#license)
+- [Paper & Reproducing](#paper--reproducing)
 
 ---
 
@@ -250,6 +251,11 @@ python3 tools/sim_cache.py tests/fixtures/expert_trace.bin
 
 100,096 expert requests, reprinting the capacity table in
 [`expert-cache-capacity.txt`](docs/data/expert-cache-capacity.txt).
+
+The research paper on the hit-rate metric's blind spot — *《命中率指标掩盖的慢介质
+全量重读：MoE 推理平台的实证分析与排查判据》* — lives with its measurement ledger,
+trace-replay scripts and full reproduction path in [`papers/`](papers/). Start at
+[`papers/REPRODUCING.md`](papers/REPRODUCING.md).
 
 ## Full setup
 
@@ -584,6 +590,10 @@ needs nothing at all, and `--layers N` runs against partial shard sets.
 
 **macOS, Windows, WSL?** The engine targets Linux. The tokenizer and config reader are
 portable C99 and are built portably in CI.
+
+**How do I reproduce the paper?** See [`papers/REPRODUCING.md`](papers/REPRODUCING.md).
+Tier 0 (every trace-level byte-flow claim) replays from the committed
+`tests/fixtures/expert_trace.bin` with no model and no network.
 
 ---
 
@@ -3401,6 +3411,27 @@ modifications made to them, are declared in [`NOTICE`](NOTICE).
 Kimi K3 is created and released by Moonshot AI under its own license. This repository
 contains **no model weights** and grants no rights to them; the technical report is included
 for reference and remains the property of its authors.
+
+## Paper & Reproducing
+
+The measurement paper *《命中率指标掩盖的慢介质全量重读：MoE 推理平台的实证分析与
+排查判据》* (CJAS submission, with an English cut) documents a real-machine finding on
+MoE inference: an L2 cache hit-rate can read healthy while slow-storage full re-reads
+drive the wall clock. The paper, its measurement ledger, the trace-replay toolchain and
+the step-by-step reproduction path live in [`papers/`](papers/).
+
+Reproducing takes three tiers:
+
+- **Tier 0 — no model, no network, seconds.** The three paper scripts replay the
+  committed 100,096-record expert trace:
+  `python3 tools/paper/struct_check.py`, `tools/paper/l2_hit_upper.py`,
+  `tools/paper/predict_hotset.py`. Their outputs match the ledger.
+- **Tier 1 — `make test`.** The engine matches its PyTorch reference on tiny fixtures.
+- **Tier 2 — the full checkpoint.** The 1.56 TB download + `pack-trunk.sh`, re-running
+  the ledger's E-xx units; numbers scale with the disks measured.
+
+See [`papers/REPRODUCING.md`](papers/REPRODUCING.md) for the exact commands and the
+repository map.
 
 <div align="center">
 <br>

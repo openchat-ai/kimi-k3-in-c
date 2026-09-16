@@ -1,7 +1,11 @@
 # Measurement data
 
 The raw output behind every number in [PERFORMANCE.md](../PERFORMANCE.md) and
-[TUNING.md](../TUNING.md). Each table there cites the file it comes from.
+[TUNING.md](../TUNING.md). Each table there cites the file it comes from. The research
+paper's measurement ledger, which extends the same campaign with byte-flow accounting
+per token forward, is [`papers/byteflow-matrix.md`](../../papers/byteflow-matrix.md);
+its trace-level claims replay in seconds from `tests/fixtures/expert_trace.bin` (see
+`tools/paper/` and [`papers/REPRODUCING.md`](../../papers/REPRODUCING.md)).
 
 Everything was produced in one campaign on one machine. See [environment.txt](environment.txt)
 for the full capture, including the measurement hygiene applied before any timing was
