@@ -267,7 +267,7 @@ void k3_attn_res(float *out, const float *src, const float *fold,
  * never emitted directly and it carries no exactness contract, which is what lets it use
  * a fast, non-deterministic kernel. Each row is stored inline as [f32 scale][int8 * in],
  * so a matrix stays a single tagged pointer. Never tagged on the exact model. */
-enum { K3_WF32 = 0, K3_WBF16 = 1, K3_WI8 = 2 };
+enum { K3_WF32 = 0, K3_WBF16 = 1, K3_WI8 = 2, K3_WMXFP8 = 3 };
 
 /* bf16 -> f32 is a pure left shift: bf16 IS the top 16 bits of an f32. No rounding,
  * no table, no exponent rebias. */
@@ -284,6 +284,19 @@ void k3_matmul_bf16(float *y, const float *x, const uint16_t *W, int in, int out
  * No determinism contract (see K3_WI8): uses the fastest AVX2 form available. */
 void k3_matmul_q8(float *y, const float *x, const void *W, int in, int out);
 
+/* e8m7 matmul for MXFP8_E8M7 trunk weights. W is one float scale followed by
+ * rows*cols of 8-bit codes: [scale][code * rows*cols]. The scale is a tensor-wide
+ * constant, scale = 2^(e-6) for the shared exponent e; the 8-bit code is
+ * [sign][7-bit mantissa], so value = sign * mantissa * scale. No fp32 materialisation:
+ * the kernel widens each byte inline, exactly like the MXFP4 expert path. */
+void k3_matmul_e8m7(float *y, const float *x, const void *W, int in, int out);
+
+/* e8m7 matmul for MXFP8_E8M7_128 trunk weights. W is rows * [scale * ngrp][code * in]:
+ * a per-row byte of scale per 128-element group followed by the group's 8-bit codes,
+ * scale = 2^(e_j-6) for group j's shared exponent e_j. Group-sum in double with the
+ * scale applied at the end (same accuracy contract as k3_matmul_mxfp4). */
+void k3_matmul_e8m7_128(float *y, const float *x, const void *W, int in, int out);
+
 /* The one call every trunk matmul goes through. Dispatch is a predictable branch on a
  * per-layer flag, outside the inner loops, so it costs nothing measurable. */
 static inline void k3_mmw(float *y, const float *x, const void *W, int wdt,
@@ -291,6 +304,7 @@ static inline void k3_mmw(float *y, const float *x, const void *W, int wdt,
 {
     if (wdt == K3_WBF16)     k3_matmul_bf16(y, x, (const uint16_t *)W, in, out);
     else if (wdt == K3_WI8)  k3_matmul_q8(y, x, W, in, out);
+    else if (wdt == K3_WMXFP8) k3_matmul_e8m7_128(y, x, W, in, out);
     else                     k3_matmul(y, x, (const float *)W, in, out);
 }
 
@@ -299,7 +313,9 @@ static inline void k3_mmw(float *y, const float *x, const void *W, int wdt,
 static inline size_t k3_wsz(int wdt) { return wdt == K3_WBF16 ? 2u : 4u; }
 static inline size_t k3_row_bytes(int wdt, int in)
 {
-    return wdt == K3_WI8 ? (size_t)4 + (size_t)in : (size_t)in * k3_wsz(wdt);
+    if (wdt == K3_WI8 || wdt == K3_WMXFP8)
+        return (size_t)4 + (size_t)in;
+    return (size_t)in * k3_wsz(wdt);
 }
 
 /* ZERO-INITIALISE EVERY WEIGHT STRUCT BEFORE FILLING IT. K3MoeW holds an optional

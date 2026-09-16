@@ -193,11 +193,7 @@ void k3_kda_step(float *S, float *o, const float *q, const float *k,
     }
 
     /* 2. read the state along k:  u = S^T k */
-    /* Allocated AFTER the decay above has already modified S. Returning early here
-     * would leave the recurrent state permanently scaled but never updated -- silent,
-     * unrecoverable corruption of every subsequent token.
-     *
-     * AUTOMATIC STORAGE at the sizes that occur. This is the innermost call in the
+    /* AUTOMATIC STORAGE at the sizes that occur. This is the innermost call in the
      * engine: once per head per token per KDA layer, which at K3 scale is 96 x 69 =
      * 6,624 calls per token, and k3_kda_layer runs them from an OpenMP loop, so a heap
      * temporary here is 6,624 malloc/free pairs per token with sixteen threads
@@ -1196,6 +1192,8 @@ void k3_matmul_bf16(float *y, const float *x, const uint16_t *W, int in, int out
             __m256d v0 = _mm256_setzero_pd(), v1 = _mm256_setzero_pd();
             __m256d v2 = _mm256_setzero_pd(), v3 = _mm256_setzero_pd();
             for (; i + 15 < in; i += 16) {
+                /* bf16 -> f32 is a 16-bit left shift, so widen u16 to u32, shift,
+                 * and reinterpret. No table, no rounding. */
                 const __m128i h0 = _mm_loadl_epi64((const __m128i *)(row + i));
                 const __m128i h1 = _mm_loadl_epi64((const __m128i *)(row + i + 4));
                 const __m128i h2 = _mm_loadl_epi64((const __m128i *)(row + i + 8));
@@ -1293,30 +1291,9 @@ void k3_matmul_q8(float *y, const float *x, const void *W, int in, int out)
     }
 }
 
-/* A whole BYTE to its two E2M1 values, so the inner loop does one 8-byte load instead
- * of masking, shifting and two separate lookups. 2 KB, built once, shared by all
- * threads after initialisation.
- *
- * SCALAR PATH ONLY. The AVX2 path decodes nibbles with permutevar8x32 in register and
- * never touches this table, so building it there would be 2 KB of cold cache and an
- * unused-symbol warning. See k3_matmul_mxfp4. */
-#if !defined(__AVX2__)
-static float K3_E2M1_PAIR[256][2];
-static int   k3_pair_ready = 0;
-
-static void k3_pair_init(void)
-{
-    for (int b = 0; b < 256; b++) {
-        K3_E2M1_PAIR[b][0] = K3_E2M1[b & 0x0F];   /* low nibble  = EVEN element */
-        K3_E2M1_PAIR[b][1] = K3_E2M1[b >> 4];     /* high nibble = ODD element  */
-    }
-    k3_pair_ready = 1;
-}
-#endif
-
 /* E8M0 byte to its power of two. 255 is NaN by spec and maps to zero. Precomputed
  * because ldexpf in the group loop is a function call the compiler will not inline
- * into a vectorised body. */
+ * into a vectorised body. Shared by k3_matmul_mxfp4 and k3_matmul_e8m7_128. */
 static float K3_E8M0[256];
 static int   k3_e8m0_ready = 0;
 
@@ -1349,6 +1326,168 @@ void k3_mxfp4_omp(int on)
     k3_mxfp4_use_omp = on ? 1 : 0;
 }
 
+/* y[rows] = W[rows][in] . x[in], with W in the MXFP8_E8M7_128 trunk format and never
+ * materialised as floats. Per row the weight is [scale * ngrp][code * in] with
+ * scale_j = 2^(e_j - 6) for the 128-element group j (e_j one signed byte, E8M0-style
+ * but offset by the 6-bit mantissa placement, i.e. scale = 2^(e-6)); code is
+ * [sign][7-bit mantissa], value = sign * mant * scale_j. Each 128-group carries its
+ * own exponent, so the row's scale varies within a row. Following the accuracy
+ * contract of k3_matmul_mxfp4: each group is summed in double and the group's scale
+ * applied once at the end, then the group sums accumulate in double. The scalar and
+ * AVX2 paths stay bit-identical on purpose. */
+void k3_matmul_e8m7_128(float *y, const float *x, const void *W, int in, int out)
+{
+    const unsigned char *p = (const unsigned char *)W;
+    const int ngrp = (in + 127) / 128;
+    const size_t stride = (size_t)in + (size_t)ngrp;   /* per row, scales then codes */
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if (out > 64)
+#endif
+    for (int o = 0; o < out; o++) {
+        const unsigned char *row = p + (size_t)o * stride;
+        const unsigned char *srow = row;
+        row += (size_t)ngrp;
+        double acc = 0.0;
+        for (int g = 0; g < ngrp; g++) {
+            const int8_t sb = (int8_t)srow[g];
+            const float gscale = (sb == INT8_MIN) ? 0.0f : ldexpf(1.0f, (int)sb - 6);
+            const int lo = g * 128;
+            int hi = lo + 128;
+            if (hi > in) hi = in;
+            int i = lo;
+            double sub;
+#if defined(__AVX2__)
+            {
+                __m256d v0 = _mm256_setzero_pd(), v1 = _mm256_setzero_pd();
+                const __m256i u128 = _mm256_set1_epi32(0x0000007Fu);
+                for (; i + 7 < hi; i += 8) {
+                    const __m128i b = _mm_loadl_epi64((const __m128i *)(row + i));
+                    __m256i u = _mm256_cvtepu8_epi32(b);                    /* 8 ints */
+                    __m256i mask = _mm256_srai_epi32(_mm256_slli_epi32(u, 24), 31);
+                    __m256i m = _mm256_and_si256(u, u128);
+                    __m256i sm = _mm256_sub_epi32(_mm256_xor_si256(m, mask), mask);
+                    __m128i sml = _mm256_castsi256_si128(sm);          /* lo 4 ints */
+                    __m128i smh = _mm256_extracti128_si256(sm, 1);     /* hi 4 ints */
+                    __m128 xl = _mm_loadu_ps(x + i);
+                    __m128 xh = _mm_loadu_ps(x + i + 4);
+                    v0 = _mm256_fmadd_pd(_mm256_cvtps_pd(_mm_cvtepi32_ps(sml)),
+                                         _mm256_cvtps_pd(xl), v0);
+                    v1 = _mm256_fmadd_pd(_mm256_cvtps_pd(_mm_cvtepi32_ps(smh)),
+                                         _mm256_cvtps_pd(xh), v1);
+                }
+                double a[4];
+                _mm256_storeu_pd(a, _mm256_add_pd(v0, v1));
+                sub = (a[0] + a[1]) + (a[2] + a[3]);
+            }
+#else
+            {
+                double s[8] = {0};
+                for (; i + 7 < hi; i += 8)
+                    for (int l = 0; l < 8; l++) {
+                        int mv = row[i + l] & 0x7F;
+                        if (row[i + l] & 0x80) mv = -mv;
+                        s[l] = fma((double)mv, (double)x[i + l], s[l]);
+                    }
+                double b0 = s[0] + s[4], b1 = s[1] + s[5];
+                double b2 = s[2] + s[6], b3 = s[3] + s[7];
+                sub = (b0 + b1) + (b2 + b3);
+            }
+#endif
+            for (; i < hi; i++) {
+                int mv = row[i] & 0x7F;
+                if (row[i] & 0x80) mv = -mv;
+                sub = fma((double)mv, (double)x[i], sub);
+            }
+            acc += sub * (double)gscale;
+        }
+        y[o] = (float)acc;
+    }
+}
+
+/* y[rows] = W[rows][in] . x[in], with W in the ORIGINAL one-scale-per-tensor MXFP8_E8M7
+ * format: [float scale][code * rows*cols], scale = 2^(e-6) for the tensor's shared
+ * exponent e. Retained for the unit tests (tools/test_ops.c); the trunk now ships
+ * MXFP8_E8M7_128 and is served by k3_matmul_e8m7_128 above. */
+void k3_matmul_e8m7(float *y, const float *x, const void *W, int in, int out)
+{
+    const unsigned char *p = (const unsigned char *)W;
+    float scale;
+    memcpy(&scale, p, 4);
+    const unsigned char *codes = p + 4;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if (out > 64)
+#endif
+    for (int o = 0; o < out; o++) {
+        const unsigned char *row = codes + (size_t)o * in;
+        int i = 0;
+        float acc;
+#if defined(__AVX2__)
+        {
+            __m256 v0 = _mm256_setzero_ps(), v1 = _mm256_setzero_ps();
+            const __m256i u128 = _mm256_set1_epi32(0x0000007Fu);
+            for (; i + 15 < in; i += 16) {
+                const __m128i b0 = _mm_loadl_epi64((const __m128i *)(row + i));
+                const __m128i b1 = _mm_loadl_epi64((const __m128i *)(row + i + 8));
+                __m256i u0 = _mm256_cvtepu8_epi32(b0);
+                __m256i u1 = _mm256_cvtepu8_epi32(b1);
+                __m256i mask0 = _mm256_srai_epi32(_mm256_slli_epi32(u0, 24), 31);
+                __m256i mask1 = _mm256_srai_epi32(_mm256_slli_epi32(u1, 24), 31);
+                __m256i m0 = _mm256_and_si256(u0, u128);
+                __m256i m1 = _mm256_and_si256(u1, u128);
+                __m256i sm0 = _mm256_sub_epi32(_mm256_xor_si256(m0, mask0), mask0);
+                __m256i sm1 = _mm256_sub_epi32(_mm256_xor_si256(m1, mask1), mask1);
+                v0 = _mm256_fmadd_ps(_mm256_cvtepi32_ps(sm0),
+                                     _mm256_loadu_ps(x + i), v0);
+                v1 = _mm256_fmadd_ps(_mm256_cvtepi32_ps(sm1),
+                                     _mm256_loadu_ps(x + i + 8), v1);
+            }
+            __m256 vs = _mm256_add_ps(v0, v1);
+            __m128 lo = _mm_add_ps(_mm256_castps256_ps128(vs),
+                                   _mm256_extractf128_ps(vs, 1));
+            lo = _mm_add_ps(lo, _mm_movehl_ps(lo, lo));
+            lo = _mm_add_ss(lo, _mm_shuffle_ps(lo, lo, 1));
+            acc = _mm_cvtss_f32(lo);
+        }
+#else
+        {
+            float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+            for (; i + 3 < in; i += 4) {
+                int mv0 =   row[i] & 0x7F;      if (row[i]      & 0x80) mv0 = -mv0;
+                int mv1 =   row[i + 1] & 0x7F;  if (row[i + 1]  & 0x80) mv1 = -mv1;
+                int mv2 =   row[i + 2] & 0x7F;  if (row[i + 2]  & 0x80) mv2 = -mv2;
+                int mv3 =   row[i + 3] & 0x7F;  if (row[i + 3]  & 0x80) mv3 = -mv3;
+                a0 += (float)mv0 * x[i];
+                a1 += (float)mv1 * x[i + 1];
+                a2 += (float)mv2 * x[i + 2];
+                a3 += (float)mv3 * x[i + 3];
+            }
+            acc = (a0 + a1) + (a2 + a3);
+        }
+#endif
+        for (; i < in; i++) {
+            int mv = row[i] & 0x7F;
+            if (row[i] & 0x80) mv = -mv;
+            acc += (float)mv * x[i];
+        }
+        y[o] = acc * scale;
+    }
+}
+
+/* A whole BYTE to its two E2M1 values, so the inner loop does one 8-byte load instead
+ * of masking, shifting and two separate lookups. 2 KB, built once, shared by all
+ * threads after initialisation. */
+static float K3_E2M1_PAIR[256][2];
+static int   k3_pair_ready = 0;
+
+static void k3_pair_init(void)
+{
+    for (int b = 0; b < 256; b++) {
+        K3_E2M1_PAIR[b][0] = K3_E2M1[b & 0x0F];   /* low nibble  = EVEN element */
+        K3_E2M1_PAIR[b][1] = K3_E2M1[b >> 4];     /* high nibble = ODD element  */
+    }
+    k3_pair_ready = 1;
+}
+
 /* y[rows] = W[rows][in] . x[in], with W read straight out of packed MXFP4 and never
  * materialised as floats. This is not an optimisation; it is what makes streaming
  * experts possible at all.
@@ -1369,13 +1508,9 @@ void k3_mxfp4_omp(int on)
  *   - A scale byte of 255 is NaN by the OCP MX spec and zeroes its whole group.
  *
  * ACCURACY CONTRACT. This kernel is deliberately NOT bit-identical to
- * dequantise-then-k3_matmul, and no caller should assume it is. On AVX2 with a
- * group that is a multiple of 16 (K3 uses 32) it runs the FLAT ROW PATH below: the
- * E8M0 power-of-two scale is folded into each E2M1 weight exactly, and the whole
- * row is summed by sixteen independent double accumulator lanes (four __m256d).
- * Otherwise it sums each
- * group of 32 and applies that group's scale before accumulating. Both orderings
- * differ from dequantise-then-matmul's single accumulator set.
+ * dequantise-then-k3_matmul, and no caller should assume it is. It sums each group of
+ * 32 and applies that group's scale before accumulating; dequantise-then-matmul sums
+ * every term of the row under one set of accumulators. The orders differ.
  *
  * The difference is bounded and tiny. Every individual product is EXACT in double, an
  * E2M1 value carries 3 mantissa bits and x carries 24, so the product needs 27 of the
@@ -1387,27 +1522,33 @@ void k3_mxfp4_omp(int on)
 void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
                      const unsigned char *scales, int in, int rows, int group)
 {
+    if (in & 1) {
+        fprintf(stderr,
+                "k3: FATAL, k3_matmul_mxfp4 called with in=%d, which is odd.\n"
+                "    Packed rows are in/2 bytes, two elements per byte; an odd `in`\n"
+                "    truncates that stride below what the trailing group's odd\n"
+                "    remainder reads, a heap read past the caller's buffer instead\n"
+                "    of failing loudly.\n",
+                in);
+        abort();
+    }
+    if (group > 64) {
+        fprintf(stderr,
+                "k3: FATAL, k3_matmul_mxfp4 called with group=%d, which exceeds 64.\n"
+                "    Each group is expanded into a fixed wf[64] stack buffer before\n"
+                "    the dot product; a larger group overflows it instead of failing\n"
+                "    loudly.\n",
+                group);
+        abort();
+    }
+
     const int pcols = in / 2;                     /* two elements per byte */
     const int ngrp  = (in + group - 1) / group;
     const int gbyte = group / 2;
 
-#if !defined(__AVX2__)
-    if (!k3_pair_ready)  k3_pair_init();
-#endif
+if (!k3_pair_ready)  k3_pair_init();
     if (!k3_e8m0_ready)  k3_e8m0_init();
 
-    /* WIDEN x ONCE, NOT ONCE PER ROW. The accumulators are double, so every row used to
-     * re-run the same `in` float-to-double conversions -- 3072 rows x 3584 elements is
-     * 11 M conversions per call to produce 3584 distinct values. x does not depend on r,
-     * so it is hoisted here and the row loop reads doubles directly.
-     *
-     * BIT-IDENTICAL: float to double is exact (24 mantissa bits into 53), so the widened
-     * copy holds precisely what _mm256_cvtps_pd produced in place.
-     *
-     * Read-only and shared by every thread, so one copy serves the whole parallel
-     * region. At the K3 shapes it is 28 KB, which stays in L2 while the packed weights
-     * stream past it. NULL is a valid state: the group loop then widens into a small
-     * stack buffer instead, so an allocation failure costs speed and nothing else. */
     double *const xd = (double *)malloc((size_t)in * sizeof(double));
     if (xd) for (int i = 0; i < in; i++) xd[i] = (double)x[i];
 
@@ -1421,35 +1562,6 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
 
 #if defined(__AVX2__)
         if (xd && (group & 15) == 0) {
-            /* FLAT ROW PATH. Every E8M0 scale is a power of two (K3_E8M0[sb] =
-             * 2^(sb-127), 0 for the NaN byte 255), so folding it into the E2M1 weight
-             * before the FMA is EXACT in fp32: a 3-bit mantissa shifted by an exponent
-             * does not round, and the only overflow case (sb >= 251 times weight 6)
-             * produces inf exactly as the dequantised reference does. That folds the
-             * per-group scale step out of the accumulation, so the whole row is one
-             * flat vectorised dot product: four independent double accumulator chains
-             * v0..v3, a single horizontal reduction at the end, and none of the
-             * per-group scalar reduction, the a[4] store-forwarding, or the serial
-             * `acc` chain that the grouped path below pays once per group.
-             *
-             * The accumulator count is a deliberate trade-off. An earlier version
-             * ran eight chains over 32-element blocks, but eight accumulators plus
-             * the decode temporaries exceed the 16 ymm registers and the compiler
-             * spills one accumulator to the stack every block - reintroducing the
-             * store-forwarding this path exists to avoid. Four chains over 16-element
-             * chunks fit without a spill, and the loop is decode-bound on the shuffle
-             * port (permutevar8x32, cvtepu8_epi32 and cvtps_pd all issue there), not
-             * FMA-latency-bound, so the shorter chain depth is not what limits it.
-             *
-             * Lane k of v0..v3 holds elements == k (mod 16), and the final tree is
-             * ((v0+v2)+(v1+v3)) lane-wise and then (a0+a1)+(a2+a3), the same shape as
-             * the scalar reduction, so every lane holds a sum of the same element
-             * classes in the same order as the dequantised reference and the error
-             * stays a few ulps of double, far inside the 1e-6 gate.
-             *
-             * Requires `group` to be a multiple of 16 so no 16-element chunk straddles
-             * a scale boundary (K3 uses group 32). Anything else takes the grouped path
-             * below, which handles arbitrary group <= 64. */
             const __m256  LUT  = _mm256_setr_ps(0.0f, 0.5f, 1.0f, 1.5f,
                                                 2.0f, 3.0f, 4.0f, 6.0f);
             const __m128i m0f  = _mm_set1_epi8(0x0F);
@@ -1498,17 +1610,12 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
                 if (++c == cpg) { c = 0; g++; }
             }
             {
-                /* Horizontal reduction without touching memory, same tree as the
-                 * grouped path: (a0+a1)+(a2+a3). */
                 const __m256d q = _mm256_add_pd(
                     _mm256_add_pd(v0, v2), _mm256_add_pd(v1, v3));
                 const __m128d t = _mm_add_pd(
                     _mm256_castpd256_pd128(q), _mm256_extractf128_pd(q, 1));
                 acc = _mm_cvtsd_f64(_mm_add_sd(t, _mm_unpackhi_pd(t, t)));
             }
-            /* Scalar tail, at most 15 elements, all inside one group (i is 16-aligned
-             * and group is a multiple of 16, so a tail this short cannot cross a scale
-             * boundary). Scale folded the same way as the vector path. */
             for (; i < in; i++) {
                 const unsigned char by = pr[i >> 1];
                 const unsigned char nib = (i & 1) ? (by >> 4) : (by & 0x0F);
@@ -1527,9 +1634,6 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
             int n = in - g * group;
             if (n > group) n = group;
 
-            /* One pointer for both paths, so the hot loop carries no test. The fallback
-             * branch is per group, not per element, and only runs when the hoist above
-             * could not allocate. */
             double xlocal[64];                    /* group <= 64, same bound as wf */
             const double *xdg;
             if (xd) {
@@ -1539,69 +1643,21 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
                 xdg = xlocal;
             }
 
-            /* Four double lanes partitioned by i%4, reduced as (s0+s1)+(s2+s3), in
-             * the scalar path, so on machines without AVX2 the reduction is the
-             * same on every compiler. The split is written out rather than left to
-             * the compiler because a sequential floating-point reduction may not be
-             * reassociated without -ffast-math, which this build does not set:
-             * expressed as one serial accumulator, the hottest loop in the engine
-             * compiles to scalar adds no matter what the surrounding code looks
-             * like.
-             *
-             * The lane split changes the summation order. See the accuracy contract
-             * on the function above for why that is bounded at ~1e-16 relative. */
-            /* The AVX2 grouped path below uses four __m256d accumulators over each
-             * 16-element chunk, so its intra-lane summation order differs from the
-             * scalar path; see the NIBBLE DECODE comment below for the accuracy
-             * contract. The group is short, so four accumulators suffice to break
-             * the add-latency chain. */
             double sub;
             int i = 0;
 #if defined(__AVX2__)
             {
-                /* NIBBLE DECODE IN REGISTER. The expand-to-wf[64]-then-reload form this
-                 * replaces cost more than the arithmetic it fed: per 32-element group it
-                 * ran 16 scalar table lookups and 32 four-byte stores, then reloaded all
-                 * 32 floats one vector at a time, and the reload of a just-written stack
-                 * slot is a store-forwarding stall on every group.
-                 *
-                 * E2M1 is small enough to decode with a shuffle instead of a table. The
-                 * eight magnitudes {0,.5,1,1.5,2,3,4,6} are indexed by the low three bits
-                 * of the code, which is exactly _mm256_permutevar8x32_ps of a register
-                 * constant, and bit 3 is the sign, which is that bit moved to 31 and
-                 * XORed in. Code 8 gives 0.0f ^ 0x80000000 = -0.0f, which is what
-                 * K3_E2M1[8] holds, so the negative zero survives.
-                 *
-                 * ACCURACY CONTRACT (test_expert.c:219) is maxrel < 1e-6 against
-                 * dequant-then-matmul, NOT bit-identity. This grouped path is the
-                 * FALLBACK for group not a multiple of 16, or a failed xd hoist; on
-                 * the normal K3 shape the flat row path above is taken instead. It
-                 * keeps four independent accumulators (v0..v3) to break the FMA
-                 * latency chain, so its intra-lane accumulation order differs from
-                 * the scalar path below; the difference is a few ulps of double,
-                 * orders of magnitude inside the 1e-6 gate. The bench FNV1a of the
-                 * mxfp4 output differs from the pre-optimisation value -- that hash
-                 * is a determinism check, not a correctness oracle. */
                 const __m256  LUT = _mm256_setr_ps(0.0f, 0.5f, 1.0f, 1.5f,
                                                    2.0f, 3.0f, 4.0f, 6.0f);
                 const __m128i m0f = _mm_set1_epi8(0x0F);
                 const __m256i m07 = _mm256_set1_epi32(7);
                 const __m256i m08 = _mm256_set1_epi32(8);
-                /* 16-element iteration: ONE 8-byte load yields all 16 nibbles, decoded
-                 * into c0/c1 by unpacking the low/high nibble masks. Each block feeds its
-                 * own accumulator (v0..v3), so per iteration every accumulator chain is a
-                 * single FMA -- four independent depth-1 chains hide both the decode
-                 * latency and the FMA latency. Group 32 collapses to two iterations. The
-                 * scalar tail handles 8-15 and 0-7 remainders. */
                 __m256d v0 = _mm256_setzero_pd(), v1 = _mm256_setzero_pd();
                 __m256d v2 = _mm256_setzero_pd(), v3 = _mm256_setzero_pd();
                 for (; i + 15 < n; i += 16) {
                     const __m128i b  = _mm_loadl_epi64((const __m128i *)(pb + (i >> 1)));
                     const __m128i lo = _mm_and_si128(b, m0f);
                     const __m128i hi = _mm_and_si128(_mm_srli_epi16(b, 4), m0f);
-                    /* unpacklo interleaves the low 8 bytes of lo and hi, which together
-                     * cover all 16 elements in order: [e0,e1,e2,...,e15]. Split that 16
-                     * bytes into the low 8 (elems 0-7) and high 8 (elems 8-15). */
                     const __m128i u16 = _mm_unpacklo_epi8(lo, hi);
                     const __m256i c0 = _mm256_cvtepu8_epi32(u16);
                     const __m256i c1 = _mm256_cvtepu8_epi32(_mm_srli_si128(u16, 8));
@@ -1622,8 +1678,6 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
                     v3 = _mm256_fmadd_pd(_mm256_cvtps_pd(_mm256_extractf128_ps(w1, 1)),
                                          _mm256_loadu_pd(xdg + i + 12), v3);
                 }
-                /* 8-element remainder: same AVX2 decode + FMA as before. Runs at most
-                 * once, for the 8-15 remainder after the 16-element loop. */
                 for (; i + 7 < n; i += 8) {
                     int32_t four;
                     memcpy(&four, pb + (i >> 1), 4);
@@ -1645,8 +1699,6 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
                                                   _mm256_add_pd(v1, v3)));
                 sub = (a[0] + a[1]) + (a[2] + a[3]);
             }
-            /* Sub-8 remainder, decoded one nibble at a time. K3 never reaches it (group
-             * 32 divides evenly) but a short final group must still be correct. */
             for (; i < n; i++) {
                 const unsigned char by = pb[i >> 1];
                 sub = fma((double)K3_E2M1[(i & 1) ? (by >> 4) : (by & 0x0F)],
@@ -1654,9 +1706,6 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
             }
 #else
             {
-                /* Expand the group to floats first, then take a plain dot product. The
-                 * split exists so the second loop can vectorise, which it cannot do
-                 * while a table lookup sits in the middle of the accumulation. */
                 float wf[64];                     /* group is 32 for K3; 64 is headroom */
                 const int half = n >> 1;
                 for (int j = 0; j < half; j++) {
@@ -1683,7 +1732,6 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
 
     free(xd);                                     /* free(NULL) is a no-op */
 }
-
 void k3_mxfp4_dequant(float *out, const unsigned char *packed,
                       const unsigned char *scales, int rows, int pcols, int group)
 {

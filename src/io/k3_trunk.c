@@ -16,9 +16,14 @@
 
 #include "json.h"
 #include "k3_st.h"
+#include "k3_bind.h"
 #include "k3_trunk.h"
 
 static int k3_alloc_direct(void **out, size_t bytes);   /* defined below */
+
+/* Read granularity for the async reader, also the quantum between expert-gate checks.
+ * A multiple of K3_TRUNK_ALIGN (4096) so every partial chunk stays O_DIRECT-safe. */
+#define TRUNK_READ_CHUNK (8u << 20)
 
 typedef struct {
     pthread_t thread;
@@ -31,6 +36,12 @@ typedef struct {
     int layer;
     int slot;
     int result;
+    /* NVMe gate: while gate==1 the async reader waits between chunks, so the expert
+     * cache's phase-2 scattered burst gets the device to itself. Without it, the trunk
+     * reader's sequential stream and the experts' scattered reads run beside each other
+     * and share one drive: 995 MB/s + 639 MB/s ≈ 1.6 GB/s is the drive's ceiling, so
+     * each stream runs at half its single-stream speed and the decode step pays both. */
+    int gate;
 } K3TrunkIO;
 
 static void *trunk_io_main(void *arg);
@@ -63,6 +74,8 @@ static int dt_of(const char *s)
     if (!strcmp(s, "U8"))   return K3_DT_U8;
     if (!strcmp(s, "F16"))  return K3_DT_F16;
     if (!strcmp(s, "I8R"))  return K3_DT_I8R;
+    if (!strcmp(s, "MXFP8_E8M7")) return K3_DT_MXFP8_E8M7;
+    if (!strcmp(s, "MXFP8_E8M7_128")) return K3_DT_MXFP8_E8M7_128;
     return K3_DT_UNKNOWN;
 }
 
@@ -84,18 +97,50 @@ static char *slurp(const char *p, size_t *n)
 typedef struct { const K3TrunkLayer *L; } Finder;
 
 static int find_in_layer(void *ctx, const char *name,
-                         int64_t *off, int64_t *nbytes, int *dtype)
+                         int64_t *off, int64_t *nbytes, int *dtype, int *e,
+                         int64_t *rows, int64_t *cols)
 {
     const K3TrunkLayer *L = ((Finder *)ctx)->L;
     for (int i = 0; i < L->nt; i++)
         if (!strcmp(L->t[i].name, name)) {
             *off = L->t[i].off; *nbytes = L->t[i].nbytes; *dtype = L->t[i].dtype;
+            if (e)    *e    = L->t[i].e;
+            if (rows) *rows = L->t[i].shape[0];
+            if (cols) *cols = L->t[i].shape[1];
             return 0;
         }
     return -1;
 }
 
-int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_bytes)
+int64_t k3_trunk_packed_bytes(const char *dir)
+{
+    char p[1024];
+    snprintf(p, sizeof p, "%s/trunk.json", dir);
+    size_t jn = 0;
+    char *txt = slurp(p, &jn);
+    if (!txt) {
+        snprintf(p, sizeof p, "%s/trunk_layers.json", dir);
+        jn = 0;
+        txt = slurp(p, &jn);
+    }
+    if (!txt) return 0;
+    char *arena = NULL;
+    jval *root = json_parse(txt, &arena);
+    if (!root) { free(txt); return 0; }
+    jval *jl = json_get(root, "layers");
+    if (!jl || jl->t != J_ARR) { free(txt); free(arena); return 0; }
+    int64_t total = 0;
+    for (int i = 0; i < jl->len; i++) {
+        jval *v = json_get(jl->kids[i], "nbytes");
+        if (v && v->t == J_NUM) total += (int64_t)v->num;
+    }
+    free(txt);
+    free(arena);
+    return total;
+}
+
+int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_bytes,
+                  int ring_want)
 {
     memset(tr, 0, sizeof *tr);
     /* memset leaves fd == 0, which is stdin. Every failure path below returns without
@@ -107,6 +152,12 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
     snprintf(p, sizeof p, "%s/trunk.json", dir);
     size_t jn = 0;
     char *txt = slurp(p, &jn);
+    if (!txt) {
+        /* Sliced layout names its manifest trunk_layers.json; accept it too. */
+        snprintf(p, sizeof p, "%s/trunk_layers.json", dir);
+        jn = 0;
+        txt = slurp(p, &jn);
+    }
     if (!txt) { fprintf(stderr, "k3_trunk: cannot read %s\n", p); return -1; }
     /* The parser arena backs every K3TrunkTensor.name, so it must outlive the whole
      * K3Trunk. It is owned by the struct and freed in k3_trunk_close. */
@@ -140,20 +191,21 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
             if ((v = json_get(o, "off"))    && v->t == J_NUM) t->off    = (int64_t)v->num;
             if ((v = json_get(o, "nbytes")) && v->t == J_NUM) t->nbytes = (int64_t)v->num;
             if ((v = json_get(o, "dtype"))  && v->t == J_STR) t->dtype  = dt_of(v->str);
+            if ((v = json_get(o, "e"))      && v->t == J_NUM) t->e      = (int)v->num;
+            if ((v = json_get(o, "ngrp"))  && v->t == J_NUM) t->ngrp   = (int)v->num;
+            if ((v = json_get(o, "shape")) && v->t == J_ARR && v->len >= 1)
+                for (int s = 0; s < v->len && s < 2; s++)
+                    if (v->kids[s]->t == J_NUM) t->shape[s] = (int64_t)v->kids[s]->num;
         }
     }
     free(txt);                      /* arena holds the strings; txt itself is done */
 
     snprintf(p, sizeof p, "%s/trunk.bin", dir);
-    /* O_DIRECT, because the trunk is the one thing the page cache CANNOT help with.
-     * Each streamed layer is read once per token and never reused before eviction, so
-     * buffering it only copies every byte twice and evicts whatever else the cgroup was
-     * holding. Measured under a 32 GB cap: buffered reads collapsed to 1,878 MB/s
-     * against 6,553 MB/s unconstrained.
-     *
-     * It requires offset, length and buffer all aligned. pack_trunk.py pads every run
-     * to 4096 and the slots come from posix_memalign. If the filesystem refuses
-     * O_DIRECT, fall back rather than fail: correctness does not depend on it. */
+    /* Sliced mode first: if the trunk directory holds per-layer slices (layer_%03d.bin)
+     * rather than one packed trunk.bin, open one fd per layer at offset 0. This is how
+     * the board-frozen layout stores the trunk, and it lets the engine read it without
+     * rebuilding the 56 GB packed file. Detection: try trunk.bin; only fall through to
+     * slices when it is absent. */
     tr->direct = 1;
     tr->fd = open(p, O_RDONLY | O_DIRECT);
     if (tr->fd >= 0 && k3_set_direct(tr->fd) != 0)
@@ -162,7 +214,19 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
         tr->direct = 0;
         tr->fd = open(p, O_RDONLY);
     }
-    if (tr->fd < 0) { fprintf(stderr, "k3_trunk: cannot open %s\n", p); return -1; }
+    if (tr->fd < 0) {
+        /* Packed trunk.bin absent: per-layer slices. layer_fd[L] is opened lazily in
+         * load_run so a partial slice set only costs the layers actually bound. */
+        tr->layer_fd = (int *)malloc((size_t)tr->n_layers * sizeof(int));
+        if (!tr->layer_fd) goto bad;
+        for (int i = 0; i < tr->n_layers; i++) tr->layer_fd[i] = -1;
+        tr->slice_dir = strdup(dir);
+        if (!tr->slice_dir) goto bad;
+        printf("k3_trunk: trunk.bin absent - using per-layer slices (layer_%%03d.bin)\n");
+    } else {
+        tr->layer_fd = NULL;
+        tr->slice_dir = NULL;
+    }
     {
         jval *a = json_get(root, "align");
         const int64_t want = (a && a->t == J_NUM) ? (int64_t)a->num : 0;
@@ -179,7 +243,27 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
         }
     }
 
-    const size_t widen = k3_bind_widen_bytes(c);
+    /* The widen area must hold every MXFP8 matmul tensor of one layer as
+     * [scale][codes], so size the slot-wide budget from the layer that needs most.
+     * The base is the bf16 vector widen; the mxfp8 part is the sum over the layer's
+     * quantised matmul tensors (a compile-time shape is not available here, so read the
+     * actual per-layer nbytes from the parsed manifest). No layer binds more than once
+     * against the same slot, so max over layers is exact. */
+    const size_t base_widen = k3_bind_widen_bytes(c);
+    int64_t mxmax = 0;
+    for (int i = 0; i < tr->n_layers; i++) {
+        int64_t mxs = 0;
+        for (int k = 0; k < tr->lay[i].nt; k++)
+            if (tr->lay[i].t[k].dtype == K3_DT_MXFP8_E8M7 ||
+                tr->lay[i].t[k].dtype == K3_DT_MXFP8_E8M7_128)
+                mxs += tr->lay[i].t[k].nbytes;
+        if (mxs > mxmax) mxmax = mxs;
+    }
+    /* mxfp8 tensors are bound as [scale][codes] in the widen area, NOT pointed at the
+     * run (slot lifetime is a hazard), so the slot's widen budget must carry a full
+     * layer of codes. Add the worst layer, plus scale headers for its matmuls. */
+    const size_t widen = base_widen + (size_t)mxmax + 4u * 8u;
+
     int64_t total = 0;
     for (int i = 0; i < tr->n_layers; i++) total += tr->lay[i].nbytes;
 
@@ -189,6 +273,8 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
     tr->slot_of = (int32_t *)malloc((size_t)tr->n_layers * sizeof(int32_t));
     if (!tr->slot_of) return -1;
     for (int i = 0; i < tr->n_layers; i++) tr->slot_of[i] = -1;
+    tr->reads_by_layer = (uint64_t *)calloc((size_t)tr->n_layers, sizeof(uint64_t));
+    if (!tr->reads_by_layer) return -1;
 
     /* Two ring slots: the layer being computed on, plus one asynchronous read in flight.
      *
@@ -200,7 +286,7 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
      * the real figure. So it is granted only when it fits, and reported when it does not.
      * A single slot is exactly what this file did before the asynchronous reader existed,
      * so falling back is always safe; it costs speed, not correctness. */
-    const int RING_WANT = 2;
+    const int RING_WANT = ring_want > 0 ? ring_want : 2;
     int RING = RING_WANT;
 
     /* Size the ring from the layers that will actually STREAM through it.
@@ -219,23 +305,40 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
      * ring must still hold the biggest of them. */
     int64_t ring_slot = 0, spent = 0;
     int npin = 0;
+    /* Layer 0 is 2.34 GB, three to four times any other layer. If it streams, every
+     * ring slot must be sized for it, so an 8 GB budget fits only two fat slots and the
+     * ring cannot hold enough layers to reuse them across tokens. Pinning layer 0 (it is
+     * read once anyway) shrinks the ring slot to the other layers' ~646 MB and buys the
+     * multi-slot ring the user asks for. Do that whenever layer 0 plus at least one
+     * compact slot fits the budget; otherwise keep the old behavior and the fat slot. */
+    const int64_t l0_need = tr->lay[0].nbytes + (int64_t)widen;
+    int64_t compact = 0;
+    for (int i = 1; i < tr->n_layers; i++)
+        if (tr->lay[i].nbytes > compact) compact = tr->lay[i].nbytes;
+    if (compact == 0) compact = tr->lay[0].nbytes;
+    compact = (compact + K3_TRUNK_ALIGN - 1) & ~(int64_t)(K3_TRUNK_ALIGN - 1);
+    compact += (int64_t)widen;
+    const int force_l0 = (l0_need + compact <= budget_bytes) ? 1 : 0;
+
+    /* Ring size and pin count are mutually dependent: a smaller ring frees budget, which
+     * pins more layers, which can shrink the ring again. The passes start npin high
+     * enough that the ring slots are sized from the compact (post-layer-0) layers, then
+     * iterate to a fixed point. */
     for (int pass = 0; pass < 4; pass++) {
         int64_t big = 0;
-        for (int i = npin; i < tr->n_layers; i++)
+        const int lo = npin ? npin : (force_l0 ? 1 : 0);
+        for (int i = lo; i < tr->n_layers; i++)
             if (tr->lay[i].nbytes > big) big = tr->lay[i].nbytes;
         if (big == 0) big = tr->lay[tr->n_layers - 1].nbytes;   /* all pinned */
         int64_t rs = (big + K3_TRUNK_ALIGN - 1) & ~(int64_t)(K3_TRUNK_ALIGN - 1);
         rs += (int64_t)widen;
         rs = (rs + 4095) & ~(int64_t)4095;
 
-        /* The ring itself must fit the budget before any layer is pinned. The loop below
-         * only ever tested ADDITIONAL pinned layers against it, so RING * rs was spent
-         * whether or not it fitted. Drop to one slot rather than overshoot. */
         RING = RING_WANT;
-        while (RING > 1 && (int64_t)RING * rs > budget_bytes) RING--;
+        while (RING > 1 && (int64_t)RING * rs + (force_l0 ? l0_need : 0) > budget_bytes) RING--;
 
-        int64_t sp = (int64_t)RING * rs;
-        int np = 0;
+        int64_t sp = (int64_t)RING * rs + (force_l0 ? l0_need : 0);
+        int np = force_l0 ? 1 : 0;
         while (np < tr->n_layers) {
             const int64_t need = tr->lay[np].nbytes + (int64_t)widen;
             if (sp + need > budget_bytes) break;
@@ -314,18 +417,25 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
     printf("              reads use %s\n",
            tr->direct ? "O_DIRECT (page cache bypassed)" : "buffered I/O");
     if (RING < RING_WANT)
-        printf("              ring held at %d slot: a second slot needs %.2f GB and the "
+        printf("              ring held at %d slot: %d slots need %.2f GB and the "
                "trunk budget is %.2f GB,\n"
                "              so reads are NOT overlapped with compute. Raise --trunk-gb "
                "above %.2f GB to enable it.\n",
-               RING, (double)RING_WANT * ring_slot / 1e9,
+               RING, RING_WANT, (double)RING_WANT * ring_slot / 1e9,
                (double)budget_bytes / 1e9,
                (double)RING_WANT * ring_slot / 1e9);
-    printf("              deterministic hit rate %.1f%% (a cyclic scan defeats LRU, so "
-           "a pinned prefix is used instead)\n", 100.0 * npin / tr->n_layers);
+    if (RING == 1)
+        printf("              deterministic hit rate %.1f%% (a cyclic scan defeats LRU, so "
+               "a pinned prefix is used instead)\n", 100.0 * npin / tr->n_layers);
+    else
+printf("              ring holds %d slots: layers repeat over ~%d tokens, so "
+           "recent ones are reused instead of re-read\n", RING, RING);
+    k3_bind_time_reset();
     return 0;
 bad:
     free(txt);
+    free(tr->layer_fd);
+    free(tr->slice_dir);
     return -1;
 }
 
@@ -343,8 +453,15 @@ void k3_trunk_close(K3Trunk *tr)
         free(io);
     }
     if (tr->fd >= 0) close(tr->fd);
+    if (tr->layer_fd) {
+        for (int i = 0; i < tr->n_layers; i++)
+            if (tr->layer_fd[i] >= 0) close(tr->layer_fd[i]);
+        free(tr->layer_fd);
+    }
+    free(tr->slice_dir);
     if (tr->pin) { for (int i = 0; i < tr->npin; i++) free(tr->pin[i]); free(tr->pin); }
     free(tr->arena); free(tr->layer_of); free(tr->slot_of);
+    free(tr->reads_by_layer);
     if (tr->lay) { for (int i = 0; i < tr->n_layers; i++) free(tr->lay[i].t); free(tr->lay); }
     free(tr->json_arena);   /* every K3TrunkTensor.name points into this */
     memset(tr, 0, sizeof *tr);
@@ -389,14 +506,47 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
     const K3TrunkLayer *lay = &tr->lay[L];
     const double t0 = now_s();
     int64_t got = 0;
+    int fd = tr->fd;
+    off_t off = (off_t)lay->file_off;
+    K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
+    if (tr->layer_fd) {
+        /* Sliced mode: one file per layer, read from offset 0. Open lazily now. */
+        if (tr->layer_fd[L] < 0) {
+            char p[1024];
+            snprintf(p, sizeof p, "%s/layer_%03d.bin", tr->slice_dir, L);
+            tr->layer_fd[L] = open(p, O_RDONLY | O_DIRECT);
+            if (tr->layer_fd[L] < 0) tr->layer_fd[L] = open(p, O_RDONLY);
+            if (tr->layer_fd[L] < 0) {
+                fprintf(stderr, "k3_trunk: cannot open slice %s\n", p);
+                return -1;
+            }
+        }
+        fd = tr->layer_fd[L];
+        off = 0;
+    }
     while (got < lay->nbytes) {
-        ssize_t r = pread(tr->fd, dst + got, (size_t)(lay->nbytes - got),
-                          (off_t)(lay->file_off + got));
+        /* Gate check: while the expert cache's phase-2 burst owns the drive, hold off.
+         * Read in ~8 MB chunks so this breaks out within a few IO ops instead of after
+         * one whole 600 MB layer. Without this, trunk stream (~995 MB/s) and expert
+         * scattered reads (~640 MB/s) run simultaneously and share the ~1.6 GB/s the
+         * drive can actually do: each gets ~0.5x of its single-stream rate, and decode
+         * expert reads take 40 s instead of 14 s. */
+        if (io) {
+            pthread_mutex_lock(&io->mu);
+            while (io->gate && !io->stop) pthread_cond_wait(&io->cv, &io->mu);
+            const int stop = io->stop;
+            pthread_mutex_unlock(&io->mu);
+            if (stop) break;
+        }
+        const int64_t rem = lay->nbytes - got;
+        size_t want = (size_t)(rem < (int64_t)TRUNK_READ_CHUNK ? rem : (int64_t)TRUNK_READ_CHUNK);
+        ssize_t r = pread(fd, dst + got, want, off + got);
         if (r <= 0) { fprintf(stderr, "k3_trunk: short read on layer %d\n", L); return -1; }
         got += r;
     }
     tr->load_seconds += now_s() - t0;
     tr->bytes_read += (uint64_t)got;
+    tr->reads_by_layer[L]++;
     return 0;
 }
 
@@ -425,6 +575,41 @@ static void *trunk_io_main(void *arg)
         pthread_cond_broadcast(&io->cv);
         pthread_mutex_unlock(&io->mu);
     }
+}
+
+/* L is done computing. Free its slot for reuse without any need to evict a live one.
+ * The slot may be in any of three states: pinned-only (nothing to do), resident from a
+ * bind, or owned by the async reader mid-read (its layer is L+1 or later, never L,
+ * because compute(L) finished before this call, so L's bytes are stable). Only a
+ * resident-not-in-flight slot is released here. */
+void k3_trunk_release(K3Trunk *tr, int L)
+{
+    if (L < 0 || L >= tr->n_layers || L < tr->npin) return;
+    K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
+    pthread_mutex_lock(&io->mu);
+    if (io->busy && io->layer == L) {
+        /* cannot happen (see above); leave it alone rather than race the reader */
+        pthread_mutex_unlock(&io->mu);
+        return;
+    }
+    if (tr->slot_of[L] >= 0) {
+        const int s = tr->slot_of[L];
+        if (tr->layer_of[s] == L) {
+            tr->layer_of[s] = -1;
+        }
+        tr->slot_of[L] = -1;
+    }
+    pthread_mutex_unlock(&io->mu);
+}
+
+void k3_trunk_expert_hold(K3Trunk *tr, int hold)
+{
+    K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
+    if (!io) return;
+    pthread_mutex_lock(&io->mu);
+    io->gate = hold ? 1 : 0;
+    if (!hold) pthread_cond_broadcast(&io->cv);
+    pthread_mutex_unlock(&io->mu);
 }
 
 static int trunk_io_wait(K3Trunk *tr, int L)
@@ -517,9 +702,18 @@ void k3_trunk_prefetch(K3Trunk *tr, int L)
         pthread_mutex_unlock(&io->mu);
         return;
     }
-    const int slot = tr->ring;
-    tr->ring = (tr->ring + 1) % tr->nslot;
-    if (tr->layer_of[slot] >= 0) tr->slot_of[tr->layer_of[slot]] = -1;
+    /* Use ONLY a slot that is already free. Evicting a slot whose layer is mid-compute
+     * would corrupt the direct-referenced weights that layer is reading; the previous
+     * rotating-head eviction was masked by copying bytes into the widen area on bind,
+     * which is gone now. When every slot is busy the hint is simply dropped: reads then
+     * revert to the synchronous path in a later bind, which is correct if slower. */
+    int slot = -1;
+    for (int i = 0; i < tr->nslot; i++)
+        if (tr->layer_of[i] < 0 && i != io->slot) { slot = i; break; }
+    if (slot < 0) {
+        pthread_mutex_unlock(&io->mu);
+        return;
+    }
     tr->layer_of[slot] = -1;
     io->layer = L;
     io->slot = slot;
@@ -540,6 +734,13 @@ void k3_trunk_report(const K3Trunk *tr, const char *label)
     printf("  read %.2f GB in %.2f s (%.0f MB/s)\n",
            (double)tr->bytes_read / 1e9, tr->load_seconds,
            tr->load_seconds > 0 ? (double)tr->bytes_read / 1e6 / tr->load_seconds : 0.0);
+    if (tr->reads_by_layer) {
+        printf("  per-layer loads [L]=count: ");
+        for (int i = 0; i < tr->n_layers; i++)
+            printf("%s%d=%llu", i ? " " : "", i,
+                   (unsigned long long)tr->reads_by_layer[i]);
+        printf("\n");
+    }
     /* The rate above is a DEVICE rate: load_seconds brackets the pread loop alone. The
      * breakdown below is the wall clock actually spent inside k3_trunk_bind, so the
      * difference between them is per-bind overhead rather than disk time.
@@ -573,6 +774,18 @@ void k3_trunk_report(const K3Trunk *tr, const char *label)
                        100.0 * tr->load_seconds / k3_trunk_bind_wall,
                        100.0 * k3_trunk_widen_wall / k3_trunk_bind_wall,
                        100.0 * other / k3_trunk_bind_wall);
+        }
+        /* What the widen second-half actually did, timed inside k3_bind_layer_mem. The
+         * three components add up to less than widen_wall: the gap is plan_layer (name
+         * sprintf + shape checks), which runs before the find calls and is not timed. */
+        {
+            K3BindTime bt;
+            k3_bind_time_get(&bt);
+            const double tot = bt.find_us + bt.copy_us + bt.deq_us;
+            printf("  widen breakdown: find %.0f ms (%ld)  copy %.0f ms (%ld)  "
+                   "deq %.0f ms (%ld)  timed %.0f s of widen %.2f s\n",
+                   bt.find_us / 1e3, bt.find_calls, bt.copy_us / 1e3, bt.copy_calls,
+                   bt.deq_us / 1e3, bt.deq_calls, tot / 1e6, k3_trunk_widen_wall);
         }
     }
 }

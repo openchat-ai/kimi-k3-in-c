@@ -37,6 +37,8 @@
 #include "k3_load.h"
 #include "k3_st.h"
 
+struct K3L2;   /* opaque: second-level disk cache (k3_l2cache.h) */
+
 /* Slot states for key_of[]. EMPTY must stay -1: k3_cache_init memsets the array and
  * several places already test "< 0" meaning "not holding a key", which both sentinels
  * satisfy. INFLIGHT is distinct so pick_victim can refuse to hand out a slot whose read
@@ -49,6 +51,11 @@ typedef struct {
 
     const K3St  *st;
     int          n_layers, n_experts;
+
+    /* Optional second-level, disk-resident cache on a fast volume. When non-NULL,
+     * cache_getmany's phase-2 read routes through it (k3_l2_load_direct). Owned by
+     * the caller (k3_run.c), not by this cache. */
+    struct K3L2 *l2;
 
     unsigned char *arena;         /* nslot * slot_bytes, page aligned          */
     int64_t      slot_bytes;
@@ -63,10 +70,18 @@ typedef struct {
                                    * non-zero only on the O_DIRECT path, where the
                                    * read is widened to aligned bounds             */
 
+    /* Optional NVMe contention gate. The trunk reader and the expert phase-2 burst
+     * share one drive; if both run at once they halve each other (995+640 MB/s against
+     * a ~1.6 GB/s ceiling). When phase2_hold is non-NULL the cache calls it with
+     * hold=1 just before the phase-2 read loop and hold=0 right after, so the trunk
+     * reader can pause at its next chunk boundary and let the experts own the drive.
+     * Wire this in k3_run.c; NULL disables the gate. */
+    void (*phase2_hold)(void *ctx, int hold);
+    void *phase2_ctx;
+
     uint64_t     clock;
     /* stats */
-    uint64_t     hits, misses, evictions, bytes_read;
-    /* Experts brought resident by the BATCH prefetch rather than by get().
+    uint64_t     hits, misses, evictions, bytes_read;    /* Experts brought resident by the BATCH prefetch rather than by get().
      *
      * This has to be counted separately or the hit rate becomes a lie. A prefetched
      * expert is resident by the time get() asks for it, so get() records a hit -- but
@@ -75,6 +90,11 @@ typedef struct {
      * Effective hit rate is (hits - prefetch_reads) / requests. */
     uint64_t     prefetch_reads;
     double       load_seconds;
+    /* phase2 is the pure parallel disk read inside cache_getmany, counted separately so
+     * the report can separate real read time (should approach the device's scattered
+     * O_DIRECT bandwidth) from the serial LRU/bookkeeping and publish phases around it. */
+    double       phase2_seconds;
+    uint64_t     phase2_bytes;
     uint32_t    *hist;            /* [n_layers*n_experts] request counts       */
 
     /* THE ACCESS TRACE, and why it is worth recording.

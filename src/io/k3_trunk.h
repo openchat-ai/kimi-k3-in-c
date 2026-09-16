@@ -63,6 +63,10 @@ typedef struct {
     int64_t  off;          /* byte offset WITHIN the layer run */
     int64_t  nbytes;
     int      dtype;        /* K3Dtype */
+    int      e;            /* MXFP8_E8M7 per-tensor exponent; 0 otherwise */
+    int      ngrp;         /* MXFP8_E8M7_128 groups per row;
+                            * data on disk is [scales ngrp][codes cols] per row */
+    int64_t  shape[2];     /* rows, cols for 2D tensors; 0 otherwise */
 } K3TrunkTensor;
 
 typedef struct {
@@ -77,6 +81,12 @@ typedef struct {
     int          direct;        /* 1 when the file was opened O_DIRECT */
     int          n_layers;
     K3TrunkLayer *lay;
+
+    /* Sliced mode: when the trunk directory holds layer_%03d.bin slices instead of a
+     * single trunk.bin, each layer gets its own fd (opened lazily). NULL otherwise;
+     * load_run uses layer_fd[L] (offset 0) when present, else tr->fd + file_off. */
+    int          *layer_fd;     /* [n_layers], -1 when not yet opened; NULL = packed mode */
+    char          *slice_dir;    /* dir the slices live in (owned, freed in close); sliced mode */
 
     /* Backs every K3TrunkTensor.name, so it must outlive the whole struct. Owned here
      * and freed by k3_trunk_close; do not free the parser arena separately. */
@@ -103,11 +113,21 @@ typedef struct {
     uint64_t     hits, misses;
     uint64_t     bytes_read;
     double       load_seconds;
+    uint64_t    *reads_by_layer;  /* [n_layers] how many times each layer was load_run */
 } K3Trunk;
 
+/* Sum of the layer nbytes in dir/trunk.json, i.e. the packed trunk.bin size without
+ * the file being open. 0 on any read/parse failure. Used by the budget code so "fit
+ * this machine" is measured against the ACTUAL trunk, not a stale hardcoded figure. */
+int64_t k3_trunk_packed_bytes(const char *dir);
+
 /* budget_bytes sizes the slot array. Layers 0..K-1 are pinned, where K is as large as
- * the budget allows minus a small streaming ring. Returns 0 on success. */
-int  k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_bytes);
+ * the budget allows minus a streaming ring. ring_want is the DESIRED number of ring
+ * slots; the allocator takes as many as the budget can pay for, down to 1. A larger
+ * ring keeps more recently-streamed layers resident across tokens, so a mid-budget run
+ * re-reads the trunk fewer than once-per-layer-per-token. Returns 0 on success. */
+int  k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_bytes,
+                   int ring_want);
 void k3_trunk_close(K3Trunk *tr);
 
 /* Make layer L resident and point b's weight pointers at it. b must already have been
@@ -117,6 +137,19 @@ int  k3_trunk_bind(K3Trunk *tr, const K3Cfg *c, int L, K3LayerBind *b);
 /* Start an asynchronous read of layer L into its slot, if it is not resident. Safe to
  * call for a layer that is pinned or already loaded (it becomes a no-op). */
 void k3_trunk_prefetch(K3Trunk *tr, int L);
+
+/* A layer's bytes may be reused once its compute is done. Call after computing L: the
+ * slot it occupied is marked free so a later prefetch can claim it without ever
+ * evicting a slot that is still being read by the caller's kernel. Pinned layers are
+ * never released. */
+void k3_trunk_release(K3Trunk *tr, int L);
+
+/* NVMe contended-stream gate. While the expert cache is running its phase-2 scattered
+ * burst it dominates the drive; letting the trunk reader co-stream at the same time
+ * halves both. hold != 0 pauses the async reader (at the next TRUNK_READ_CHUNK
+ * boundary), hold == 0 resumes it. Safe to call with any io_state, including NULL
+ * (single-slot ring, no reader). */
+void k3_trunk_expert_hold(K3Trunk *tr, int hold);
 
 void k3_trunk_report(const K3Trunk *tr, const char *label);
 

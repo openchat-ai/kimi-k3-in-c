@@ -5,11 +5,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <time.h>
 
 #include "k3_bind.h"
 
 #define PRE "language_model.model."
 #define MAXB 64
+
+/* Wall-time attribution for the streaming bind path (see K3BindTime). The trunk reader
+ * thread never calls k3_bind_layer_mem, so these accumulate on one thread and need no
+ * locking; reset once per trunk open, dump at report. */
+static K3BindTime g_bt;
+static double bt_now(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+}
+void k3_bind_time_reset(void)
+{
+    memset(&g_bt, 0, sizeof g_bt);
+}
+void k3_bind_time_get(K3BindTime *t)
+{
+    *t = g_bt;
+}
 
 /* One requested tensor: where it goes, how big it must be, and in which format.
  *
@@ -308,7 +329,12 @@ size_t k3_bind_widen_bytes(const K3Cfg *c)
 {
     /* Only the BF16 vectors that kernels read elementwise are copied. Everything else
      * is pointed at in place. The router gate dominates: it is BF16 on disk but stays
-     * fp32 in the engine because k3_router walks it with its own inline matmul. */
+     * fp32 in the engine because k3_router walks it with its own inline matmul.
+     *
+     * The MXFP8_E8M7 trunk needs MORE than this (each quantised matmul tensor is bound
+     * as [scale][codes] in the widen area). That part is sized exactly by the trunk
+     * reader from the parsed manifest, see k3_trunk_open. This function stays the
+     * bf16-vector base for callers without a manifest in hand. */
     const size_t H = (size_t)c->hidden;
     size_t n = 6 * H                       /* in/post norm, attn-res and mlp-res pair  */
              + (size_t)c->q_lora + c->kv_lora   /* MLA q_a/kv_a layernorms             */
@@ -331,14 +357,18 @@ int k3_bind_layer_mem(const K3Cfg *c, int L, K3LayerBind *b,
 
     size_t w = 0;
     int narrowed_all = 1;
-    int i8_seen = 0;
+    int i8_seen = 0, mx8_seen = 0;
     for (int i = 0; i < p.n; i++) {
         Req *q = &p.r[i];
-        int64_t off = 0, nb = 0; int dt = 0;
-        if (src->find(src->ctx, q->name, &off, &nb, &dt) != 0) {
+        int64_t off = 0, nb = 0; int dt = 0; int e_val = 0;
+        int64_t nrows = 0, ncols = 0;
+        const double t_find = bt_now();
+        if (src->find(src->ctx, q->name, &off, &nb, &dt, &e_val, &nrows, &ncols) != 0) {
             fprintf(stderr, "k3_bind_mem: %s not present in the packed run\n", q->name);
             return -1;
         }
+        g_bt.find_us += (bt_now() - t_find) * 1e6;
+        g_bt.find_calls++;
         /* Per-row int8 draft weight: [f32 scale][int8 * cols] per row. A matmul weight is
          * pointed at directly and the layer is tagged K3_WI8; a tensor the engine reads
          * elementwise as fp32 (the AttnRes projection) is DEQUANTISED into the widen
@@ -371,6 +401,7 @@ int k3_bind_layer_mem(const K3Cfg *c, int L, K3LayerBind *b,
                 fprintf(stderr, "k3_bind_mem: widen area too small at %s\n", q->name);
                 return -1;
             }
+            const double t0 = bt_now();
             float *dst = (float *)(widen + w);
             const unsigned char *rp = run + off;
             const size_t rowb = 4u + (size_t)cols;
@@ -381,9 +412,106 @@ int k3_bind_layer_mem(const K3Cfg *c, int L, K3LayerBind *b,
                 for (int64_t k = 0; k < cols; k++)
                     dst[r * cols + k] = (float)q8[k] * scale;
             }
+            g_bt.deq_us += (bt_now() - t0) * 1e6;
+            g_bt.deq_calls++;
             *q->dest = dst;
             w += (size_t)take * 4;
             continue;
+        }
+        /* MXFP8_E8M7 weight: on disk a flat [rows * cols] array of 8-bit codes with one
+         * shared exponent e per tensor.
+         *
+         * A MATMUL weight (narrow=1, consumed by k3_matmul_e8m7) keeps the codes: bind
+         * prepends the single tensor-wide scale, [scale][code * rows*cols] with
+         * scale = 2^(e-6), value = sign * mantissa * scale, constant for the whole tensor.
+         *
+         * An ELEMENTWISE weight (narrow=0, e.g. the attn/mlp res projections and the
+         * router gate, which k3_router folds with its own inline matmul reading fp32)
+         * is DEQUANTISED here into a plain fp32 array, exactly parallel to the bf16 and
+         * int8 widen paths. v = (m * 2/128) * 2^e = m * 2^(e-6). */
+        if (dt == K3_DT_MXFP8_E8M7) {
+            if (nrows <= 0 || ncols <= 0 || nb != nrows * ncols) {
+                fprintf(stderr, "k3_bind_mem: %s bad mxfp8 layout (%lld x %lld, %lld b)\n",
+                        q->name, (long long)nrows, (long long)ncols, (long long)nb);
+                return -1;
+            }
+            if (!q->narrow) {
+                const int64_t take = q->take;
+                if (take != nrows * ncols) {
+                    fprintf(stderr, "k3_bind_mem: %s mxfp8 elementwise take mismatch "
+                                    "(%lld vs %lld)\n", q->name, (long long)take,
+                            (long long)(nrows * ncols));
+                    return -1;
+                }
+                w = (w + 7u) & ~(size_t)7u;
+                if (w + (size_t)take * 4 > widen_cap) {
+                    fprintf(stderr, "k3_bind_mem: widen area too small at %s\n", q->name);
+                    return -1;
+                }
+                const double t0 = bt_now();
+                float *dst = (float *)(widen + w);
+                const unsigned char *rp = run + off;
+                const float scale = ldexpf(1.0f, e_val - 6);   /* 2^(e-6), per tensor */
+                for (int64_t e2 = 0; e2 < take; e2++) {
+                    const unsigned char cd = rp[e2];
+                    int m = cd & 0x7f, neg = (cd >> 7) & 1;
+                    float v = (float)m * (2.0f / 128.0f) * scale;
+                    if (m == 0 && cd == 0x80) v = 0;           /* avoid a signed zero */
+                    dst[e2] = neg ? -v : v;
+                }
+                g_bt.deq_us += (bt_now() - t0) * 1e6;
+                g_bt.deq_calls++;
+                *q->dest = dst;
+                w += (size_t)take * 4;
+                mx8_seen = 1;
+                continue;
+            }
+            w = (w + 7u) & ~(size_t)7u;
+            if (w + 4u + (size_t)nb > widen_cap) {
+                fprintf(stderr, "k3_bind_mem: widen area too small at %s\n", q->name);
+                return -1;
+            }
+            unsigned char *dst = widen + w;
+            const float scale = ldexpf(1.0f, e_val - 6);   /* 2^(e-6), one per tensor */
+            memcpy(dst, &scale, 4);
+            memcpy(dst + 4, run + off, (size_t)nb);
+            *q->dest = dst;
+            w += 4u + (size_t)nb;
+            mx8_seen = 1;
+            continue;
+        }
+        /* MXFP8_E8M7_128 weight: on disk each row is [scale e_j * ngrp][code * cols]
+         * already laid out for k3_matmul_e8m7. No assembly needed. A MATMUL weight
+         * (narrow=1) copies its bytes verbatim into the widen area, as the old 8-bit
+         * block below gets [scale][codes] built for the older one-scale format. The
+         * converter keeps gate/res_proj as BF16, so elementwise (narrow=0) MXFP8_E8M7_128
+         * is never produced; refuse it loudly rather than guess a layout. */
+        if (dt == K3_DT_MXFP8_E8M7_128) {
+            if (nrows <= 0 || ncols <= 0 || nb < nrows * ncols) {
+                fprintf(stderr, "k3_bind_mem: %s bad mxfp8_128 layout (%lld x %lld, %lld b)\n",
+                        q->name, (long long)nrows, (long long)ncols, (long long)nb);
+                return -1;
+            }
+            w = (w + 7u) & ~(size_t)7u;
+            if (w + (size_t)nb > widen_cap) {
+                fprintf(stderr, "k3_bind_mem: widen area too small at %s\n", q->name);
+                return -1;
+            }
+            if (q->narrow) {
+                /* The packed trunk already stores E8M7_128 as [scale*ngrp][code*cols]
+                 * per row -- exactly the layout k3_matmul_e8m7_128 consumes. Point at
+                 * it directly instead of copying the bytes into the widen area: this is
+                 * ~94% of the widen wall on the reference machine (measured), and the
+                 * slot owning `run` is not reused during this layer's compute. */
+                *q->dest = run + off;
+                mx8_seen = 1;
+                g_bt.copy_us += 0.0;
+                g_bt.copy_calls++;
+                continue;
+            }
+            fprintf(stderr, "k3_bind_mem: %s elementwise MXFP8_E8M7_128 not supported\n",
+                    q->name);
+            return -1;
         }
         const int esz = (dt == K3_DT_F32) ? 4 : (dt == K3_DT_U8 ? 1 : 2);
         const int64_t have = nb / esz;
@@ -417,23 +545,38 @@ int k3_bind_layer_mem(const K3Cfg *c, int L, K3LayerBind *b,
                     q->name, w + (size_t)q->take * 4, widen_cap);
             return -1;
         }
+        const double t0 = bt_now();
         float *dst = (float *)(widen + w);
         const uint16_t *sp = (const uint16_t *)(run + off);
         for (int64_t k = 0; k < q->take; k++) dst[k] = k3_bf16f(sp[k]);
+        g_bt.deq_us += (bt_now() - t0) * 1e6;
+        g_bt.deq_calls++;
         *q->dest = dst;
         w += (size_t)q->take * 4;
     }
 
-    if (!narrowed_all && !i8_seen) {
+    if (!narrowed_all && !i8_seen && !mx8_seen) {
         /* A large matrix was not BF16 in the packed run. The tag is per struct, so this
          * cannot be described; refuse rather than read fp32 bytes as bf16. */
         fprintf(stderr, "k3_bind_mem: layer %d has a non-BF16 large tensor\n", L);
         return -1;
     }
 
-    /* An int8 draft trunk has every matmul weight as I8R (norms stay f32), so one tag
-     * describes the layer. The two formats are never mixed within a packed trunk. */
-    const int lw = i8_seen ? K3_WI8 : K3_WBF16;
+    /* An int8 draft trunk has every matmul weight as I8R (norms stay f32), an mxfp8
+     * trunk every matmul weight as MXFP8_E8M7 (same row shape), so one tag describes
+     * the layer either way. The formats are never mixed within a packed trunk. */
+    int lw;
+    if (mx8_seen) {
+        if (i8_seen) goto mixed;
+        lw = K3_WMXFP8;
+    } else {
+        lw = i8_seen ? K3_WI8 : K3_WBF16;
+    }
+    if (0) mixed:
+    {
+        fprintf(stderr, "k3_bind_mem: layer %d mixes MXFP8 and I8R\n", L);
+        return -1;
+    }
     b->kda.wdt = b->mla.wdt = b->moe.wdt = b->lay.wdt = lw;
     b->lay.kda = is_mla ? NULL : &b->kda;
     b->lay.mla = is_mla ? &b->mla : NULL;

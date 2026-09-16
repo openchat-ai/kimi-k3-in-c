@@ -98,7 +98,8 @@ int64_t k3_bind_layer_bytes(const K3St *s, const K3Cfg *c, int layer);
  */
 typedef struct {
     int (*find)(void *ctx, const char *name,
-                int64_t *off, int64_t *nbytes, int *dtype);
+                int64_t *off, int64_t *nbytes, int *dtype, int *e,
+                int64_t *rows, int64_t *cols);
     void *ctx;
 } K3MemSrc;
 
@@ -108,6 +109,17 @@ int k3_bind_layer_mem(const K3Cfg *c, int layer, K3LayerBind *b,
 
 /* Upper bound on the widen area one layer needs, so a slot can be sized once. */
 size_t k3_bind_widen_bytes(const K3Cfg *c);
+
+/* Where the per-bind wall time actually goes, broken out so a slow trunk can be
+ * attributed to the cause instead of blamed on "I/O". All three run on the caller's
+ * thread (the trunk's reader thread never calls this), so no locking is needed. */
+typedef struct {
+    double find_us, copy_us, deq_us;   /* wall in microseconds */
+    long   find_calls, copy_calls, deq_calls;
+} K3BindTime;
+
+void k3_bind_time_reset(void);
+void k3_bind_time_get(K3BindTime *t);
 
 /* Gather one embedding row into dst[hidden], widening if the table is bf16. The table
  * is indexed rather than multiplied, so it cannot go through k3_mmw: a plain memcpy

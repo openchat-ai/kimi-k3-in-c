@@ -61,6 +61,7 @@ add_library(k3 STATIC
   src/io/k3_load.c
   src/io/k3_trunk.c
   src/cache/k3_cache.c
+  src/cache/k3_l2cache.c
   src/model/k3_bind.c
   src/chip/k3_chip.c)
 
@@ -102,6 +103,7 @@ k3_add_test(test_cfg    tests/unit/test_cfg.c)
 k3_add_test(test_tok    tests/unit/test_tok.c)
 k3_add_test(scale_test  tests/unit/scale_test.c)
 k3_add_test(k3_model    tests/unit/k3_model.c)
+k3_add_test(test_trunk  tests/unit/test_trunk.c)
 
 set(FIX ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures)
 
@@ -113,6 +115,7 @@ add_test(NAME cache      COMMAND test_cache ${FIX}/cache)
 add_test(NAME config     COMMAND test_cfg   fixture ${FIX}/ref_k3.json)
 add_test(NAME scale      COMMAND scale_test)
 add_test(NAME oracle     COMMAND k3_model   ${FIX})
+add_test(NAME trunk      COMMAND test_trunk)
 
 # The negative half of the config contract. Each fixture is the working flat config with
 # exactly one field mutated, so a rejection can only come from that field. Without these

@@ -6,8 +6,13 @@
 #include <string.h>
 #include <time.h>
 #include <sys/mman.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
+#include "k3_portable_io.h"
 #include "k3_cache.h"
+#include "k3_l2cache.h"
 
 static double now_s(void)
 {
@@ -175,19 +180,49 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
     }
 
     /* ---- phase 2: read, concurrently ---- */
+    if (c->phase2_hold) c->phase2_hold(c->phase2_ctx, 1);
+    const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
     const double t0 = now_s();
+    int omp_inr_nt = 0, inr_in = 0, inr_peak = 0;   /* region diagnostics */
 #ifdef _OPENMP
-#   pragma omp parallel for schedule(dynamic, 1)
+#   pragma omp parallel for schedule(dynamic, 1) num_threads(16)
 #endif
     for (int i = 0; i < nw; i++) {
         int64_t pad = 0;
-        const int64_t got = k3_expert_load_direct(
-            c->st, &w[i].r, c->arena + (size_t)w[i].slot * c->slot_bytes,
-            c->slot_bytes, &pad);
+        int64_t got;
+#ifdef _OPENMP
+        omp_inr_nt = omp_inr_nt ? omp_inr_nt : omp_get_num_threads();
+        int p = __sync_add_and_fetch(&inr_in, 1);
+        if (p > inr_peak) inr_peak = p;
+#endif
+        if (c->l2)
+            got = k3_l2_load_direct(c->l2, c->st, &w[i].r,
+                                    c->arena + (size_t)w[i].slot * c->slot_bytes,
+                                    c->slot_bytes, &pad);
+        else
+            got = k3_expert_load_direct(
+                c->st, &w[i].r, c->arena + (size_t)w[i].slot * c->slot_bytes,
+                c->slot_bytes, &pad);
+#ifdef _OPENMP
+        __sync_sub_and_fetch(&inr_in, 1);
+#endif
         w[i].got = got;
         w[i].pad = pad;
     }
-    c->load_seconds += now_s() - t0;
+    if (c->phase2_hold) c->phase2_hold(c->phase2_ctx, 0);
+    const double t2 = now_s() - t0;
+    c->phase2_seconds += t2;
+    c->phase2_bytes += (uint64_t)nw * (uint64_t)c->slot_bytes;
+    c->load_seconds += t2;
+    if (t2 > 0.05) {
+        int nth = 0;
+#ifdef _OPENMP
+        nth = omp_get_num_threads();
+#endif
+        double p2pread = (c->l2 ? c->l2->hit_seconds : 0) - (c->l2 ? hs0 : 0);
+        fprintf(stderr, "DBG getmany L%d nw=%d wall=%.3fs thr(out)%d thr(in)%d conc_peak=%d pread=%.3fs\n",
+                layer, nw, t2, nth, omp_inr_nt, inr_peak, p2pread);
+    }
 
     /* ---- phase 3: publish only what actually arrived ---- */
     int ok = 0;
@@ -349,7 +384,7 @@ int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_b
 
 void k3_cache_free(K3Cache *c)
 {
-    free(c->arena); free(c->slot_of); free(c->key_of);
+    k3_aligned_free(c->arena); free(c->slot_of); free(c->key_of);
     free(c->used_at); free(c->pinned); free(c->ref); free(c->pad); free(c->hist);
     free(c->trace);
     memset(c, 0, sizeof *c);
@@ -386,6 +421,8 @@ void k3_cache_reset_stats(K3Cache *c)
 {
     c->hits = c->misses = c->evictions = c->bytes_read = 0;
     c->load_seconds = 0.0;
+    c->phase2_seconds = 0.0;
+    c->phase2_bytes = 0;
     /* prefetch_reads belongs to the same window as hits and misses.
      *
      * k3_cache_report derives the effective hit rate as (hits - prefetch_reads), so both
@@ -421,6 +458,9 @@ void k3_cache_report(const K3Cache *c, const char *label)
     printf("  read from disk: %.2f GB in %.2f s (%.0f MB/s while loading)\n",
            (double)c->bytes_read / 1e9, c->load_seconds,
            c->load_seconds > 0 ? (double)c->bytes_read / 1e6 / c->load_seconds : 0.0);
+    printf("  phase2 i/o    : %.2f GB in %.2f s (%.0f MB/s)  [pure parallel disk read]\n",
+           (double)c->phase2_bytes / 1e9, c->phase2_seconds,
+           c->phase2_seconds > 0 ? (double)c->phase2_bytes / 1e6 / c->phase2_seconds : 0.0);
 }
 
 int k3_cache_dump_hist(const K3Cache *c, const char *path)
