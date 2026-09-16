@@ -25,6 +25,7 @@
  * wide; a float32 accumulator loses precision the reference comparisons can see.
  */
 #include "k3.h"
+#include "k3_chip.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -560,8 +561,8 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
     float *accL = z    + L;             /* [L]    weighted expert aggregate */
     float *gu   = accL + L;             /* [2*I]  gate|up, one expert       */
     float *act  = gu   + 2 * I;         /* [I]    after SiTU                */
-    float *edn  = act  + I;             /* [L]    expert down-projection    */
-    float *sgu  = edn  + L;             /* [2*SI] shared gate|up            */
+    float *edn  = act  + I;             /* [topk*L] expert down, batched for the chip */
+    float *sgu  = edn  + (size_t)c->topk * L;   /* [2*SI] shared gate|up            */
     float *sact = sgu  + 2 * SI;        /* [SI]   shared after SiTU         */
     float *sdn  = sact + SI;            /* [E]    shared down-projection    */
 
@@ -594,49 +595,95 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
 
         /* 3. the selected experts, in latent space, weighted and summed */
         for (int i = 0; i < L; i++) accL[i] = 0.0f;
-        /* Hand the WHOLE top-k to the source first, so its reads can overlap. Without
-         * this the loop below misses, blocks on a 17.55 MB read, computes, misses
-         * again: a queue depth of one against a drive that needs depth to reach its
-         * rated bandwidth. getmany is optional and may be NULL, in which case nothing
-         * changes and the loop reads them one at a time exactly as before. */
-        if (!w->cache_only && w->src && w->src->getmany)
-            w->src->getmany(w->src, w->layer, idx, nk);
-        for (int j = 0; j < nk; j++) {
-            if (w->src) {
-                /* Streamed: the expert stays MXFP4 and the matmul reads nibbles. In
-                 * cache-only mode every idx[j] is known resident, so resident() serves it
-                 * with no disk read; otherwise get() may read it. */
+        /* Simulated-chip path (k3_chip.h): hand the WHOLE top-k to the source first so
+         * its reads can overlap (getmany), then batch every expert chain into one
+         * k3_chip_run on the pool. All q pointers are consumed before the run ends and
+         * no get()/admit() runs while the batch is live, so no slot can be evicted
+         * under a worker (k3_cache_pin is declared but never enforced). The pool runs
+         * the same k3_matmul_mxfp4/k3_situ_glu kernels in the same per-expert order, so
+         * the accumulated sum is bit-identical to the serial path below -- which is the
+         * A/B baseline when the chip is disabled. */
+        const int chip = !w->cache_only && w->src && k3_chip_active();
+        if (chip) {
+            K3ChipJob *jobs = (K3ChipJob *)malloc((size_t)nk * sizeof(K3ChipJob));
+            if (!jobs) k3_fatal_oom("MoE chip batch", (size_t)nk * sizeof(K3ChipJob));
+            const double ct0 = k3_chip_now();
+            if (w->src->getmany) w->src->getmany(w->src, w->layer, idx, nk);
+            int nj = 0;
+            for (int j = 0; j < nk; j++) {
                 K3ExpertQ q;
-                int miss = w->cache_only
-                    ? !w->src->resident(w->src, w->layer, idx[j], &q)
-                    : (w->src->get(w->src, w->layer, idx[j], &q) != 0);
-                if (miss) {
-                    /* A cache-only draft filtered to resident experts already, so a miss
-                     * here is a benign race at worst; skip it, since the draft is
-                     * approximate by construction and the exact model verifies. On the
-                     * exact path a miss is the unacceptable silent-corruption case: count
-                     * it in k3_expert_drops so the caller fails the run (see docs/API.md). */
-                    if (w->cache_only) continue;
+                if (w->src->get(w->src, w->layer, idx[j], &q) != 0) {
                     k3_expert_drops++;
                     fprintf(stderr, "EXPERT DROP: layer %d expert %d failed to load; "
                                     "this token is CORRUPT\n", w->layer, idx[j]);
                     continue;
                 }
-                k3_matmul_mxfp4(gu,     z, q.p1, q.s1, L, I, K3_MXFP4_GROUP);
-                k3_matmul_mxfp4(gu + I, z, q.p3, q.s3, L, I, K3_MXFP4_GROUP);
-                k3_situ_glu(act, gu, I, c->situ_b1, c->situ_b2);
-                k3_matmul_mxfp4(edn, act, q.p2, q.s2, I, L, K3_MXFP4_GROUP);
-            } else {
-                const float *e1 = w->w1 + (size_t)idx[j] * I * L;   /* gate */
-                const float *e3 = w->w3 + (size_t)idx[j] * I * L;   /* up   */
-                const float *e2 = w->w2 + (size_t)idx[j] * L * I;   /* down */
-                k3_matmul(gu,     z, e1, L, I);
-                k3_matmul(gu + I, z, e3, L, I);
-                k3_situ_glu(act, gu, I, c->situ_b1, c->situ_b2);
-                k3_matmul(edn, act, e2, I, L);
+                K3ChipJob *jb = &jobs[nj];
+                jb->x   = z;
+                jb->p1  = q.p1;  jb->s1 = q.s1;
+                jb->p3  = q.p3;  jb->s3 = q.s3;
+                jb->p2  = q.p2;  jb->s2 = q.s2;
+                jb->edn = edn + (size_t)nj * L;
+                jb->in = L; jb->rows1 = I; jb->out = L;
+                jb->b1 = c->situ_b1; jb->b2 = c->situ_b2;
+                jb->group = K3_MXFP4_GROUP;
+                jb->wslot = j;
+                nj++;
             }
-            const float wj = wt[j];
-            for (int i = 0; i < L; i++) accL[i] += wj * edn[i];
+            k3_chip_note_copy(k3_chip_now() - ct0,
+                k3_chip_chain_bytes(L, I, L, K3_MXFP4_GROUP) * (unsigned long long)nj);
+            if (nj > 0) k3_chip_run(jobs, nj);
+            for (int j = 0; j < nj; j++) {
+                const float wj = wt[jobs[j].wslot];
+                const float *en = jobs[j].edn;
+                for (int i = 0; i < L; i++) accL[i] += wj * en[i];
+            }
+            free(jobs);
+        } else {
+            /* Hand the WHOLE top-k to the source first, so its reads can overlap. Without
+             * this the loop below misses, blocks on a 17.55 MB read, computes, misses
+             * again: a queue depth of one against a drive that needs depth to reach its
+             * rated bandwidth. getmany is optional and may be NULL, in which case nothing
+             * changes and the loop reads them one at a time exactly as before. */
+            if (!w->cache_only && w->src && w->src->getmany)
+                w->src->getmany(w->src, w->layer, idx, nk);
+            for (int j = 0; j < nk; j++) {
+                if (w->src) {
+                    /* Streamed: the expert stays MXFP4 and the matmul reads nibbles. In
+                     * cache-only mode every idx[j] is known resident, so resident() serves it
+                     * with no disk read; otherwise get() may read it. */
+                    K3ExpertQ q;
+                    int miss = w->cache_only
+                        ? !w->src->resident(w->src, w->layer, idx[j], &q)
+                        : (w->src->get(w->src, w->layer, idx[j], &q) != 0);
+                    if (miss) {
+                        /* A cache-only draft filtered to resident experts already, so a miss
+                         * here is a benign race at worst; skip it, since the draft is
+                         * approximate by construction and the exact model verifies. On the
+                         * exact path a miss is the unacceptable silent-corruption case: count
+                         * it in k3_expert_drops so the caller fails the run (see docs/API.md). */
+                        if (w->cache_only) continue;
+                        k3_expert_drops++;
+                        fprintf(stderr, "EXPERT DROP: layer %d expert %d failed to load; "
+                                        "this token is CORRUPT\n", w->layer, idx[j]);
+                        continue;
+                    }
+                    k3_matmul_mxfp4(gu,     z, q.p1, q.s1, L, I, K3_MXFP4_GROUP);
+                    k3_matmul_mxfp4(gu + I, z, q.p3, q.s3, L, I, K3_MXFP4_GROUP);
+                    k3_situ_glu(act, gu, I, c->situ_b1, c->situ_b2);
+                    k3_matmul_mxfp4(edn, act, q.p2, q.s2, I, L, K3_MXFP4_GROUP);
+                } else {
+                    const float *e1 = w->w1 + (size_t)idx[j] * I * L;   /* gate */
+                    const float *e3 = w->w3 + (size_t)idx[j] * I * L;   /* up   */
+                    const float *e2 = w->w2 + (size_t)idx[j] * L * I;   /* down */
+                    k3_matmul(gu,     z, e1, L, I);
+                    k3_matmul(gu + I, z, e3, L, I);
+                    k3_situ_glu(act, gu, I, c->situ_b1, c->situ_b2);
+                    k3_matmul(edn, act, e2, I, L);
+                }
+                const float wj = wt[j];
+                for (int i = 0; i < L; i++) accL[i] += wj * edn[i];
+            }
         }
 
         /* 4. RMSNorm the AGGREGATE (not per expert), then 5. up-project */
@@ -657,7 +704,7 @@ size_t k3_moe_scratch(const K3Cfg *c)
     const int SI = c->moe_inter * c->n_shared;
     return (size_t)2 * c->latent          /* z, accL            */
          + (size_t)3 * c->moe_inter       /* gu (2*I) + act (I) */
-         + (size_t)c->latent              /* edn                */
+         + (size_t)c->latent * c->topk    /* edn [topk*L]: chip batch */
          + (size_t)3 * SI                 /* sgu (2*SI) + sact  */
          + (size_t)c->hidden;             /* sdn                */
 }
@@ -750,29 +797,76 @@ static void moe_prefill_chunk(float *out, const float *x, const K3MoeW *w,
     float *gu  = scratch;                 /* [2*I] */
     float *act = gu + 2 * I;              /* [I]   */
     float *edn = act + I;                 /* [Ll]  */
-    if (w->src->getmany) w->src->getmany(w->src, w->layer, uniq, nu);
+    const int chip = k3_chip_active();
+    K3ChipJob *jobs = NULL;
+    if (chip) {
+        jobs = (K3ChipJob *)malloc((size_t)T * K * sizeof(K3ChipJob));
+        if (!jobs) k3_fatal_oom("MoE prefill chip batch", (size_t)T * K * sizeof(K3ChipJob));
+    }
+    double fetch_s = 0.0;
+    double copy_bytes = 0.0;
+    if (w->src->getmany) {
+        if (chip) { const double g0 = k3_chip_now();
+                    w->src->getmany(w->src, w->layer, uniq, nu);
+                    fetch_s += k3_chip_now() - g0; }
+        else      w->src->getmany(w->src, w->layer, uniq, nu);
+    }
     for (int u = 0; u < nu; u++) {
         const int e = uniq[u];
         K3ExpertQ q;
+        const double g0 = chip ? k3_chip_now() : 0.0;
         if (w->src->get(w->src, w->layer, e, &q) != 0) {
             k3_expert_drops++;
             fprintf(stderr, "EXPERT DROP: layer %d expert %d failed to load; "
                             "this chunk is CORRUPT\n", w->layer, e);
             continue;
         }
-        for (int t = 0; t < T; t++) {
-            const int   *it = ridx + (size_t)t * K;
-            const float *zt = zz  + (size_t)t * Ll;
-            for (int j = 0; j < K; j++) {
-                if (it[j] != e) continue;
-                k3_matmul_mxfp4(gu,     zt, q.p1, q.s1, Ll, I, K3_MXFP4_GROUP);
-                k3_matmul_mxfp4(gu + I, zt, q.p3, q.s3, Ll, I, K3_MXFP4_GROUP);
-                k3_situ_glu(act, gu, I, c->situ_b1, c->situ_b2);
-                k3_matmul_mxfp4(edn, act, q.p2, q.s2, I, Ll, K3_MXFP4_GROUP);
-                memcpy(contrib + ((size_t)t * K + j) * Ll, edn, (size_t)Ll * sizeof(float));
+        if (chip) fetch_s += k3_chip_now() - g0;
+        if (chip) {
+            /* Chip: build this expert's jobs and write each edn DIRECTLY into its contrib
+             * slot -- the serial path's memcpy is a pure byte copy, so this is
+             * bit-identical -- then run the batch. Every q pointer is consumed before the
+             * run ends, so the slot stays valid for the duration (k3_cache_pin is declared
+             * but never enforced). One fetch served nj chains, so the fetch bytes counted
+             * are one expert's weights, not nj copies. */
+            int nj = 0;
+            for (int t = 0; t < T; t++) {
+                const int   *it = ridx + (size_t)t * K;
+                const float *zt = zz  + (size_t)t * Ll;
+                for (int j = 0; j < K; j++) {
+                    if (it[j] != e) continue;
+                    K3ChipJob *jb = &jobs[nj];
+                    jb->x   = zt;
+                    jb->p1  = q.p1;  jb->s1 = q.s1;
+                    jb->p3  = q.p3;  jb->s3 = q.s3;
+                    jb->p2  = q.p2;  jb->s2 = q.s2;
+                    jb->edn = contrib + ((size_t)t * K + j) * Ll;
+                    jb->in = Ll; jb->rows1 = I; jb->out = Ll;
+                    jb->b1 = c->situ_b1; jb->b2 = c->situ_b2;
+                    jb->group = K3_MXFP4_GROUP;
+                    jb->wslot = 0;               /* prefill: weighted sum happens in step 3 */
+                    nj++;
+                }
+            }
+            copy_bytes += (double)k3_chip_chain_bytes(Ll, I, Ll, K3_MXFP4_GROUP);
+            if (nj > 0) k3_chip_run(jobs, nj);
+        } else {
+            for (int t = 0; t < T; t++) {
+                const int   *it = ridx + (size_t)t * K;
+                const float *zt = zz  + (size_t)t * Ll;
+                for (int j = 0; j < K; j++) {
+                    if (it[j] != e) continue;
+                    k3_matmul_mxfp4(gu,     zt, q.p1, q.s1, Ll, I, K3_MXFP4_GROUP);
+                    k3_matmul_mxfp4(gu + I, zt, q.p3, q.s3, Ll, I, K3_MXFP4_GROUP);
+                    k3_situ_glu(act, gu, I, c->situ_b1, c->situ_b2);
+                    k3_matmul_mxfp4(edn, act, q.p2, q.s2, I, Ll, K3_MXFP4_GROUP);
+                    memcpy(contrib + ((size_t)t * K + j) * Ll, edn, (size_t)Ll * sizeof(float));
+                }
             }
         }
     }
+    if (jobs) free(jobs);
+    if (chip) k3_chip_note_copy(fetch_s, copy_bytes);
 
     /* 3. per token, sum contributions in the ORIGINAL top-k order, then the tail of the
      * MoE exactly as k3_moe does it, so every float matches the per-token path. */
@@ -1232,6 +1326,29 @@ static void k3_e8m0_init(void)
     k3_e8m0_ready = 1;
 }
 
+/* Thread-safety switch for k3_matmul_mxfp4, used by the simulated chip (k3_chip.h):
+ * k3_mxfp4_warmup() builds the lazy decode tables on the calling thread so a pool worker
+ * never races a table write, and k3_mxfp4_omp(0) stops the kernel's OpenMP region so each
+ * worker stays one thread instead of spawning a team. When the chip is off (default)
+ * neither is called and the kernel keeps its OpenMP parallelism. */
+#if !defined(__AVX2__)
+static void k3_pair_init(void);
+#endif
+static int k3_mxfp4_use_omp = 1;
+
+void k3_mxfp4_warmup(void)
+{
+    k3_e8m0_init();
+#if !defined(__AVX2__)
+    k3_pair_init();
+#endif
+}
+
+void k3_mxfp4_omp(int on)
+{
+    k3_mxfp4_use_omp = on ? 1 : 0;
+}
+
 /* y[rows] = W[rows][in] . x[in], with W read straight out of packed MXFP4 and never
  * materialised as floats. This is not an optimisation; it is what makes streaming
  * experts possible at all.
@@ -1295,7 +1412,7 @@ void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
     if (xd) for (int i = 0; i < in; i++) xd[i] = (double)x[i];
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static) if (rows > 64)
+#pragma omp parallel for schedule(static) if (rows > 64 && k3_mxfp4_use_omp)
 #endif
     for (int r = 0; r < rows; r++) {
         const unsigned char *pr = packed + (size_t)r * pcols;

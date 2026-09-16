@@ -89,13 +89,15 @@ LDFLAGS  ?= -lm $(OMP_LDFLAGS) -pthread
 # Flat include search across the module dirs: sources use "k3.h", "k3_cache.h" etc
 # rather than path-qualified includes, which keeps them relocatable.
 INCLUDES := -Iinclude -Iinclude/k3 -Ithird_party \
-            -Isrc/core -Isrc/io -Isrc/cache -Isrc/model -Isrc/tokenizer
+            -Isrc/core -Isrc/io -Isrc/cache -Isrc/model -Isrc/tokenizer \
+            -Isrc/chip
 
 # ----------------------------------------------------------------------------- files --
 ENGINE_SRC := src/core/k3_ops.c \
               src/io/k3_st.c src/io/k3_load.c src/io/k3_trunk.c \
               src/cache/k3_cache.c \
-              src/model/k3_bind.c
+              src/model/k3_bind.c \
+              src/chip/k3_chip.c
 ENGINE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(ENGINE_SRC))
 
 CLI_SRC    := src/cli/k3_run.c
@@ -133,12 +135,13 @@ $(BIN):
 	@mkdir -p $(BIN)
 
 # Each test links only what it needs, so a failure points at one subsystem.
-$(BIN)/test_ops: tests/unit/test_ops.c $(BUILD)/src/core/k3_ops.o | $(BIN)
+$(BIN)/test_ops: tests/unit/test_ops.c $(BUILD)/src/core/k3_ops.o \
+                 $(BUILD)/src/chip/k3_chip.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 $(BIN)/test_cache: tests/unit/test_cache.c $(BUILD)/src/cache/k3_cache.o \
                    $(BUILD)/src/io/k3_load.o $(BUILD)/src/io/k3_st.o \
-                   $(BUILD)/src/core/k3_ops.o | $(BIN)
+                   $(BUILD)/src/core/k3_ops.o $(BUILD)/src/chip/k3_chip.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 $(BIN)/test_st: tests/unit/test_st.c $(BUILD)/src/io/k3_st.o | $(BIN)
@@ -149,18 +152,21 @@ $(BIN)/test_st: tests/unit/test_st.c $(BUILD)/src/io/k3_st.o | $(BIN)
 $(BIN)/test_tok: tests/unit/test_tok.c | $(BIN)
 	$(CC) -O2 -std=c99 $(WARN) -Wno-unused-function $(INCLUDES) $< -o $@
 
-$(BIN)/test_cfg: tests/unit/test_cfg.c src/core/k3_ops.c | $(BIN)
-	$(CC) -O2 -std=c99 $(WARN) -Wno-unused-function $(INCLUDES) $^ -o $@ -lm
+$(BIN)/test_cfg: tests/unit/test_cfg.c src/core/k3_ops.c src/chip/k3_chip.c | $(BIN)
+	$(CC) -O2 -std=c99 $(WARN) -Wno-unused-function $(INCLUDES) $^ -o $@ -lm -pthread
 
 # Allocates at REAL model widths (a ~1.8 GB KDA layer), so it needs the optimised build
 # rather than the portable C99 one the tokenizer and config tests use.
-$(BIN)/scale_test: tests/unit/scale_test.c $(BUILD)/src/core/k3_ops.o | $(BIN)
+$(BIN)/scale_test: tests/unit/scale_test.c $(BUILD)/src/core/k3_ops.o \
+                   $(BUILD)/src/chip/k3_chip.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
-$(BIN)/k3_model: tests/unit/k3_model.c $(BUILD)/src/core/k3_ops.o | $(BIN)
+$(BIN)/k3_model: tests/unit/k3_model.c $(BUILD)/src/core/k3_ops.o \
+                 $(BUILD)/src/chip/k3_chip.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
-$(BIN)/bench_kernels: benchmarks/bench_kernels.c $(BUILD)/src/core/k3_ops.o | $(BIN)
+$(BIN)/bench_kernels: benchmarks/bench_kernels.c $(BUILD)/src/core/k3_ops.o \
+                      $(BUILD)/src/chip/k3_chip.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 ## test: everything that needs no model weights
@@ -200,7 +206,8 @@ weights-test: $(WEIGHT_BINS)
 	./$(BIN)/test_real_layer $(SHARD_DIR) 1 4 8
 
 $(BIN)/test_expert: tests/unit/test_expert.c $(BUILD)/src/io/k3_load.o \
-                    $(BUILD)/src/io/k3_st.o $(BUILD)/src/core/k3_ops.o | $(BIN)
+                    $(BUILD)/src/io/k3_st.o $(BUILD)/src/core/k3_ops.o \
+                    $(BUILD)/src/chip/k3_chip.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 $(BIN)/test_real_layer: tests/unit/test_real_layer.c $(ENGINE_OBJ) | $(BIN)

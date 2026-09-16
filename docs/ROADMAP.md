@@ -62,3 +62,11 @@ costs time, which more memory buys back, while rounding costs accuracy, which no
 buys back.
 
 **GPU support.** Out of scope for this project.
+
+**E2M0 expert weights.** The one remaining compression lever past MXFP4 is the
+2-bit OCP E2M0 format (halves packed bytes, ~26% weight perturbation, conformance
+gate stays green because both sides dequantise from the stored format). Rejected as a
+global switch — quality cost is unquantified against a ~47% byte saving that a
+bandwidth-bound machine would not fully convert to speed. A per-tensor downgrade is
+the correct shape and is *not* ruled out; see `docs/notes/e2m0-tradeoff.md` and
+`tools/probe_quant_tradeoff.py` for the measured numbers and the eval that decides it.

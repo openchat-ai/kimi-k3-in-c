@@ -565,6 +565,14 @@ void k3_mxfp4_dequant(float *out, const unsigned char *packed,
 void k3_matmul_mxfp4(float *y, const float *x, const unsigned char *packed,
                      const unsigned char *scales, int in, int rows, int group);
 
+/* Thread-safety switch for k3_matmul_mxfp4, exported for the simulated chip
+ * (k3_chip.h). k3_mxfp4_warmup() forces the lazy MXFP4 decode tables to be built on the
+ * calling thread; k3_mxfp4_omp(0) disables the kernel's internal OpenMP region so a pool
+ * worker never spawns its own team. When the chip is off the kernel stays fully
+ * OpenMP-parallel and neither is needed. */
+void k3_mxfp4_warmup(void);
+void k3_mxfp4_omp(int on);
+
 #ifdef __cplusplus
 }
 #endif

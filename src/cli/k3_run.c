@@ -57,6 +57,7 @@
 #include "k3_trunk.h"
 #include "k3_tok.h"   /* text in/out; the --ids path never touches it */
 #include "k3_cfg.h"   /* read the checkpoint's own config rather than assuming it */
+#include "k3_chip.h"  /* simulated MXFP4 GEMV chip: expert pool + bill */
 
 static double now_s(void)
 {
@@ -728,6 +729,11 @@ int main(int argc, char **argv)
                "model; it is a partial stack for testing the machinery.\n\n",
                want_layers, c.n_layers);
     }
+
+    /* Simulated MXFP4 GEMV chip (k3_chip.h). Reads K3_NO_CHIP / CHIP_NWORKERS /
+     * CHIP_TFLOPS / CHIP_GBPS, warms the MXFP4 decode tables, serialises the
+     * k3_matmul_mxfp4 kernel and spawns the expert pool. No-op when disabled. */
+    k3_chip_init();
 
     /* ---- prompt ----
      * Three entry points, one representation. --ids is the reproducible channel every
@@ -1464,6 +1470,10 @@ int main(int argc, char **argv)
                expert_reqs_total ? 100.0 * (double)retained / (double)expert_reqs_total : 0.0,
                (unsigned long long)expert_evict_total);
     }
+    /* Simulated-chip bill (k3_chip.h): the routed-expert load read as packed MXFP4, in
+     * accelerator terms. Token count covers prefill plus every generated step. */
+    k3_chip_set_tokens(np + nout);
+    k3_chip_print_bill();
     if (w.trunk) { k3_trunk_report(w.trunk, "final"); k3_trunk_close(w.trunk); }
     k3_cache_free(&cache);
     for (int L = 0; L < w.n_bound; L++) k3_bind_free(&w.lay[L]);
@@ -1471,6 +1481,9 @@ int main(int argc, char **argv)
     k3_bind_model_free(&w.mb);
     k3_st_close(&st);
     free(h); free(br); free(ks); free(sc); free(lg);
+
+    /* Join the simulated chip's pool now that no forward pass can touch it again. */
+    k3_chip_destroy();
 
     /* A dropped expert means some token was computed with part of its routed sum
      * missing. The run still produced token ids and they still look plausible, which is
