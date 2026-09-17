@@ -21,6 +21,11 @@ OUT="${3:?}"
 REPS="${4:-3}"
 GEN=8
 IDS=158929,972,34143
+# L1 replacement policy: lru (default) or heat (K3_L1_POLICY=heat). The paper
+# criterion says reuse should land on the fastest layer; heat keeps frequently
+# requested experts resident across tokens where LRU evicts them. A/B both arms
+# on the SAME binary via the env switch.
+L1POL="${L1_POLICY:-lru}"
 
 command -v systemd-run >/dev/null 2>&1 || {
     echo "systemd-run not found. This harness needs it to impose a genuine memory ceiling;"
@@ -37,7 +42,7 @@ systemd-run --scope --user -q true 2>/dev/null || {
 
 mkdir -p "$OUT"
 TSV="$OUT/experts.tsv"
-printf 'cache_gb\trep\ts_per_tok\tpeak_rss_gb\texpert_gb\tnvme_gb\tmiss_gb\tids\n' > "$TSV"
+printf 'cache_gb\tl1_policy\trep\ts_per_tok\tpeak_rss_gb\texpert_gb\tnvme_gb\tmiss_gb\tids\n' > "$TSV"
 
 {
     echo "date     : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -49,6 +54,7 @@ printf 'cache_gb\trep\ts_per_tok\tpeak_rss_gb\texpert_gb\tnvme_gb\tmiss_gb\tids\
     echo "reps/rung: $REPS"
     echo "gen      : $GEN"
     echo "ids      : $IDS"
+    echo "l1_policy: $L1POL"
 } > "$OUT/machine.txt"
 cat "$OUT/machine.txt"
 echo
@@ -62,10 +68,10 @@ DIVERGED=0
 for rung in $rungs; do
     CA=${rung%%:*}; TR=${rung#*:}
     for r in $(seq 1 "$REPS"); do
-        tag="cache${CA}_r${r}"
-        echo "== cache ${CA} GB / trunk ${TR} rep ${r}/${REPS} =="
+        tag="${L1POL}_cache${CA}_r${r}"
+        echo "== L1 ${L1POL} / cache ${CA} GB / trunk ${TR} rep ${r}/${REPS} =="
 
-        systemd-run --scope --user -q \
+        K3_L1_POLICY="$L1POL" systemd-run --scope --user -q \
             -p MemoryMax=26G -p MemorySwapMax=0 \
             ./bin/k3 "$MODEL" --ids "$IDS" --gen "$GEN" \
             --trunk "$TRUNK" --trunk-gb "$TR" --cache-gb "$CA" --incremental \
@@ -75,7 +81,7 @@ for rung in $rungs; do
 
         if [ $rc -ne 0 ]; then
             if [ $rc -eq 137 ] || grep -qi 'out of memory\|oom-kill' "$OUT/$tag.log"; then
-                printf '%s\t%s\tOOM\t-\t-\t-\t-\t-\n' "$CA" "$r" >> "$TSV"
+                printf '%s\t%s\t%s\tOOM\t-\t-\t-\t-\t-\n' "$CA" "$L1POL" "$r" >> "$TSV"
                 echo "   did not fit, that is a result, not an error"
                 continue
             fi
@@ -96,7 +102,7 @@ for rung in $rungs; do
             exit 1
         fi
         if [ -z "$REF" ]; then
-            REF="$IDSO"; REF_RUNG="cache ${CA} rep $r"
+            REF="$IDSO"; REF_RUNG="L1 ${L1POL} cache ${CA} rep $r"
         elif [ "$IDSO" != "$REF" ]; then
             echo "   *** OUTPUT DIFFERS from $REF_RUNG, this is a bug ***"
             echo "       expected: $REF"
@@ -104,8 +110,8 @@ for rung in $rungs; do
             DIVERGED=1
         fi
 
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-            "$CA" "$r" "${SPT:--}" "${RSS:--}" "${EGB:--}" "${NVG:--}" "${MSG:--}" "$IDSO" >> "$TSV"
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "$CA" "$L1POL" "$r" "${SPT:--}" "${RSS:--}" "${EGB:--}" "${NVG:--}" "${MSG:--}" "$IDSO" >> "$TSV"
         echo "   ${SPT} s/token, peak RSS ${RSS} GB, expert ${EGB} GB"
     done
 done

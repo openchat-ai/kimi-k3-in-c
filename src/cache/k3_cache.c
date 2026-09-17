@@ -48,14 +48,44 @@ static void fill_q(const K3Cache *c, int slot, K3ExpertQ *q)
  * nothing at all in the fixtures, because no fixture exercises the streaming cache. */
 static int pick_victim(K3Cache *c)
 {
-    int best = -1;
-    uint64_t oldest = (uint64_t)-1;
+    int best = -1, best_zero = -1;
+    uint64_t oldest = (uint64_t)-1, oldest_zero = (uint64_t)-1;
+    uint32_t mincnt = (uint32_t)-1;
+    /* Heat must not evict an expert the caller is still computing on. LRU gets this
+     * for free (a just-get() expert has the freshest used_at, so it is never the LRU
+     * victim), but a bare "lowest hist" scan ignores recency and can hand out the slot
+     * that k3_ops is mid-matmul on: get() returns, hist becomes 1, and if that 1 is the
+     * global minimum the next getmany evicts it before the matmul finishes reading the
+     * arena -- wrong tokens with no diagnostic. So heat considers a slot evictable only
+     * when it was NOT touched this clock generation: used_at must be older than the
+     * newest K3_MAX_TOPK slots, i.e. not one of the experts this token is using. */
+    const uint64_t recency_floor = (c->clock > (uint64_t)K3_MAX_TOPK) ? (c->clock - (uint64_t)K3_MAX_TOPK) : 0;
     for (int i = 0; i < c->nslot; i++) {
         if (c->key_of[i] == K3_SLOT_INFLIGHT) continue;   /* being read into RIGHT NOW */
         if (c->key_of[i] == K3_SLOT_EMPTY) return i;      /* free, take it */
         if (c->pinned[i]) continue;
-        if (c->used_at[i] < oldest) { oldest = c->used_at[i]; best = i; }
+        if (c->policy == 1) {
+            /* heat: among experts NOT touched this token (used_at below the recency
+             * floor), evict the least-requested. Zero-count slots are batch-prefetched
+             * experts whose get() has not run yet; they are only used when nothing
+             * counted and stale exists, and then by LRU. */
+            const int32_t key = c->key_of[i];
+            const uint32_t cnt = key >= 0 ? c->hist[key] : 0;
+            if (c->used_at[i] > recency_floor) continue;   /* in use right now: protected */
+            if (cnt == 0) {
+                if (best_zero < 0 || c->used_at[i] < oldest_zero) {
+                    oldest_zero = c->used_at[i]; best_zero = i;
+                }
+                continue;
+            }
+            if (cnt < mincnt || (cnt == mincnt && c->used_at[i] < oldest)) {
+                mincnt = cnt; oldest = c->used_at[i]; best = i;
+            }
+        } else {
+            if (c->used_at[i] < oldest) { oldest = c->used_at[i]; best = i; }
+        }
     }
+    if (best < 0) best = best_zero;   /* only fall back to a zero-count slot if no counted one exists */
     return best;
 }
 
@@ -305,6 +335,10 @@ static int cache_get(K3ExpertSrc *self, int layer, int expert, K3ExpertQ *out)
 int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_bytes)
 {
     memset(c, 0, sizeof *c);
+    /* L1 replacement policy. 0 = LRU (default); 1 = heat (lowest hist count evicted).
+     * This mirrors K3L2's policy selection and is set here so a single binary serves
+     * both A/B arms (K3_L1_POLICY=heat). */
+    c->policy = (!getenv("K3_L1_POLICY") || strcmp(getenv("K3_L1_POLICY"), "heat")) ? 0 : 1;
     c->src.get = cache_get;
     c->src.resident = cache_resident;
     /* K3_NOPREFETCH=1 disables the batch path at runtime. An A/B between two BUILDS
