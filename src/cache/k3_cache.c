@@ -182,6 +182,7 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
     /* ---- phase 2: read, concurrently ---- */
     if (c->phase2_hold) c->phase2_hold(c->phase2_ctx, 1);
     const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
+    const double ms0 = c->l2 ? c->l2->miss_seconds : 0;
     const double t0 = now_s();
     int omp_inr_nt = 0, inr_in = 0, inr_peak = 0;   /* region diagnostics */
 #ifdef _OPENMP
@@ -214,6 +215,17 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
     c->phase2_seconds += t2;
     c->phase2_bytes += (uint64_t)nw * (uint64_t)c->slot_bytes;
     c->load_seconds += t2;
+    if (c->l2 && t2 > 0) {
+        /* Fold this batch's wall time into the L2 wall counters, split by the share of
+         * thread-cumulative pread time that went to hits vs misses. */
+        const double dt_h = c->l2->hit_seconds - hs0;
+        const double dt_m = c->l2->miss_seconds - ms0;
+        const double tot = dt_h + dt_m;
+        if (tot > 0) {
+            c->l2->hit_wall += t2 * (dt_h / tot);
+            c->l2->miss_wall += t2 * (dt_m / tot);
+        }
+    }
     if (t2 > 0.05) {
         int nth = 0;
 #ifdef _OPENMP

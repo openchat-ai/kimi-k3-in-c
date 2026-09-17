@@ -76,6 +76,12 @@ typedef struct K3L2 {
      * classic trap here: a 199 MB/s average hides a 1.5 GB/s NVMe hit path dragging a
      * ~200 MB/s HDD miss path. */
     double       hit_seconds, miss_seconds;
+    /* Wall-clock equivalents. hit_seconds/miss_seconds are accumulated per-thread by
+     * phase-2 read (each of the 16 parallel pread threads adds its own duration), so
+     * reporting MB/s against them divides by the concurrency and understates the true
+     * aggregate bandwidth. cache_getmany folds each batch's wall time (t2) into these
+     * fields, split by the hit/miss share, so the report's MB/s reflects real throughput. */
+    double       hit_wall, miss_wall;
 } K3L2;
 
 /* Build the slot map for one expert. n_layers/keys are given so we can size slot_of.

@@ -283,13 +283,16 @@ void k3_l2_report(const K3L2 *l2, const char *label)
            n ? 100.0 * l2->hits / n : 0.0, (unsigned long long)l2->misses);
     printf("  read  from sdd7: %.2f GB, written %.2f GB\n",
            (double)l2->bytes_read / 1e9, (double)l2->bytes_written / 1e9);
-    printf("  hit I/O   : %.2f GB in %.2f s = %.0f MB/s\n",
-           (double)l2->bytes_read / 1e9, l2->hit_seconds,
-           l2->hit_seconds > 0 ? (double)l2->bytes_read / 1e6 / l2->hit_seconds : 0.0);
-    printf("  miss I/O  : %llu misses, %.2f GB from /model in %.2f s = %.0f MB/s\n",
+    printf("  hit I/O   : %.2f GB in %.2f s (wall) = %.0f MB/s"
+           " [pread %.2f s, %.0f MB/s per-thread]\n",
+           (double)l2->bytes_read / 1e9, l2->hit_wall,
+           l2->hit_wall > 0 ? (double)l2->bytes_read / 1e6 / l2->hit_wall : 0.0,
+           l2->hit_seconds, l2->hit_seconds > 0
+               ? (double)l2->bytes_read / 1e6 / l2->hit_seconds : 0.0);
+    printf("  miss I/O  : %llu misses, %.2f GB from /model in %.2f s (wall) = %.0f MB/s\n",
            (unsigned long long)l2->misses, l2->misses * (double)l2->slot_bytes / 1e9,
-           l2->miss_seconds, l2->miss_seconds > 0
-               ? l2->misses * (double)l2->slot_bytes / 1e6 / l2->miss_seconds : 0.0);
+           l2->miss_wall, l2->miss_wall > 0
+               ? l2->misses * (double)l2->slot_bytes / 1e6 / l2->miss_wall : 0.0);
     if (l2->meta_loaded)
         printf("  restored from meta: %llu slots\n",
                (unsigned long long)l2->meta_loaded);
