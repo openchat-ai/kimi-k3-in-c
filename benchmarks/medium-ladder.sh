@@ -215,16 +215,36 @@ read_mbs() { # $1 file, $2 size_bytes (cap), returns MB/s on stdout
 }
 
 # ---------- write probe: O_DIRECT temp file, removed after ----------
-write_mbs() { # $1 dir, $2 size_bytes -> MB/s
+# On a VIRTUAL disk (VHDX) the guest-side O_DIRECT/fsync only flush to the
+# hypervisor layer; the host cache still absorbs the write, so the number is
+# an UPPER BOUND, not the physical write rate. Callers annotate that.
+write_mbs() { # $1 dir, $2 size_bytes -> MB/s, median of 3
     local d="$1" sz="$2"
     local f="$d/.medlad_write.tmp"
-    rm -f "$f"
-    local t0 t1
-    t0=$(date +%s.%N)
-    dd if=/dev/zero of="$f" bs=8M count=$((sz/8388608)) oflag=direct status=none 2>/dev/null
-    t1=$(date +%s.%N)
-    rm -f "$f"
-    awk -v s="$sz" -v a="$t0" -v b="$t1" 'BEGIN{ dt=b-a; if(dt<=0) dt=1e-9; printf "%.1f", s/1e6/dt }'
+    local best=0
+    for r in 1 2 3; do
+        rm -f "$f"
+        local t0 t1 v
+        t0=$(date +%s.%N)
+        dd if=/dev/zero of="$f" bs=8M count=$((sz/8388608)) oflag=direct conv=fsync status=none 2>/dev/null
+        t1=$(date +%s.%N)
+        rm -f "$f"
+        v=$(awk -v s="$sz" -v a="$t0" -v b="$t1" 'BEGIN{ dt=b-a; if(dt<=0) dt=1e-9; printf "%.1f", s/1e6/dt }')
+        best=$(awk -v x="$v" -v b="$best" 'BEGIN{ print (x>b?x:b) }')
+    done
+    echo "$best"
+}
+
+# True only when the block device is a hypervisor virtual disk (VHDX), where a
+# guest-side write probe cannot see the physical write wall.
+is_virtual_disk() { # $1 dev node like /dev/sde -> 0 yes, 1 no
+    [ -b "$1" ] || return 1
+    local model
+    model=$(cat "/sys/block/${1#/dev/}/device/model" 2>/dev/null)
+    case "$model" in
+        *Virtual*|*VHDX*|*QEMU*|*VBOX*) return 0 ;;
+    esac
+    return 1
 }
 
 # ---------- disk tiers ----------
@@ -234,12 +254,16 @@ if [ -f "$SLOW_FILE" ]; then
     SLOW_CAP=$(df -h --output=size "$SLOW_FILE" 2>/dev/null | tail -1)
     SLOW_READ=$(read_mbs "$SLOW_FILE" $((2*1024*1024*1024)))
     SLOW_WRITE="-"
+    SLOW_WRITE_ANN=""
     SLOW_NDIR=$(dirname "$SLOW_FILE")
     if [ -w "$SLOW_NDIR" ] && [ "$ROOT" = 1 ]; then
         SLOW_WRITE=$(write_mbs "$SLOW_NDIR" $((256*1024*1024)))
+        if is_virtual_disk "$SLOW_DEV"; then
+            SLOW_WRITE_ANN="†"
+        fi
     fi
-    printf '超低\tsource disk %s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$SLOW_DEV" "$SLOW_CAP" "$(stat -c %s "$SLOW_FILE")" "$SLOW_READ" "$SLOW_WRITE" \
+    printf '超低\tsource disk %s\t%s\t%s\t%s\t%s%s\t%s\n' \
+        "$SLOW_DEV" "$SLOW_CAP" "$(stat -c %s "$SLOW_FILE")" "$SLOW_READ" "$SLOW_WRITE" "$SLOW_WRITE_ANN" \
         "experts, $(basename "$SLOW_FILE")" | tee -a "$TSV" >/dev/null
 else
     echo "skip: slow disk file not found: $SLOW_FILE (--slow)"
@@ -251,12 +275,16 @@ if [ -f "$FAST_FILE" ]; then
     FAST_CAP=$(df -h --output=size "$FAST_FILE" 2>/dev/null | tail -1)
     FAST_READ=$(read_mbs "$FAST_FILE" $((4*1024*1024*1024)))
     FAST_WRITE="-"
+    FAST_WRITE_ANN=""
     FAST_NDIR=$(dirname "$FAST_FILE")
     if [ -w "$FAST_NDIR" ] && [ "$ROOT" = 1 ]; then
         FAST_WRITE=$(write_mbs "$FAST_NDIR" $((1024*1024*1024)))
+        if is_virtual_disk "$FAST_DEV"; then
+            FAST_WRITE_ANN="†"
+        fi
     fi
-    printf '低\tfast NVMe %s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$FAST_DEV" "$FAST_CAP" "$(stat -c %s "$FAST_FILE")" "$FAST_READ" "$FAST_WRITE" \
+    printf '低\tfast NVMe %s\t%s\t%s\t%s\t%s%s\t%s\n' \
+        "$FAST_DEV" "$FAST_CAP" "$(stat -c %s "$FAST_FILE")" "$FAST_READ" "$FAST_WRITE" "$FAST_WRITE_ANN" \
         "trunk/L2, $(basename "$FAST_FILE")" | tee -a "$TSV" >/dev/null
 else
     echo "skip: fast disk file not found: $FAST_FILE (--fast)"
@@ -278,7 +306,11 @@ MD="$OUT/medium-ladder.md"
     echo "# Medium ladder — measured $(date -u +%Y-%m-%d)"
     echo
     echo "All rates are median-of-3 on this machine; disk reads are O_DIRECT cold"
-    echo "(drop_caches, root), writes are O_DIRECT temp-file probes. Per-token traffic:"
+    echo "(drop_caches, root) of the named production file, writes are O_DIRECT"
+    echo "temp-file probes removed afterwards. A read can be slower than a write"
+    echo "when the read target is a fragmented file on a near-full volume while"
+    echo "the write lands on contiguous free space -- both numbers are the real"
+    echo "path they measure. Per-token traffic:"
     echo "trunk $TRUNK_GB GB + experts $EXPERT_GB GB = $TOTAL_GB GB/token; compute"
     echo "$FLOPS_TOKEN TFLOP/token. Tier names: 超高 (near-memory"
     echo "compute) is not configured on this machine and is excluded."
@@ -289,14 +321,17 @@ MD="$OUT/medium-ladder.md"
         "$(awk '/MemTotal/{printf "DDR4 %d GB", $2/1048576}' /proc/meminfo)" \
         "$(awk '/MemTotal/{printf "%d GB", $2/1048576}' /proc/meminfo)" \
         "$MEM_GBPS" "$MEM_GBPS" "$S_MEM"
-    printf '| **超低**（源盘，专家 /model） | %s | %s | %s MB/s | %s MB/s | — | **%s** |\n' \
-        "${SLOW_DEV:--}" "${SLOW_CAP:--}" "${SLOW_READ:--}" "${SLOW_WRITE:--}" "$S_SLOW"
-    printf '| **低**（高速盘，trunk/L2） | %s | %s | %s MB/s | %s MB/s | — | **%s** |\n' \
-        "${FAST_DEV:--}" "${FAST_CAP:--}" "${FAST_READ:--}" "${FAST_WRITE:--}" "$S_FAST"
+    printf '| **超低**（源盘，专家 /model） | %s | %s | %s MB/s | %s%s MB/s | — | **%s** |\n' \
+        "${SLOW_DEV:--}" "${SLOW_CAP:--}" "${SLOW_READ:--}" "${SLOW_WRITE:--}" "$SLOW_WRITE_ANN" "$S_SLOW"
+    printf '| **低**（高速盘，trunk/L2） | %s | %s | %s MB/s | %s%s MB/s | — | **%s** |\n' \
+        "${FAST_DEV:--}" "${FAST_CAP:--}" "${FAST_READ:--}" "${FAST_WRITE:--}" "$FAST_WRITE_ANN" "$S_FAST"
     printf '| **—**（算力墙） | %s %dC/%dT | — | — | — | %.0f GFLOPS fp32 峰值 | **%s** |\n' \
         "$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//')" \
         "$NCORES" "$NCORES" "$GF32_PEAK" "$S_GFLOPS"
     echo
+    echo "† virtual disk: guest-side O_DIRECT+fsync flush only to the hypervisor"
+    echo "  layer, the host cache absorbs the write, so this is an upper bound,"
+    echo "  not the physical write rate."
     echo "结论口径（慢层只读一次原则）：输出不取决于\"每道墙都满速\"——盘的上限是独占测的，"
     echo "同时跑会互相砍半（gate 存在的原因）；总时间 = max(各墙)，不是求和。唯一能飞的"
     echo "路径是让复用落在最快层（DRAM），把每 token 135 GB 的重读降为内存搬运。"

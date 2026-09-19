@@ -1,3 +1,3 @@
 tier	device	capacity	size_bytes	read_mbs	write_mbs	note
-超低	source disk /dev/sde	 1.8T	2341216112	92.3	133.6	experts, model-00001-of-000096.safetensors
-低	fast NVMe /dev/sdd7	 384G	114917031936	947.9	967.2	trunk/L2, experts.l2
+超低	source disk /dev/sde	 1.8T	2341216112	92.1	357.1†	experts, model-00001-of-000096.safetensors
+低	fast NVMe /dev/sdd7	 384G	114917031936	834.3	773.7	trunk/L2, experts.l2
