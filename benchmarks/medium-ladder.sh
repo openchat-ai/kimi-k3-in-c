@@ -11,8 +11,8 @@
 #   超低 = source disk (experts, /model), 低 = fast NVMe (trunk/L2),
 #   高   = DRAM (fastest reachable tier),  超高 = on-device/near-memory
 #          compute (NOT configured on this machine; excluded).
-# Per-token traffic defaults to the measured k3 constants (trunk 108.81 GB +
-# experts 25.83 GB), overridable for other models.
+# Per-token traffic defaults to the measured constants on this machine
+# (trunk 56.6 GB BF8 + experts 25.83 GB, 224 GFLOP/token), overridable for
 #
 # Measurement discipline (byteflow-matrix 8-31): reads are O_DIRECT cold
 # (drop_caches first, needs root; without root the script warns and reads
@@ -21,9 +21,16 @@
 set -u
 
 OUT="medium-ladder-out"
-TRUNK_GB=108.81
+# Per-token traffic on THIS machine, measured 2026-09-19: the trunk in use is
+# the BF8 container /mnt/nvme/trunk_layers_out (56.6 GB, du -sb), not the
+# 108.81 GB BF16 figure in the old ledger; experts are 25.83 GB/token
+# (92 layers x 16 experts x 17.55 MB, ledger :246). Compute per token is NOT
+# the dense 2x2.78T: MoE activates 16+2 experts per layer, so
+# trunk 56.6G params + 93 x 18 x 33M expert params ~= 112G params x 2 MAC
+# ~= 224 GFLOP/token. Both defaults are overridable for other models.
+TRUNK_GB=56.6
 EXPERT_GB=25.83
-FLOPS_TOKEN=5.6
+FLOPS_TOKEN=0.224
 FAST_FILE=/mnt/nvme/experts.l2
 SLOW_FILE=/model/model-00002-of-000096.safetensors
 
@@ -55,7 +62,7 @@ md5sum -c /dev/null >/dev/null 2>&1
     echo "cores     : $(nproc 2>/dev/null || echo '?')"
     echo "memtotal  : $(awk '/MemTotal/{printf "%.1f GB", $2/1048576}' /proc/meminfo 2>/dev/null)"
     echo "per-token : trunk ${TRUNK_GB} GB + experts ${EXPERT_GB} GB = $(echo "$TRUNK_GB + $EXPERT_GB" | bc -l 2>/dev/null || awk -v a="$TRUNK_GB" -v b="$EXPERT_GB" 'BEGIN{printf "%.2f", a+b}') GB"
-    echo "flops/tok : ${FLOPS_TOKEN} TFLOP"
+    echo "flops/tok : ${FLOPS_TOKEN} TFLOP (MoE-activated FLOPs/token)"
     echo "fast file : $FAST_FILE"
     echo "slow file : $SLOW_FILE"
 } | tee "$OUT/machine.txt"

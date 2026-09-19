@@ -6,16 +6,16 @@ temp-file probes removed afterwards. A read can be slower than a write
 when the read target is a fragmented file on a near-full volume while
 the write lands on contiguous free space -- both numbers are the real
 path they measure. Per-token traffic:
-trunk 108.81 GB + experts 25.83 GB = 134.64 GB/token; compute
-5.6 TFLOP/token. Tier names: 超高 (near-memory
+trunk 56.6 GB + experts 25.83 GB = 82.43 GB/token; compute
+0.224 TFLOP/token. Tier names: 超高 (near-memory
 compute) is not configured on this machine and is excluded.
 
 | 档位 | 硬件 | 容量 | 读取 | 写入 | 算力 | 全走此墙 s/token |
 |---|---:|---:|---:|---:|---:|---:|
-| **高**（DRAM，本机最快可达档） | DDR4 27 GB | 27 GB | 31 GB/s | 31 GB/s | — | **4.4** |
-| **超低**（源盘，专家 /model） | /dev/sde |  1.8T | 88 (87-92) MB/s | 150.2† MB/s | — | **1530.0** |
-| **低**（高速盘，trunk/L2） | /dev/sdd7 |  384G | 534 (513-538) MB/s | 588.6 MB/s | — | **252.1** |
-| **—**（算力墙） | Hygon C86-3G (OPN:3350) 16C/16T | — | — | — | 89 GFLOPS fp32 峰值 | **62.6** |
+| **高**（DRAM，本机最快可达档） | DDR4 27 GB | 27 GB | 32 GB/s | 32 GB/s | — | **2.6** |
+| **超低**（源盘，专家 /model） | /dev/sde |  1.8T | 94 (92-95) MB/s | 155.0† MB/s | — | **876.9** |
+| **低**（高速盘，trunk/L2） | /dev/sdd7 |  384G | 583 (570-600) MB/s | 717.5 MB/s | — | **141.4** |
+| **—**（算力墙） | Hygon C86-3G (OPN:3350) 16C/16T | — | — | — | 95 GFLOPS fp32 峰值 | **2.4** |
 
 † virtual disk: guest-side O_DIRECT+fsync flush only to the hypervisor
   layer, the host cache absorbs the write, so this is an upper bound,
