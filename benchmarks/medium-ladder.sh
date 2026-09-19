@@ -61,6 +61,10 @@ md5sum -c /dev/null >/dev/null 2>&1
 } | tee "$OUT/machine.txt"
 
 # ---------- root / cold-cache ----------
+# numeric median out of "MED (MIN-MAX)" returned by the read probes
+med() { # read string -> median MB/s
+    echo "$1" | awk '{ if (match($0, /[0-9.]+/)) print substr($0, RSTART, RLENGTH) }'
+}
 ROOT=0
 [ "$(id -u)" = 0 ] && ROOT=1
 if [ "$ROOT" = 1 ]; then
@@ -197,7 +201,8 @@ NCORES=$(nproc)
 
 # ---------- sequential pread helper (for the L2/trunk tier) ----------
 # The fast tier's real workload is a hit read: k3_l2cache.c preads one whole
-# slot (17.55 MB) per call, sequentially through the file. Median of 3.
+# slot (17.55 MB) per call, sequentially through the file. Each pass starts
+# by dropping caches (root) so every pass is a cold read; median of 3.
 read_mbs() { # $1 file -> MB/s, sequential 17.55 MB preads, median of 3
     local f="$1"
     local cc="$OUT/seq_pread.c" bin="$OUT/seq_pread"
@@ -210,6 +215,17 @@ read_mbs() { # $1 file -> MB/s, sequential 17.55 MB preads, median of 3
 #include <time.h>
 #include <sys/stat.h>
 static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return t.tv_sec + t.tv_nsec*1e-9; }
+static void cold(void){
+    if (geteuid() == 0){
+        sync();
+        FILE *f = fopen("/proc/sys/vm/drop_caches", "w");
+        if (f){ fputs("3", f); fclose(f); }
+    }
+}
+static int cmpd(const void *a, const void *b){
+    double x = *(const double*)a, y = *(const double*)b;
+    return (x>y) - (x<y);
+}
 int main(int argc, char **argv){
     if (argc < 2) return 1;
     int fd = open(argv[1], O_RDONLY | O_DIRECT);
@@ -225,26 +241,25 @@ int main(int argc, char **argv){
     if (n < 8) n = 8;                        /* small file: still stream it */
     void *buf = NULL;
     if (posix_memalign(&buf, 4096, SLOT) != 0) return 1;
-    double best = 0;
-    for (int r = 0; r < 3; r++){
+    double r[3];
+    for (int k = 0; k < 3; k++){
+        cold();
         double t0 = now();
         for (size_t i = 0; i < n; i++){
             ssize_t x = pread(fd, buf, SLOT, (off_t)i * SLOT);
             if (x < 0) { perror("pread"); return 1; }
         }
         double dt = now() - t0;
-        double gb = (double)n * SLOT / dt / 1e9;
-        if (gb > best) best = gb;
+        r[k] = (double)n * SLOT / dt / 1e9;  /* GB/s */
     }
-    printf("%.1f\n", best);
+    qsort(r, 3, sizeof r[0], cmpd);
+    printf("%.3f %.3f %.3f\n", r[0], r[1], r[2]);  /* min median max */
     free(buf); close(fd);
     return 0;
 }
 CEOF
     gcc -O2 -o "$bin" "$cc" || return 1
-    local gb
-    gb=$("$bin" "$f")
-    awk -v g="$gb" 'BEGIN{ printf "%.1f", g*1000 }'
+    "$bin" "$f" | awk '{ printf "%s", $2*1000; if ($3-$1 > 0.02*$2) printf " (%.0f-%.0f)", $1*1000, $3*1000 }'
 }
 
 # ---------- expert-mode read helper (for the source/checkpoint tier) ----------
@@ -289,8 +304,20 @@ PYEOF
 #include <unistd.h>
 #include <time.h>
 static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return t.tv_sec + t.tv_nsec*1e-9; }
+static void cold(void){
+    if (geteuid() == 0){
+        sync();
+        FILE *f = fopen("/proc/sys/vm/drop_caches", "w");
+        if (f){ fputs("3", f); fclose(f); }
+    }
+}
+static int cmpd(const void *a, const void *b){
+    double x = *(const double*)a, y = *(const double*)b;
+    return (x>y) - (x<y);
+}
 /* One engine-style pass: O_DIRECT pread of each expert (17.55 MB) at its real
- * offset, aligning the buffer to 4096 and reading the aligned span. */
+ * offset, aligning the buffer to 4096 and reading the aligned span. Three
+ * cold passes, median reported. */
 int main(int argc, char **argv){
     if (argc < 3) return 1;
     int fd = open(argv[1], O_RDONLY | O_DIRECT);
@@ -300,31 +327,28 @@ int main(int argc, char **argv){
     void *buf = NULL;
     if (posix_memalign(&buf, 4096, BS) != 0) return 1;
     long n = argc - 2;
-    double t0 = now();
-    for (int i = 0; i < n; i++){
-        off_t off = (off_t)atoll(argv[2 + i]);
-        off_t aligned = off & ~(off_t)4095;              /* engine widens to 4096 */
-        size_t take = BS;
-        if (aligned + take > (off_t)BS + off) take = BS; /* full aligned span */
-        ssize_t r = pread(fd, buf, BS, aligned);
-        if (r < 0) { perror("pread"); return 1; }
-        (void)r;
+    double r[3];
+    for (int k = 0; k < 3; k++){
+        cold();
+        double t0 = now();
+        for (int i = 0; i < n; i++){
+            off_t off = (off_t)atoll(argv[2 + i]);
+            off_t aligned = off & ~(off_t)4095;          /* engine widens to 4096 */
+            ssize_t rv = pread(fd, buf, BS, aligned);
+            if (rv < 0) { perror("pread"); return 1; }
+            (void)rv;
+        }
+        double dt = now() - t0;
+        r[k] = (double)n * ESZ / dt / 1e9;
     }
-    double dt = now() - t0;
-    double gb = (double)n * ESZ / dt / 1e9;
-    printf("%.1f\n", gb);
+    qsort(r, 3, sizeof r[0], cmpd);
+    printf("%.3f %.3f %.3f\n", r[0], r[1], r[2]);      /* min median max */
     free(buf); close(fd);
     return 0;
 }
 CEOF
     gcc -O2 -o "$bin" "$cc" || return 1
-    local best=0
-    for r in 1 2 3; do
-        local v
-        v=$("$bin" "$f" $offs)
-        best=$(awk -v x="$v" -v b="$best" 'BEGIN{ print (x>b?x:b) }')
-    done
-    awk -v g="$best" 'BEGIN{ printf "%.1f", g*1000 }'
+    "$bin" "$f" $offs | awk '{ printf "%s", $2*1000; if ($3-$1 > 0.02*$2) printf " (%.0f-%.0f)", $1*1000, $3*1000 }'
 }
 
 # ---------- write probe: O_DIRECT temp file, removed after ----------
@@ -376,7 +400,7 @@ if [ -f "$SLOW_FILE" ]; then
         fi
     fi
     printf '超低\tsource disk %s\t%s\t%s\t%s\t%s%s\t%s\n' \
-        "$SLOW_DEV" "$SLOW_CAP" "$(stat -c %s "$SLOW_FILE")" "$SLOW_READ" "$SLOW_WRITE" "$SLOW_WRITE_ANN" \
+        "$SLOW_DEV" "$SLOW_CAP" "$(stat -c %s "$SLOW_FILE")" "$(med "$SLOW_READ")" "$SLOW_WRITE" "$SLOW_WRITE_ANN" \
         "experts, $(basename "$SLOW_FILE")" | tee -a "$TSV" >/dev/null
 else
     echo "skip: slow disk file not found: $SLOW_FILE (--slow)"
@@ -397,7 +421,7 @@ if [ -f "$FAST_FILE" ]; then
         fi
     fi
     printf '低\tfast NVMe %s\t%s\t%s\t%s\t%s%s\t%s\n' \
-        "$FAST_DEV" "$FAST_CAP" "$(stat -c %s "$FAST_FILE")" "$FAST_READ" "$FAST_WRITE" "$FAST_WRITE_ANN" \
+        "$FAST_DEV" "$FAST_CAP" "$(stat -c %s "$FAST_FILE")" "$(med "$FAST_READ")" "$FAST_WRITE" "$FAST_WRITE_ANN" \
         "trunk/L2, $(basename "$FAST_FILE")" | tee -a "$TSV" >/dev/null
 else
     echo "skip: fast disk file not found: $FAST_FILE (--fast)"
@@ -405,13 +429,13 @@ fi
 
 # ---------- per-token seconds if the whole stream ran on ONE wall ----------
 TOTAL_GB=$(awk -v a="$TRUNK_GB" -v b="$EXPERT_GB" 'BEGIN{printf "%.2f", a+b}')
-secs() { # MB/s -> s/token
+secs() { # MB/s string (median, maybe with range) -> s/token
     awk -v g="$TOTAL_GB" -v m="$1" 'BEGIN{ if (m>0) printf "%.1f", g*1000/m; else print "-" }'
 }
 S_MEM=$(awk -v g="$TOTAL_GB" -v b="$MEM_GBPS" 'BEGIN{printf "%.1f", g/b}')
 S_GFLOPS=$(awk -v f="$FLOPS_TOKEN" -v g="$GF32_PEAK" 'BEGIN{printf "%.1f", f*1000/g}')
-S_FAST=$(secs "${FAST_READ:-0}")
-S_SLOW=$(secs "${SLOW_READ:-0}")
+S_FAST=$(secs "$(med "${FAST_READ:-0}")")
+S_SLOW=$(secs "$(med "${SLOW_READ:-0}")")
 
 # ---------- render the paper table ----------
 MD="$OUT/medium-ladder.md"
