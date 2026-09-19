@@ -22,8 +22,13 @@
 static int k3_alloc_direct(void **out, size_t bytes);   /* defined below */
 
 /* Read granularity for the async reader, also the quantum between expert-gate checks.
- * A multiple of K3_TRUNK_ALIGN (4096) so every partial chunk stays O_DIRECT-safe. */
-#define TRUNK_READ_CHUNK (8u << 20)
+ * A multiple of K3_TRUNK_ALIGN (4096) so every partial chunk stays O_DIRECT-safe.
+ * Measured on this machine (SINKER NVMe via WSL): single-stream O_DIRECT throughput
+ * rises with chunk size -- 8 MiB: ~850 MB/s, 32 MiB: ~1.1 GB/s -- and the trunk read
+ * must fit the per-layer window left by the expert burst, so the larger chunk is a
+ * pure win. The gate still parks between chunks; a bigger chunk just means the
+ * pread loop spends less time on per-chunk setup per byte. */
+#define TRUNK_READ_CHUNK (32u << 20)
 
 typedef struct {
     pthread_t thread;
@@ -36,6 +41,12 @@ typedef struct {
     int layer;
     int slot;
     int result;
+    /* Pending prefetch: set while busy==1 so the hint survives the current read. The
+     * reader's completion broadcast wakes the binder, whose next prefetch call issues
+     * the newest requested layer once busy clears -- a gate-parked reader otherwise
+     * makes every later hint vanish and the following binds fall back to synchronous
+     * reads on the main thread, stalling it for the whole expert burst. */
+    int pending;    /* layer to read next, -1 none */
     /* NVMe gate: while gate==1 the async reader waits between chunks, so the expert
      * cache's phase-2 scattered burst gets the device to itself. Without it, the trunk
      * reader's sequential stream and the experts' scattered reads run beside each other
@@ -394,6 +405,7 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
         K3TrunkIO *io = (K3TrunkIO *)calloc(1, sizeof *io);
         if (!io) return -1;
         io->tr = tr;
+        io->pending = -1;   /* calloc leaves 0, which is a VALID layer; -1 is "none" */
         pthread_mutex_init(&io->mu, NULL);
         pthread_cond_init(&io->cv, NULL);
         tr->io_state = io;
@@ -533,7 +545,9 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
          * expert reads take 40 s instead of 14 s. */
         if (io) {
             pthread_mutex_lock(&io->mu);
+            const double w0 = now_s();
             while (io->gate && !io->stop) pthread_cond_wait(&io->cv, &io->mu);
+            tr->wait_seconds += now_s() - w0;
             const int stop = io->stop;
             pthread_mutex_unlock(&io->mu);
             if (stop) break;
@@ -555,7 +569,13 @@ static void *trunk_io_main(void *arg)
     K3TrunkIO *io = (K3TrunkIO *)arg;
     for (;;) {
         pthread_mutex_lock(&io->mu);
-        while (!io->busy && !io->stop)
+        /* Wait for a request and for the previous completion to be acknowledged:
+         * io->done stays 1 until trunk_io_wait claims it (publishing the layer into
+         * its slot); the slot must not be re-read while its bytes are live. The
+         * binder claims the completion AND starts the next pending read, so io->layer
+         * is only ever changed by trunk_io_wait -- never by this thread -- which
+         * keeps the (busy||done) && io->layer == L match in the binder stable. */
+        while ((!io->busy || io->done) && !io->stop)
             pthread_cond_wait(&io->cv, &io->mu);
         if (io->stop) {
             pthread_mutex_unlock(&io->mu);
@@ -617,6 +637,10 @@ static int trunk_io_wait(K3Trunk *tr, int L)
     K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
     if (!io) return 0;
     pthread_mutex_lock(&io->mu);
+    /* Match the reader's current layer. The pending field (a hint received while the
+     * reader was busy) is NOT matched here: the binder's own prefetch call re-issues
+     * the newest request once the reader is free, so waiting on a not-yet-started
+     * pending read would hang on the wrong completion. */
     if ((io->busy || io->done) && io->layer == L) {
         while (!io->done && !io->stop)
             pthread_cond_wait(&io->cv, &io->mu);
@@ -698,7 +722,19 @@ void k3_trunk_prefetch(K3Trunk *tr, int L)
     K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
     if (!io) return;
     pthread_mutex_lock(&io->mu);
-    if (io->busy || tr->slot_of[L] >= 0) {
+    /* Reader busy (mid-read, possibly parked on the expert gate): do NOT drop the
+     * request. Remember the newest layer wanted; the reader's completion broadcast
+     * wakes the binder, and the next prefetch call (or this one, if it re-enters
+     * after busy clears) issues it. Without this, a gate-parked reader makes every
+     * later hint vanish and the following binds fall back to trunk_io_wait, which
+     * then waits on the very same gate and stalls the main thread for the whole
+     * expert burst. */
+    if (io->busy) {
+        if (io->pending < 0 || L > io->pending) io->pending = L;
+        pthread_mutex_unlock(&io->mu);
+        return;
+    }
+    if (tr->slot_of[L] >= 0) {
         pthread_mutex_unlock(&io->mu);
         return;
     }
@@ -731,9 +767,19 @@ void k3_trunk_report(const K3Trunk *tr, const char *label)
     printf("  binds %llu, hits %llu (%.1f%%), reads %llu\n",
            (unsigned long long)n, (unsigned long long)tr->hits,
            n ? 100.0 * tr->hits / n : 0.0, (unsigned long long)tr->misses);
-    printf("  read %.2f GB in %.2f s (%.0f MB/s)\n",
-           (double)tr->bytes_read / 1e9, tr->load_seconds,
-           tr->load_seconds > 0 ? (double)tr->bytes_read / 1e6 / tr->load_seconds : 0.0);
+    /* DEVICE rate, excluding the expert-gate park: load_seconds brackets the pread
+     * loop AND the condvar waits that yield the drive to the expert burst, so
+     * bytes/load_seconds understates the device. wait_seconds is the parked share;
+     * the rate below is bytes over (load - wait), the true pread rate. */
+    {
+        const double rd = tr->load_seconds - tr->wait_seconds;
+        const double rate = rd > 0 ? (double)tr->bytes_read / 1e6 / rd : 0.0;
+        printf("  read %.2f GB in %.2f s (%.0f MB/s pread)",
+               (double)tr->bytes_read / 1e9, rd, rate);
+        if (tr->wait_seconds > 0.0)
+            printf(" + %.2f s parked on the expert gate", tr->wait_seconds);
+        printf("\n");
+    }
     if (tr->reads_by_layer) {
         printf("  per-layer loads [L]=count: ");
         for (int i = 0; i < tr->n_layers; i++)
@@ -741,9 +787,10 @@ void k3_trunk_report(const K3Trunk *tr, const char *label)
                    (unsigned long long)tr->reads_by_layer[i]);
         printf("\n");
     }
-    /* The rate above is a DEVICE rate: load_seconds brackets the pread loop alone. The
-     * breakdown below is the wall clock actually spent inside k3_trunk_bind, so the
-     * difference between them is per-bind overhead rather than disk time.
+    /* The rate above is a DEVICE rate: load_seconds brackets the pread loop alone (the
+     * expert-gate park is split out above). The breakdown below is the wall clock
+     * actually spent inside k3_trunk_bind, so the difference between them is per-bind
+     * overhead rather than disk time.
      *
      * Reporting the widen step separately is what distinguishes a slow device from
      * excessive work per bind, two causes with the same symptom and different fixes. */
@@ -753,25 +800,28 @@ void k3_trunk_report(const K3Trunk *tr, const char *label)
          * from bind wall clock then goes negative by exactly the amount of overlap
          * achieved, which is how the previous form of this line reported the feature
          * working as "other -157.06" and a read share of 207%. Overlapped time is a
-         * result, not unattributed overhead, so it is named rather than subtracted. */
-        const double serial = tr->load_seconds + k3_trunk_widen_wall;
+         * result, not unattributed overhead, so it is named rather than subtracted. The
+         * gate park (wait_seconds) is voluntary yielding, not device work, so it is
+         * excluded from the device-work ledger. */
+        const double rd = tr->load_seconds - tr->wait_seconds;
+        const double serial = rd + k3_trunk_widen_wall;
         const double overlapped = serial - k3_trunk_bind_wall;
         if (overlapped > 0.0) {
             printf("  bind wall %.2f s over %ld binds; read %.2f + widen %.2f = %.2f s of "
                    "device work,\n"
                    "                    of which %.2f s (%.0f%%) overlapped compute on the "
                    "reader thread\n",
-                   k3_trunk_bind_wall, k3_trunk_binds, tr->load_seconds,
+                   k3_trunk_bind_wall, k3_trunk_binds, rd,
                    k3_trunk_widen_wall, serial, overlapped,
                    serial > 0.0 ? 100.0 * overlapped / serial : 0.0);
         } else {
             const double other = k3_trunk_bind_wall - serial;
             printf("  bind wall %.2f s over %ld binds  =  read %.2f + widen %.2f + other %.2f\n",
-                   k3_trunk_bind_wall, k3_trunk_binds, tr->load_seconds,
+                   k3_trunk_bind_wall, k3_trunk_binds, rd,
                    k3_trunk_widen_wall, other);
             if (k3_trunk_bind_wall > 0.0)
                 printf("                    shares:      read %.0f%%  widen %.0f%%  other %.0f%%\n",
-                       100.0 * tr->load_seconds / k3_trunk_bind_wall,
+                       100.0 * rd / k3_trunk_bind_wall,
                        100.0 * k3_trunk_widen_wall / k3_trunk_bind_wall,
                        100.0 * other / k3_trunk_bind_wall);
         }

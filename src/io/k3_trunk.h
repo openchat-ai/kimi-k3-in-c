@@ -112,7 +112,8 @@ typedef struct {
     /* stats */
     uint64_t     hits, misses;
     uint64_t     bytes_read;
-    double       load_seconds;
+    double       load_seconds;    /* pread + gate wait, see k3_trunk_report */
+    double       wait_seconds;    /* of load_seconds, spent parked on the expert gate */
     uint64_t    *reads_by_layer;  /* [n_layers] how many times each layer was load_run */
 } K3Trunk;
 
