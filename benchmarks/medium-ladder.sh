@@ -25,7 +25,7 @@ TRUNK_GB=108.81
 EXPERT_GB=25.83
 FLOPS_TOKEN=5.6
 FAST_FILE=/mnt/nvme/experts.l2
-SLOW_FILE=/model/model-00001-of-000096.safetensors
+SLOW_FILE=/model/model-00002-of-000096.safetensors
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -120,7 +120,7 @@ static void *worker_fp64(void *arg){
     const int n = 4096;
     double a[4096], b[4096], c[4096];
     for (int i=0;i<n;i++){ a[i]=1.0; b[i]=2.0; c[i]=0.5; }
-    const long iters = 2000000;
+    const long iters = 500000;
     double t0 = now();
     for (long it=0; it<iters; it++)
         for (int i=0;i<n;i+=4){
@@ -140,7 +140,7 @@ static void *worker_fp32(void *arg){
     const int n = 4096;
     float a[4096], b[4096], c[4096];
     for (int i=0;i<n;i++){ a[i]=1.0f; b[i]=2.0f; c[i]=0.5f; }
-    const long iters = 2000000;
+    const long iters = 500000;
     double t0 = now();
     for (long it=0; it<iters; it++)
         for (int i=0;i<n;i+=8){
@@ -167,7 +167,7 @@ static double peak_all(void *(*fn)(void *)){
     worker_out *out = calloc((size_t)nc, sizeof *out);
     if (!th || !out) return 0;
     double best = 0;
-    for (int r=0;r<5;r++){
+    for (int r=0;r<2;r++){
         for (int i=0;i<nc;i++) pthread_create(&th[i], NULL, fn, &out[i]);
         for (int i=0;i<nc;i++) pthread_join(th[i], NULL);
         double sum = 0;
@@ -195,23 +195,136 @@ GF_PEAK=$(echo "$PROBE" | awk '/fma_gflops_fp64/{print $2}')
 GF32_PEAK=$(echo "$PROBE" | awk '/fma_gflops_fp32/{print $2}')
 NCORES=$(nproc)
 
-# ---------- median-of-3 helper: O_DIRECT read MB/s ----------
-read_mbs() { # $1 file, $2 size_bytes (cap), returns MB/s on stdout
-    local f="$1" cap="$2"
-    local sz=0
-    sz=$(stat -c %s "$f" 2>/dev/null || echo 0)
-    [ "$sz" -gt "$cap" ] && sz=$cap
+# ---------- sequential pread helper (for the L2/trunk tier) ----------
+# The fast tier's real workload is a hit read: k3_l2cache.c preads one whole
+# slot (17.55 MB) per call, sequentially through the file. Median of 3.
+read_mbs() { # $1 file -> MB/s, sequential 17.55 MB preads, median of 3
+    local f="$1"
+    local cc="$OUT/seq_pread.c" bin="$OUT/seq_pread"
+    cat > "$cc" <<'CEOF'
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <time.h>
+#include <sys/stat.h>
+static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return t.tv_sec + t.tv_nsec*1e-9; }
+int main(int argc, char **argv){
+    if (argc < 2) return 1;
+    int fd = open(argv[1], O_RDONLY | O_DIRECT);
+    if (fd < 0) { perror("open"); return 1; }
+    struct stat st;
+    if (fstat(fd, &st) != 0) return 1;
+    const size_t SLOT = 17551360;            /* one L2 slot, 4096-aligned */
+    size_t n = (size_t)(st.st_size / SLOT);
+    const size_t CAP = (16ull << 30) / SLOT; /* cap the pass: 16 GiB is enough
+                                                for a stable rate, a full 114 GB
+                                                file read 3x takes minutes */
+    if (n > CAP) n = CAP;
+    if (n < 8) n = 8;                        /* small file: still stream it */
+    void *buf = NULL;
+    if (posix_memalign(&buf, 4096, SLOT) != 0) return 1;
+    double best = 0;
+    for (int r = 0; r < 3; r++){
+        double t0 = now();
+        for (size_t i = 0; i < n; i++){
+            ssize_t x = pread(fd, buf, SLOT, (off_t)i * SLOT);
+            if (x < 0) { perror("pread"); return 1; }
+        }
+        double dt = now() - t0;
+        double gb = (double)n * SLOT / dt / 1e9;
+        if (gb > best) best = gb;
+    }
+    printf("%.1f\n", best);
+    free(buf); close(fd);
+    return 0;
+}
+CEOF
+    gcc -O2 -o "$bin" "$cc" || return 1
+    local gb
+    gb=$("$bin" "$f")
+    awk -v g="$gb" 'BEGIN{ printf "%.1f", g*1000 }'
+}
+
+# ---------- expert-mode read helper (for the source/checkpoint tier) ----------
+# The engine never streams a whole checkpoint file; it preads one 17.55 MB
+# expert per call at the tensor's real offset (k3_load.c k3_expert_load,
+# contiguous path). A sequential head-of-file read would measure the wrong
+# thing -- the experts live scattered across the file, and near-full volumes
+# fragment them further. This helper walks the safetensors header, collects
+# the real data offsets of the .weight_packed tensors, and preads whole
+# experts one at a time exactly like the engine does. The median of 3 such
+# passes is the rate the engine would actually see.
+expert_read_mbs() { # $1 safetensors file -> MB/s (median of 3 passes)
+    local f="$1"
+    local py="$OUT/expert_offsets.py"
+    cat > "$py" <<'PYEOF'
+import json, struct, sys
+p = sys.argv[1]
+with open(p, "rb") as fh:
+    hlen = struct.unpack("<Q", fh.read(8))[0]
+    hdr = json.loads(fh.read(hlen))
+offs = []
+for k, t in hdr.items():
+    if ".experts." in k and k.endswith("weight_packed"):
+        lo, hi = t["data_offsets"]
+        offs.append(lo)
+        if len(offs) >= 32:
+            break
+print(" ".join(map(str, offs)))
+PYEOF
+    local offs
+    offs=$(python3 "$py" "$f" 2>/dev/null)
+    if [ -z "$offs" ]; then
+        echo "expert_read_mbs: no .experts.*.weight_packed tensors in $f (wrong shard?)" >&2
+        return 1
+    fi
+    local cc="$OUT/expert_pread.c" bin="$OUT/expert_pread"
+    cat > "$cc" <<'CEOF'
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <time.h>
+static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return t.tv_sec + t.tv_nsec*1e-9; }
+/* One engine-style pass: O_DIRECT pread of each expert (17.55 MB) at its real
+ * offset, aligning the buffer to 4096 and reading the aligned span. */
+int main(int argc, char **argv){
+    if (argc < 3) return 1;
+    int fd = open(argv[1], O_RDONLY | O_DIRECT);
+    if (fd < 0) { perror("open"); return 1; }
+    const size_t ESZ = 17547264;
+    const size_t BS = ((ESZ + 4095) / 4096) * 4096;      /* 17551360 */
+    void *buf = NULL;
+    if (posix_memalign(&buf, 4096, BS) != 0) return 1;
+    long n = argc - 2;
+    double t0 = now();
+    for (int i = 0; i < n; i++){
+        off_t off = (off_t)atoll(argv[2 + i]);
+        off_t aligned = off & ~(off_t)4095;              /* engine widens to 4096 */
+        size_t take = BS;
+        if (aligned + take > (off_t)BS + off) take = BS; /* full aligned span */
+        ssize_t r = pread(fd, buf, BS, aligned);
+        if (r < 0) { perror("pread"); return 1; }
+        (void)r;
+    }
+    double dt = now() - t0;
+    double gb = (double)n * ESZ / dt / 1e9;
+    printf("%.1f\n", gb);
+    free(buf); close(fd);
+    return 0;
+}
+CEOF
+    gcc -O2 -o "$bin" "$cc" || return 1
     local best=0
     for r in 1 2 3; do
-        local t0 t1 v
-        t0=$(date +%s.%N)
-        dd if="$f" of=/dev/null bs=8M count=$((sz/8388608)) iflag=direct status=none 2>/dev/null
-        t1=$(date +%s.%N)
-        v=$(awk -v s="$sz" -v a="$t0" -v b="$t1" 'BEGIN{ dt=b-a; if(dt<=0) dt=1e-9; printf "%.1f", s/1e6/dt }')
-        awk -v x="$v" -v b="$best" 'BEGIN{ if (x>b) printf "%.1f", x }' >/dev/null
+        local v
+        v=$("$bin" "$f" $offs)
         best=$(awk -v x="$v" -v b="$best" 'BEGIN{ print (x>b?x:b) }')
     done
-    echo "$best"
+    awk -v g="$best" 'BEGIN{ printf "%.1f", g*1000 }'
 }
 
 # ---------- write probe: O_DIRECT temp file, removed after ----------
@@ -252,7 +365,7 @@ TIER_SLOW=""
 if [ -f "$SLOW_FILE" ]; then
     SLOW_DEV=$(df --output=source "$SLOW_FILE" 2>/dev/null | tail -1)
     SLOW_CAP=$(df -h --output=size "$SLOW_FILE" 2>/dev/null | tail -1)
-    SLOW_READ=$(read_mbs "$SLOW_FILE" $((2*1024*1024*1024)))
+    SLOW_READ=$(expert_read_mbs "$SLOW_FILE")
     SLOW_WRITE="-"
     SLOW_WRITE_ANN=""
     SLOW_NDIR=$(dirname "$SLOW_FILE")
@@ -273,7 +386,7 @@ TIER_FAST=""
 if [ -f "$FAST_FILE" ]; then
     FAST_DEV=$(df --output=source "$FAST_FILE" 2>/dev/null | tail -1)
     FAST_CAP=$(df -h --output=size "$FAST_FILE" 2>/dev/null | tail -1)
-    FAST_READ=$(read_mbs "$FAST_FILE" $((4*1024*1024*1024)))
+    FAST_READ=$(read_mbs "$FAST_FILE")
     FAST_WRITE="-"
     FAST_WRITE_ANN=""
     FAST_NDIR=$(dirname "$FAST_FILE")

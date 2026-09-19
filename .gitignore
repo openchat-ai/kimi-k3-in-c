@@ -59,3 +59,13 @@ venv/
 # confusing one to debug.
 !tests/fixtures/
 !tests/fixtures/**
+
+# medium-ladder build artifacts
+benchmarks/medium-ladder-out/probe
+benchmarks/medium-ladder-out/probe.c
+benchmarks/medium-ladder-out/expert_pread
+benchmarks/medium-ladder-out/expert_pread.c
+benchmarks/medium-ladder-out/seq_pread
+benchmarks/medium-ladder-out/seq_pread.c
+benchmarks/medium-ladder-out/run.log
+benchmarks/medium-ladder-out/expert_offsets.py

@@ -1,4 +1,4 @@
-date      : 2026-09-19T04:25:21Z
+date      : 2026-09-19T04:58:59Z
 host      : Linux 6.6.87.2-microsoft-standard-WSL2 x86_64
 cpu       : Hygon C86-3G (OPN:3350)
 cores     : 16
@@ -6,4 +6,4 @@ memtotal  : 27.4 GB
 per-token : trunk 108.81 GB + experts 25.83 GB = 134.64 GB
 flops/tok : 5.6 TFLOP
 fast file : /mnt/nvme/experts.l2
-slow file : /model/model-00001-of-000096.safetensors
+slow file : /model/model-00002-of-000096.safetensors
