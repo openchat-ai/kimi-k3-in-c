@@ -522,6 +522,7 @@ typedef struct {
     int          loop_serial;  /* >0: EXPERIMENT block-outer serial rounds */
     int          loop_block;  /* EXPERIMENT: layers per serial block (default 4) */
     int          loop_outer;  /* EXPERIMENT: true block-outer schedule (token in block) */
+    float        loop_mix;    /* EXPERIMENT: chain weight on prev position's block output */
     const char  *loop_snap;    /* EXPERIMENT: per-round token/logit dump path (or NULL) */
 } Weights;
 
@@ -565,6 +566,9 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
         memcpy(h_orig, h, (size_t)T * E * sizeof(float));
     }
     for (int rnd = 0; rnd < n_rounds; rnd++) {
+    if (getenv("K3_LOOP_DBG"))
+        fprintf(stderr, "DBG fwd_inner loop_outer=%d loop_serial=%d T=%d\n",
+                w->loop_outer, w->loop_serial, T);
     if (w->loop_outer && w->loop_serial > 0 && T > 1) {
         /* TRUE block-outer schedule (user's proposal): each block of LOOP_BLOCK
          * layers is bound once, then every position runs the WHOLE block serially
@@ -591,10 +595,17 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
                 }
             }
             for (int t = 0; t < T; t++) {
-                if (t > 0) {
+                if (t > 0 && w->loop_mix > 0.0f) {
+                    /* Serial chain (user's proposal): this position's block input mixes
+                     * the previous position's block output with its OWN original
+                     * embedding. loop_mix is the weight on the PREVIOUS position's
+                     * output; 0.0 = pure per-position (each token keeps its own
+                     * embedding), which isolates whether the block-outer schedule
+                     * itself produces valid output before any chaining. */
+                    const float a = w->loop_mix;
                     for (int i = 0; i < E; i++)
-                        h[(size_t)t * E + i] = h[(size_t)(t - 1) * E + i] * 0.5f
-                                             + h_orig[(size_t)t * E + i] * 0.5f;
+                        h[(size_t)t * E + i] = h[(size_t)(t - 1) * E + i] * a
+                                             + h_orig[(size_t)t * E + i] * (1.0f - a);
                 }
                 nb_t[t] = 0;
                 for (int L = b0; L < b0 + blk && L < w->n_bound; L++) {
@@ -845,6 +856,7 @@ int main(int argc, char **argv)
     int loop_serial = 0;     /* EXPERIMENT: block-outer serial loop; 0 = OFF (standard path) */
     int loop_block = 4;      /* EXPERIMENT: layers per serial block */
     int loop_outer = 0;      /* EXPERIMENT: 1 = true block-outer (token runs inside block) */
+    float loop_mix = 0.0f;   /* EXPERIMENT: chain weight on prev position (0 = none) */
     const char *loop_snap = NULL;  /* EXPERIMENT: per-round token dump path */
     int stop_id[8]; int n_stop = 0, hit_stop = 0, stopped_at = -1;
     int tf_check = 0;
@@ -874,6 +886,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--loop-serial") && i + 1 < argc) loop_serial = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--loop-block") && i + 1 < argc) loop_block = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--loop-outer")) loop_outer = 1;
+        else if (!strcmp(argv[i], "--loop-mix") && i + 1 < argc) loop_mix = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "--loop-snap") && i + 1 < argc) loop_snap = argv[++i];
         else if (!strcmp(argv[i], "--stop-id") && i + 1 < argc) {
             if (n_stop >= (int)(sizeof stop_id / sizeof stop_id[0])) {
@@ -1290,6 +1303,7 @@ int main(int argc, char **argv)
     w.loop_serial = loop_serial;
     w.loop_block = loop_block;
     w.loop_outer = loop_outer;
+    w.loop_mix = loop_mix;
     w.loop_snap = loop_snap;
     w.lay = (K3LayerBind *)calloc((size_t)NL, sizeof(K3LayerBind));
     if (!w.lay) return 1;
@@ -1632,8 +1646,16 @@ int main(int argc, char **argv)
              * from a context one token short: fluent, plausible, and wrong. */
             const int base = w.cached;
             const int nT0 = T - base;
+            if (getenv("K3_FWD_DBG"))
+                fprintf(stderr, "DBG fwd prefill g=%d T=%d base=%d nT0=%d cached=%d\n",
+                        g, T, base, nT0, w.cached);
             frc = forward(&w, &c, &cache, seq + base, nT0, lg, sc, h, br, ks, NULL);
-            if (frc == 0) { w.cached = base + nT0; emit[emitn++] = argmax_(lg, c.vocab); }
+            if (frc == 0) {
+                w.cached = base + nT0;
+                /* loop-serial mode: prefill only, no token yet -- the block-outer
+                 * generation emits ALL gen tokens in ONE later forward. */
+                if (!(w.loop_serial > 0 && !w.draft_mode)) emit[emitn++] = argmax_(lg, c.vocab);
+            }
             /* The draft model must absorb the same context, or its first proposals
              * come from a shorter one; one draft sweep, paid once. Saved state does
              * not include the draft's, so a resumed run replays the WHOLE sequence
@@ -1649,6 +1671,9 @@ int main(int argc, char **argv)
         } else if (incremental) {
             const int base = w.cached;
             int d[K3_SPEC_MAX], nd = 0;
+            if (getenv("K3_FWD_DBG"))
+                fprintf(stderr, "DBG fwd gen g=%d T=%d base=%d cached=%d loop=%d\n",
+                        g, T, base, w.cached, w.loop_serial);
             if (spec_snap && T + spec_n + 1 < Tmax && base + spec_n + 1 <= w.kv_cap) {
                 if (dw.trunk) {
                     /* The draft model proposes: k sequential one-token steps through
@@ -1729,7 +1754,10 @@ int main(int argc, char **argv)
                  * mixes each position from the previous position's block output, so
                  * the later positions see a real continuation of the earlier ones.
                  * arg_all returns every position's argmax. */
-                const int remaining = gen - nout;
+                const int remaining = gen;   /* feed ALL gen positions: block-outer needs T>1 */
+                if (getenv("K3_FWD_DBG"))
+                    fprintf(stderr, "DBG fwd loop g=%d T=%d base=%d remaining=%d\n",
+                            g, T, base, remaining);
                 if (remaining > 1 && (long)T + remaining <= Tmax &&
                     base + remaining <= w.kv_cap) {
                     for (int k = 0; k < remaining; k++)
@@ -1749,12 +1777,26 @@ int main(int argc, char **argv)
                     if (frc == 0) { w.cached = base + 1; emit[emitn++] = argmax_(lg, c.vocab); }
                 }
             } else {
-                frc = forward(&w, &c, &cache, seq, T, lg, sc, h, br, ks, NULL);
-                if (frc == 0) emit[emitn++] = argmax_(lg, c.vocab);
+                /* STANDARD incremental decode: one new position, advancing cached.
+                 * (91e6689 regressed this to forward(seq, T) which re-ran the whole
+                 * prefix WITHOUT advancing w.cached, so the next step's KV writes
+                 * collided with already-cached positions and k3_mla_cached aborted
+                 * with a position past cap. base == w.cached here.) */
+                frc = forward(&w, &c, &cache, seq + base, 1, lg, sc, h, br, ks, NULL);
+                if (frc == 0) { w.cached = base + 1; emit[emitn++] = argmax_(lg, c.vocab); }
+                /* keep the draft in lockstep through non-drafted steps */
+                if (dw.trunk && frc == 0) {
+                    if (forward(&dw, &c, &cache, seq + base, 1, lg, sc, h, br,
+                                dks, NULL) == 0) dw.cached = base + 1;
+                    else frc = -1;
+                }
             }
         }
-        /* Abort the run rather than argmax a buffer the forward never wrote. */
-        if (frc != 0 || emitn == 0) {
+        /* Abort the run rather than argmax a buffer the forward never wrote. In loop-serial
+         * mode the prefill step (g==0) emits no token by design -- the block-outer
+         * generation emits all of them in the next iteration -- so a clean prefill
+         * (frc==0) with emitn==0 is fine there. */
+        if (frc != 0 || (emitn == 0 && !(w.loop_serial > 0 && g == 0 && !w.draft_mode))) {
             fprintf(stderr, "forward pass failed at generation step %d; aborting.\n", g);
             free(emit);
             return 1;
