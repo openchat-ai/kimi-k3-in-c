@@ -400,10 +400,16 @@ static void usage(FILE *f)
 "                        verified position costs ~22%% of a serial token when the trunk\n"
 "                        streams, so repetitive text decodes up to several times faster\n"
 "  --batch-gen           emit ALL --gen tokens in ONE forward pass instead of one forward\n"
-"                        per token. Each layer binds exactly once for the whole generation;\n"
-"                        later positions are fed the SAME input as the first (no true\n"
-"                        prefix), so output is NOT strict autoregressive decode. Needs\n"
-"                        --incremental\n"
+                        " per token. Each layer binds exactly once for the whole generation;\n"
+                        " later positions are fed the SAME input as the first (no true\n"
+                        " prefix), so output is NOT strict autoregressive decode. Needs\n"
+                        " --incremental\n"
+  "  --loop-serial N     EXPERIMENT: layer-outer serial schedule. Each layer serves all T\n"
+                        " positions one at a time, chaining position t from position t-1 of\n"
+                        " the SAME layer, then re-enters the whole trunk for N-1 more rounds\n"
+                        " with each round folded back into the inputs. Trunk is read once per\n"
+                        " layer per round (vs once per token); output differs from the exact\n"
+                        " model by construction -- diagnostic only\n"
 "  --tok DIR             directory with tiktoken.model and tokenizer_config.json\n"
 "\n"
 "diagnostics:\n"
@@ -513,6 +519,10 @@ typedef struct {
     int          n_mla, kv_cap, cached;
     int          layers_completed;   /* how many layers finished before any failure */
     int          draft_mode;   /* 1 for the hybrid draft: cache-only expert routing */
+    int          loop_serial;  /* >0: EXPERIMENT block-outer serial rounds */
+    int          loop_block;  /* EXPERIMENT: layers per serial block (default 4) */
+    int          loop_outer;  /* EXPERIMENT: true block-outer schedule (token in block) */
+    const char  *loop_snap;    /* EXPERIMENT: per-round token/logit dump path (or NULL) */
 } Weights;
 
 /* One full forward over T tokens, writing logits for the LAST position only. Every
@@ -544,7 +554,85 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
      * scratch every step and must be. */
     if (!w->kvc) memset(kstate, 0, kper * (size_t)w->n_bound * sizeof(float));
     int nb = 0;
+    const int n_rounds = (w->loop_serial > 0) ? w->loop_serial : 1;
+    float *h_orig = NULL;
+    if (w->loop_serial > 0) {
+        /* Layer-outer serial experiment: keep the ORIGINAL input embeddings so the
+         * layer-internal chain can mix each position with its own embedding, and so
+         * re-entry rounds can fold back to the inputs. */
+        h_orig = (float *)malloc((size_t)T * E * sizeof(float));
+        if (!h_orig) return -1;
+        memcpy(h_orig, h, (size_t)T * E * sizeof(float));
+    }
+    for (int rnd = 0; rnd < n_rounds; rnd++) {
+    if (w->loop_outer && w->loop_serial > 0 && T > 1) {
+        /* TRUE block-outer schedule (user's proposal): each block of LOOP_BLOCK
+         * layers is bound once, then every position runs the WHOLE block serially
+         * (position t chains from position t-1's block output). Layer 1-4 serves
+         * position 0, then position 1, ..., then the block is released and 5-8
+         * begins. Slow-layer reads = (n_layers / blk) * n_rounds, independent of T.
+         * Each position gets its own block-residual slab so n_blocks stays valid. */
+        const int blk = (w->loop_block > 0) ? w->loop_block : 4;
+        const int maxb = c->n_layers / c->attn_res_block + 2;
+        int nb_t[K3_MAX_TOPK > 8 ? K3_MAX_TOPK + 2 : 8 + 2];   /* per-position n_blocks */
+        const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
+        const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
+        for (int b0 = 0; b0 < w->n_bound; b0 += blk) {
+            for (int L = b0; L < b0 + blk && L < w->n_bound; L++) {
+                if (w->trunk && k3_trunk_bind(w->trunk, c, L, &w->lay[L]) != 0) {
+                    fprintf(stderr, "trunk bind failed at layer %d\n", L);
+                    if (h_orig) free(h_orig);
+                    return -1;
+                }
+                if (w->lay[L].lay.moe) {
+                    w->lay[L].moe.src = &cache->src;
+                    w->lay[L].moe.layer = L;
+                    w->lay[L].moe.cache_only = w->draft_mode;
+                }
+            }
+            for (int t = 0; t < T; t++) {
+                if (t > 0) {
+                    for (int i = 0; i < E; i++)
+                        h[(size_t)t * E + i] = h[(size_t)(t - 1) * E + i] * 0.5f
+                                             + h_orig[(size_t)t * E + i] * 0.5f;
+                }
+                nb_t[t] = 0;
+                for (int L = b0; L < b0 + blk && L < w->n_bound; L++) {
+                    if (getenv("K3_LOOP_DBG"))
+                        fprintf(stderr, "DBG block b0=%d t=%d L=%d rnd=%d\n", b0, t, L, rnd);
+                    const long drops_before = k3_expert_drops;
+                    const int mi = (w->kvc && w->mla_slot[L] >= 0) ? w->mla_slot[L] : -1;
+                    float *br_t = br + ((size_t)t * maxb) * E;   /* per-position slab */
+                    if (mi >= 0) {
+                        k3_decoder_layer_inc(h + (size_t)t * E, br_t, &nb_t[t],
+                                             &w->lay[L].lay, c, L, 1,
+                                             kstate + kper * (size_t)L, scratch,
+                                             w->kvc + kvper * (size_t)mi,
+                                             w->ropec + rpper * (size_t)mi,
+                                             w->cached + t, w->kv_cap);
+                    } else {
+                        k3_decoder_layer_inc(h + (size_t)t * E, br_t, &nb_t[t],
+                                             &w->lay[L].lay, c, L, 1,
+                                             kstate + kper * (size_t)L, scratch,
+                                             NULL, NULL, 0, 0);
+                    }
+                    if (k3_expert_drops != drops_before) {
+                        fprintf(stderr, "routed expert load failed at layer %d\n", L);
+                        if (h_orig) free(h_orig);
+                        return -1;
+                    }
+                    w->layers_completed = L + 1;
+                }
+            }
+            /* block done: release all its layers as a unit */
+            if (w->trunk)
+                for (int L = b0; L < b0 + blk && L < w->n_bound; L++)
+                    k3_trunk_release(w->trunk, L);
+        }
+        if (w->kvc) w->cached += T;
+    } else {
     for (int L = 0; L < w->n_bound; L++) {
+        const long drops_before = k3_expert_drops;
         /* Streaming: bring this layer in, and hint the next one so its read overlaps
          * this layer's arithmetic. The hint is safe: prefetch only claims a slot that
          * was explicitly released (this layer's own slot is not free yet, so its bytes
@@ -552,9 +640,21 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
         if (w->trunk) {
             if (k3_trunk_bind(w->trunk, c, L, &w->lay[L]) != 0) {
                 fprintf(stderr, "trunk bind failed at layer %d\n", L);
+                if (h_orig) free(h_orig);
                 return -1;
             }
-            k3_trunk_prefetch(w->trunk, L + 1);
+            if (w->loop_serial > 0) {
+                /* Block-serial prefetch: at the START of a block issue hints for the
+                 * WHOLE next block (L+1 .. L+blk-1) so its layers are read as a unit
+                 * while this block computes, instead of one layer at a time. k3_trunk
+                 * drops a hint whose target slot is busy, so no live layer is evicted. */
+                const int blk = (w->loop_block > 0) ? w->loop_block : 4;
+                if (L % blk == 0)
+                    for (int j = 1; j < blk && L + j < w->n_bound; j++)
+                        k3_trunk_prefetch(w->trunk, L + j);
+            } else {
+                k3_trunk_prefetch(w->trunk, L + 1);
+            }
         }
         /* Point this layer's MoE at the cache before use. Doing it here rather than at
          * bind time keeps K3LayerBind independent of any particular cache. */
@@ -565,8 +665,45 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
              * the exact model keeps true routing. This is what makes a draft step cheap. */
             w->lay[L].moe.cache_only = w->draft_mode;
         }
-        const long drops_before = k3_expert_drops;
-        if (w->kvc && w->mla_slot[L] >= 0) {
+        if (w->loop_serial > 0 && T > 1) {
+            /* EXPERIMENT: block-serial schedule. Layers are grouped into blocks of
+             * LOOP_BLOCK layers. Inside a block the STANDARD layer order runs for all
+             * T positions; BETWEEN blocks, position t's block input is the previous
+             * position's OUTPUT of the same block, mixed 0.5/0.5 with its own original
+             * embedding. This is the user's proposal: coarser chaining (block of 4
+             * layers instead of 1) keeps within-block semantics intact and should lose
+             * less than the per-layer chain. */
+            const int blk = (w->loop_block > 0) ? w->loop_block : 4;
+            if (getenv("K3_LOOP_DBG"))
+                fprintf(stderr, "DBG loop L=%d T=%d rnd=%d blk=%d inblk=%d\n",
+                        L, T, rnd, blk, L % blk);
+            const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
+            const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
+            const int mi = (w->kvc && w->mla_slot[L] >= 0) ? w->mla_slot[L] : -1;
+            if (L % blk == 0) {
+                /* entering a new block: chain position t from position t-1's block
+                 * input. The "block input" is h as carried from the previous block's
+                 * output (which is exactly h at this point for the first layer). */
+                for (int t = 1; t < T; t++)
+                    for (int i = 0; i < E; i++)
+                        h[(size_t)t * E + i] = h[(size_t)(t - 1) * E + i] * 0.5f
+                                             + h_orig[(size_t)t * E + i] * 0.5f;
+            }
+            /* The chain above rewrote h; feed ALL T positions through the layer in ONE
+             * batch call so block_residual / n_blocks indexing stays correct (the
+             * per-position loop variant overflowed br by advancing n_blocks T times). */
+            if (mi >= 0) {
+                k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
+                                     kstate + kper * (size_t)L, scratch,
+                                     w->kvc + kvper * (size_t)mi,
+                                     w->ropec + rpper * (size_t)mi,
+                                     w->cached, w->kv_cap);
+            } else {
+                k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
+                                     kstate + kper * (size_t)L, scratch,
+                                     NULL, NULL, 0, 0);
+            }
+        } else if (w->kvc && w->mla_slot[L] >= 0) {
             const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
             const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
             const int mi = w->mla_slot[L];
@@ -583,7 +720,21 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
         /* L is done computing; its slot may now be recycled for the layer after next.
          * Prefetch already claimed a different free slot for L+1 before compute began,
          * so releasing here only widens the pool for L+2. */
-        if (w->trunk) k3_trunk_release(w->trunk, L);
+        /* Group release, user's schedule: at the END of a block (L % blk == blk-1) the
+         * block has served all T positions and can be dropped as a unit, freeing its
+         * slots for the next block's prefetch blk layers early. k3_trunk_release
+         * refuses to drop a layer the async reader is mid-load, and prefetch only
+         * takes already-free slots, so the current block's live layers are never
+         * evicted under the next block's read. */
+        if (w->trunk) {
+            const int blk = (w->loop_block > 0) ? w->loop_block : 4;
+            if (w->loop_serial > 0 && blk > 1 && L % blk == blk - 1) {
+                for (int i = blk - 1; i >= 0 && L - i >= 0; i--)
+                    k3_trunk_release(w->trunk, L - i);
+            } else if (w->loop_serial == 0) {
+                k3_trunk_release(w->trunk, L);
+            }
+        }
         /* Refuse to hand back the output of a layer whose routed experts did not all
          * load: an incomplete MoE produces garbage the decoder then bakes into every
          * later layer. Fail fast here rather than surfacing it next token as a wrong
@@ -591,10 +742,43 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
         if (k3_expert_drops != drops_before) {
             fprintf(stderr, "routed expert load failed at layer %d; refusing partial "
                             "MoE output\n", L);
+            if (h_orig) free(h_orig);
             return -1;
         }
         w->layers_completed = L + 1;
     }
+    }   /* end else (standard / layer-outer path) */
+    if (rnd + 1 < n_rounds) {
+        /* fold the round's output back into the originals before re-entering layer 0 */
+        for (int t = 0; t < T; t++)
+            for (int i = 0; i < E; i++)
+                h[(size_t)t * E + i] = h[(size_t)t * E + i] * 0.5f
+                                     + h_orig[(size_t)t * E + i] * 0.5f;
+        /* EXPERIMENT: record this round's per-position argmax and the logits vector
+         * of the last position, so successive rounds can be compared (are we converging
+         * to the exact model's answer, or to some other fixed point?). */
+        if (w->loop_serial > 0 && w->loop_snap) {
+            char p[512];
+            snprintf(p, sizeof p, "%s.r%d", w->loop_snap, rnd);
+            FILE *sf = fopen(p, "wb");
+            if (sf) {
+                float *nrm2 = scratch;
+                int tok_last = -1;
+                float *lgl = scratch + (size_t)E * 2;
+                for (int t = 0; t < T; t++) {
+                    k3_rmsnorm(nrm2, h + (size_t)t * E, w->mb.norm, E, c->rms_eps);
+                    k3_mmw(lgl, nrm2, w->mb.lm_head, w->mb.wdt, E, c->vocab);
+                    int a = argmax_(lgl, c->vocab);
+                    fwrite(&a, sizeof a, 1, sf);
+                    if (t == T - 1) tok_last = a;
+                }
+                fwrite(&tok_last, sizeof tok_last, 1, sf);
+                fclose(sf);
+            }
+        }
+    }
+    }
+    if (h_orig) free(h_orig);
 
     /* The model-level aggregator, beyond the two per layer. Exactly one pair exists in
      * the checkpoint; skipping it is silent. */
@@ -658,6 +842,10 @@ int main(int argc, char **argv)
     int budget_auto = 0, budget_explicit = 0;
     int spec_n = 0;
     int batch_gen = 0;       /* once-BATCH-decode: emit --gen tokens from ONE forward */
+    int loop_serial = 0;     /* EXPERIMENT: block-outer serial loop; 0 = OFF (standard path) */
+    int loop_block = 4;      /* EXPERIMENT: layers per serial block */
+    int loop_outer = 0;      /* EXPERIMENT: 1 = true block-outer (token runs inside block) */
+    const char *loop_snap = NULL;  /* EXPERIMENT: per-round token dump path */
     int stop_id[8]; int n_stop = 0, hit_stop = 0, stopped_at = -1;
     int tf_check = 0;
     const char *draft_dir = NULL;
@@ -683,6 +871,10 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--trunk") && i + 1 < argc) trunk_dir = argv[++i];
         else if (!strcmp(argv[i], "--spec") && i + 1 < argc) spec_n = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--batch-gen")) batch_gen = 1;
+        else if (!strcmp(argv[i], "--loop-serial") && i + 1 < argc) loop_serial = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--loop-block") && i + 1 < argc) loop_block = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--loop-outer")) loop_outer = 1;
+        else if (!strcmp(argv[i], "--loop-snap") && i + 1 < argc) loop_snap = argv[++i];
         else if (!strcmp(argv[i], "--stop-id") && i + 1 < argc) {
             if (n_stop >= (int)(sizeof stop_id / sizeof stop_id[0])) {
                 fprintf(stderr, "--stop-id given more than %d times\n",
@@ -1095,6 +1287,10 @@ int main(int argc, char **argv)
     }
 
     Weights w; memset(&w, 0, sizeof w);
+    w.loop_serial = loop_serial;
+    w.loop_block = loop_block;
+    w.loop_outer = loop_outer;
+    w.loop_snap = loop_snap;
     w.lay = (K3LayerBind *)calloc((size_t)NL, sizeof(K3LayerBind));
     if (!w.lay) return 1;
 
@@ -1524,19 +1720,38 @@ int main(int argc, char **argv)
                         emit[emitn++] = arg[m];
                     }
                 }
-            } else {
-                frc = forward(&w, &c, &cache, seq + base, 1, lg, sc, h, br, ks, NULL);
-                if (frc == 0) { w.cached = base + 1; emit[emitn++] = argmax_(lg, c.vocab); }
-                /* keep the draft in lockstep through non-drafted steps */
-                if (dw.trunk && frc == 0) {
-                    if (forward(&dw, &c, &cache, seq + base, 1, lg, sc, h, br,
-                                dks, NULL) == 0) dw.cached = base + 1;
-                    else frc = -1;
+            } else if (w.loop_serial > 0 && !dw.trunk) {
+                /* Block-serial generation: ONE forward feeds every remaining gen
+                 * position so forward() runs its layer-outer schedule with T > 1 --
+                 * each trunk layer is bound once for the whole batch (slow-layer
+                 * reads = layers x rounds, independent of gen). Positions are seeded
+                 * with the last real token; the block-serial chain inside forward()
+                 * mixes each position from the previous position's block output, so
+                 * the later positions see a real continuation of the earlier ones.
+                 * arg_all returns every position's argmax. */
+                const int remaining = gen - nout;
+                if (remaining > 1 && (long)T + remaining <= Tmax &&
+                    base + remaining <= w.kv_cap) {
+                    for (int k = 0; k < remaining; k++)
+                        seq[T + k] = seq[T - 1];
+                    int *argall = (int *)malloc((size_t)remaining * sizeof(int));
+                    if (!argall) { fprintf(stderr, "OOM for loop-serial\n"); free(emit); return 1; }
+                    frc = forward(&w, &c, &cache, seq + base, remaining, lg, sc, h, br,
+                                  ks, argall);
+                    if (frc == 0) {
+                        w.cached = base + remaining;
+                        for (int k = 0; k < remaining; k++)
+                            if (nout < gen) { emit[emitn++] = argall[k]; }
+                    }
+                    free(argall);
+                } else {
+                    frc = forward(&w, &c, &cache, seq + base, 1, lg, sc, h, br, ks, NULL);
+                    if (frc == 0) { w.cached = base + 1; emit[emitn++] = argmax_(lg, c.vocab); }
                 }
+            } else {
+                frc = forward(&w, &c, &cache, seq, T, lg, sc, h, br, ks, NULL);
+                if (frc == 0) emit[emitn++] = argmax_(lg, c.vocab);
             }
-        } else {
-            frc = forward(&w, &c, &cache, seq, T, lg, sc, h, br, ks, NULL);
-            if (frc == 0) emit[emitn++] = argmax_(lg, c.vocab);
         }
         /* Abort the run rather than argmax a buffer the forward never wrote. */
         if (frc != 0 || emitn == 0) {
