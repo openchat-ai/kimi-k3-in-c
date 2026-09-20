@@ -566,81 +566,60 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
         memcpy(h_orig, h, (size_t)T * E * sizeof(float));
     }
     for (int rnd = 0; rnd < n_rounds; rnd++) {
-    if (getenv("K3_LOOP_DBG"))
-        fprintf(stderr, "DBG fwd_inner loop_outer=%d loop_serial=%d T=%d\n",
-                w->loop_outer, w->loop_serial, T);
     if (w->loop_outer && w->loop_serial > 0 && T > 1) {
         /* TRUE block-outer schedule (user's proposal): each block of LOOP_BLOCK
-         * layers is bound once, then every position runs the WHOLE block serially
-         * (position t chains from position t-1's block output). Layer 1-4 serves
-         * position 0, then position 1, ..., then the block is released and 5-8
-         * begins. Slow-layer reads = (n_layers / blk) * n_rounds, independent of T.
-         * Each position gets its own block-residual slab so n_blocks stays valid. */
+         * layers is bound as a unit and released as a unit, so slow-layer reads =
+         * (n_layers / blk) x rounds, independent of T. CRITICAL: inside a block the
+         * layers run the STANDARD whole-batch call (all T positions at once) so
+         * k3_decoder_layer_inc's residual accumulation (pref += tmp across t, and
+         * block_residual/n_blocks) stays intact -- the earlier per-position loop
+         * broke have_prefix and reset n_blocks per token, collapsing the residual
+         * stream and emitting token 0. The block boundary here is I/O only. */
         const int blk = (w->loop_block > 0) ? w->loop_block : 4;
-        const int maxb = c->n_layers / c->attn_res_block + 2;
-        int nb_t[K3_MAX_TOPK > 8 ? K3_MAX_TOPK + 2 : 8 + 2];   /* per-position n_blocks */
+        int nb = 0;
         const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
         const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
         for (int b0 = 0; b0 < w->n_bound; b0 += blk) {
+            /* bind-then-run each layer in standard order, release whole block at end */
             for (int L = b0; L < b0 + blk && L < w->n_bound; L++) {
                 if (w->trunk && k3_trunk_bind(w->trunk, c, L, &w->lay[L]) != 0) {
                     fprintf(stderr, "trunk bind failed at layer %d\n", L);
                     if (h_orig) free(h_orig);
                     return -1;
                 }
+                if (w->trunk) k3_trunk_prefetch(w->trunk, L + 1);
                 if (w->lay[L].lay.moe) {
                     w->lay[L].moe.src = &cache->src;
                     w->lay[L].moe.layer = L;
                     w->lay[L].moe.cache_only = w->draft_mode;
                 }
-            }
-            for (int t = 0; t < T; t++) {
-                if (t > 0 && w->loop_mix > 0.0f) {
-                    /* Serial chain (user's proposal): this position's block input mixes
-                     * the previous position's block output with its OWN original
-                     * embedding. loop_mix is the weight on the PREVIOUS position's
-                     * output; 0.0 = pure per-position (each token keeps its own
-                     * embedding), which isolates whether the block-outer schedule
-                     * itself produces valid output before any chaining. */
-                    const float a = w->loop_mix;
-                    for (int i = 0; i < E; i++)
-                        h[(size_t)t * E + i] = h[(size_t)(t - 1) * E + i] * a
-                                             + h_orig[(size_t)t * E + i] * (1.0f - a);
+                const long drops_before = k3_expert_drops;
+                const int mi = (w->kvc && w->mla_slot[L] >= 0) ? w->mla_slot[L] : -1;
+                if (mi >= 0) {
+                    k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
+                                         kstate + kper * (size_t)L, scratch,
+                                         w->kvc + kvper * (size_t)mi,
+                                         w->ropec + rpper * (size_t)mi,
+                                         w->cached, w->kv_cap);
+                } else {
+                    k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
+                                         kstate + kper * (size_t)L, scratch,
+                                         NULL, NULL, 0, 0);
                 }
-                nb_t[t] = 0;
-                for (int L = b0; L < b0 + blk && L < w->n_bound; L++) {
-                    if (getenv("K3_LOOP_DBG"))
-                        fprintf(stderr, "DBG block b0=%d t=%d L=%d rnd=%d\n", b0, t, L, rnd);
-                    const long drops_before = k3_expert_drops;
-                    const int mi = (w->kvc && w->mla_slot[L] >= 0) ? w->mla_slot[L] : -1;
-                    float *br_t = br + ((size_t)t * maxb) * E;   /* per-position slab */
-                    if (mi >= 0) {
-                        k3_decoder_layer_inc(h + (size_t)t * E, br_t, &nb_t[t],
-                                             &w->lay[L].lay, c, L, 1,
-                                             kstate + kper * (size_t)L, scratch,
-                                             w->kvc + kvper * (size_t)mi,
-                                             w->ropec + rpper * (size_t)mi,
-                                             w->cached + t, w->kv_cap);
-                    } else {
-                        k3_decoder_layer_inc(h + (size_t)t * E, br_t, &nb_t[t],
-                                             &w->lay[L].lay, c, L, 1,
-                                             kstate + kper * (size_t)L, scratch,
-                                             NULL, NULL, 0, 0);
-                    }
-                    if (k3_expert_drops != drops_before) {
-                        fprintf(stderr, "routed expert load failed at layer %d\n", L);
-                        if (h_orig) free(h_orig);
-                        return -1;
-                    }
-                    w->layers_completed = L + 1;
+                if (k3_expert_drops != drops_before) {
+                    fprintf(stderr, "routed expert load failed at layer %d\n", L);
+                    if (h_orig) free(h_orig);
+                    return -1;
                 }
+                w->layers_completed = L + 1;
             }
-            /* block done: release all its layers as a unit */
             if (w->trunk)
                 for (int L = b0; L < b0 + blk && L < w->n_bound; L++)
                     k3_trunk_release(w->trunk, L);
         }
-        if (w->kvc) w->cached += T;
+        /* main() advances w->cached after forward() returns (base + T); do NOT
+         * advance it here or the KV positions double-count and the next step
+         * writes into the wrong slots. */
     } else {
     for (int L = 0; L < w->n_bound; L++) {
         const long drops_before = k3_expert_drops;
@@ -654,11 +633,14 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
                 if (h_orig) free(h_orig);
                 return -1;
             }
-            if (w->loop_serial > 0) {
+            if (w->loop_outer) {
                 /* Block-serial prefetch: at the START of a block issue hints for the
                  * WHOLE next block (L+1 .. L+blk-1) so its layers are read as a unit
                  * while this block computes, instead of one layer at a time. k3_trunk
-                 * drops a hint whose target slot is busy, so no live layer is evicted. */
+                 * drops a hint whose target slot is busy, so no live layer is evicted.
+                 * NOTE: only under --loop-outer; plain --loop-serial keeps the
+                 * per-layer hint because the batched block prefetch changes the slot
+                 * timeline and with it the computed result. */
                 const int blk = (w->loop_block > 0) ? w->loop_block : 4;
                 if (L % blk == 0)
                     for (int j = 1; j < blk && L + j < w->n_bound; j++)
@@ -676,45 +658,7 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
              * the exact model keeps true routing. This is what makes a draft step cheap. */
             w->lay[L].moe.cache_only = w->draft_mode;
         }
-        if (w->loop_serial > 0 && T > 1) {
-            /* EXPERIMENT: block-serial schedule. Layers are grouped into blocks of
-             * LOOP_BLOCK layers. Inside a block the STANDARD layer order runs for all
-             * T positions; BETWEEN blocks, position t's block input is the previous
-             * position's OUTPUT of the same block, mixed 0.5/0.5 with its own original
-             * embedding. This is the user's proposal: coarser chaining (block of 4
-             * layers instead of 1) keeps within-block semantics intact and should lose
-             * less than the per-layer chain. */
-            const int blk = (w->loop_block > 0) ? w->loop_block : 4;
-            if (getenv("K3_LOOP_DBG"))
-                fprintf(stderr, "DBG loop L=%d T=%d rnd=%d blk=%d inblk=%d\n",
-                        L, T, rnd, blk, L % blk);
-            const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
-            const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
-            const int mi = (w->kvc && w->mla_slot[L] >= 0) ? w->mla_slot[L] : -1;
-            if (L % blk == 0) {
-                /* entering a new block: chain position t from position t-1's block
-                 * input. The "block input" is h as carried from the previous block's
-                 * output (which is exactly h at this point for the first layer). */
-                for (int t = 1; t < T; t++)
-                    for (int i = 0; i < E; i++)
-                        h[(size_t)t * E + i] = h[(size_t)(t - 1) * E + i] * 0.5f
-                                             + h_orig[(size_t)t * E + i] * 0.5f;
-            }
-            /* The chain above rewrote h; feed ALL T positions through the layer in ONE
-             * batch call so block_residual / n_blocks indexing stays correct (the
-             * per-position loop variant overflowed br by advancing n_blocks T times). */
-            if (mi >= 0) {
-                k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
-                                     kstate + kper * (size_t)L, scratch,
-                                     w->kvc + kvper * (size_t)mi,
-                                     w->ropec + rpper * (size_t)mi,
-                                     w->cached, w->kv_cap);
-            } else {
-                k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
-                                     kstate + kper * (size_t)L, scratch,
-                                     NULL, NULL, 0, 0);
-            }
-        } else if (w->kvc && w->mla_slot[L] >= 0) {
+        if (w->kvc && w->mla_slot[L] >= 0) {
             const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
             const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
             const int mi = w->mla_slot[L];
@@ -738,13 +682,9 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
          * takes already-free slots, so the current block's live layers are never
          * evicted under the next block's read. */
         if (w->trunk) {
-            const int blk = (w->loop_block > 0) ? w->loop_block : 4;
-            if (w->loop_serial > 0 && blk > 1 && L % blk == blk - 1) {
-                for (int i = blk - 1; i >= 0 && L - i >= 0; i--)
-                    k3_trunk_release(w->trunk, L - i);
-            } else if (w->loop_serial == 0) {
-                k3_trunk_release(w->trunk, L);
-            }
+            /* standard path always releases per layer; the block-outer branch
+             * (forward's loop_outer block) manages its own block release. */
+            k3_trunk_release(w->trunk, L);
         }
         /* Refuse to hand back the output of a layer whose routed experts did not all
          * load: an incomplete MoE produces garbage the decoder then bakes into every
@@ -1646,15 +1586,13 @@ int main(int argc, char **argv)
              * from a context one token short: fluent, plausible, and wrong. */
             const int base = w.cached;
             const int nT0 = T - base;
-            if (getenv("K3_FWD_DBG"))
-                fprintf(stderr, "DBG fwd prefill g=%d T=%d base=%d nT0=%d cached=%d\n",
-                        g, T, base, nT0, w.cached);
             frc = forward(&w, &c, &cache, seq + base, nT0, lg, sc, h, br, ks, NULL);
             if (frc == 0) {
                 w.cached = base + nT0;
-                /* loop-serial mode: prefill only, no token yet -- the block-outer
-                 * generation emits ALL gen tokens in ONE later forward. */
-                if (!(w.loop_serial > 0 && !w.draft_mode)) emit[emitn++] = argmax_(lg, c.vocab);
+                /* prefill emits the first token exactly as standard decode does; the
+                 * block-outer generation then batches the REMAINING gen-1 positions in
+                 * one forward (T = gen-1 > 1), giving the slow-layer share win. */
+                emit[emitn++] = argmax_(lg, c.vocab);
             }
             /* The draft model must absorb the same context, or its first proposals
              * come from a shorter one; one draft sweep, paid once. Saved state does
@@ -1671,9 +1609,6 @@ int main(int argc, char **argv)
         } else if (incremental) {
             const int base = w.cached;
             int d[K3_SPEC_MAX], nd = 0;
-            if (getenv("K3_FWD_DBG"))
-                fprintf(stderr, "DBG fwd gen g=%d T=%d base=%d cached=%d loop=%d\n",
-                        g, T, base, w.cached, w.loop_serial);
             if (spec_snap && T + spec_n + 1 < Tmax && base + spec_n + 1 <= w.kv_cap) {
                 if (dw.trunk) {
                     /* The draft model proposes: k sequential one-token steps through
@@ -1745,7 +1680,7 @@ int main(int argc, char **argv)
                         emit[emitn++] = arg[m];
                     }
                 }
-            } else if (w.loop_serial > 0 && !dw.trunk) {
+            } else if (w.loop_outer && w.loop_serial > 0 && !dw.trunk) {
                 /* Block-serial generation: ONE forward feeds every remaining gen
                  * position so forward() runs its layer-outer schedule with T > 1 --
                  * each trunk layer is bound once for the whole batch (slow-layer
@@ -1754,10 +1689,7 @@ int main(int argc, char **argv)
                  * mixes each position from the previous position's block output, so
                  * the later positions see a real continuation of the earlier ones.
                  * arg_all returns every position's argmax. */
-                const int remaining = gen;   /* feed ALL gen positions: block-outer needs T>1 */
-                if (getenv("K3_FWD_DBG"))
-                    fprintf(stderr, "DBG fwd loop g=%d T=%d base=%d remaining=%d\n",
-                            g, T, base, remaining);
+                const int remaining = gen - nout;   /* prefill emitted 1; batch the rest */
                 if (remaining > 1 && (long)T + remaining <= Tmax &&
                     base + remaining <= w.kv_cap) {
                     for (int k = 0; k < remaining; k++)
@@ -1796,7 +1728,7 @@ int main(int argc, char **argv)
          * mode the prefill step (g==0) emits no token by design -- the block-outer
          * generation emits all of them in the next iteration -- so a clean prefill
          * (frc==0) with emitn==0 is fine there. */
-        if (frc != 0 || (emitn == 0 && !(w.loop_serial > 0 && g == 0 && !w.draft_mode))) {
+        if (frc != 0 || (emitn == 0 && !(w.loop_outer && w.loop_serial > 0 && g == 0 && !w.draft_mode))) {
             fprintf(stderr, "forward pass failed at generation step %d; aborting.\n", g);
             free(emit);
             return 1;
