@@ -62,6 +62,10 @@ measure() { # $1 tag $2 extra...
 
 measure standard
 measure loop_block${BLOCK} --loop-serial 1 --loop-block "$BLOCK"
+# Third arm: n-gram --spec (exact, draft is a free lookup, ONE forward per round).
+# Reads = T*n/(A+1): the exact path's only lever is the accepted run A, which the
+# run prints as "--spec: N rounds, mean accepted run A". ids must equal standard.
+measure spec_ngram --spec "$GEN"
 
 echo
 echo "===== RAW ====="
@@ -72,6 +76,8 @@ echo "===== markdown ====="
   echo "# Block-serial vs standard decode — $(date -u +%Y-%m-%d)"
   echo
   echo "Prompt: 30 synthetic tokens, gen $GEN, $LAYERS layers, trunk BF8."
+  echo "Arms: standard (read once/token), loop_block (read once/block, approximate),"
+  echo "spec_ngram (n-gram draft, verified EXACT: ids must equal standard)."
   echo "Each arm runs warmup-then-measure so both start with a hot expert L2;"
   echo "slow layer = trunk (read once per token in standard, once per round in"
   echo "block-serial), fast layer = expert L2 cache."
