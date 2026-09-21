@@ -325,8 +325,14 @@ static int spec_draft(const int *seq, int T, int cap, int *out)
         for (int i = 0; nd < cap && m1 + n + i < T; i++) {
             const int cand = seq[m1 + n + i];
             if (m2 >= 0) {
-                /* stop where the two histories stop agreeing */
-                if (m2 + n + i >= m1 || seq[m2 + n + i] != cand) break;
+                /* stop where the two histories' continuations disagree. The old
+                 * condition `m2 + n + i >= m1` was WRONG: with m2 < m1 and n >= 3 it
+                 * is true on the first i for any two matches (e.g. a pure cycle
+                 * [a,b]*4 at T=8, m1=2, m2=0: 0+4+0=4 >= 2), so a draft NEVER fired
+                 * even when every historical occurrence agreed on the next token --
+                 * the n-gram drafter silently did nothing and spec fell back to
+                 * serial decode. Compare the CONTENT of the two continuations. */
+                if (m2 + n + i >= T || seq[m2 + n + i] != cand) break;
             }
             out[nd++] = cand;
         }
