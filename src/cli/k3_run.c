@@ -369,8 +369,11 @@ static void usage(FILE *f)
 "                        larger keeps recently read layers resident across tokens\n"
 "  --cache-gb X          routed-expert cache budget\n"
 "  --l2 PATH             expert-granularity disk cache file on a fast volume (sdd7),\n"
-"                        holding hot experts so the slow checkpoint disk is not re-read;\n"
-"                        a routed-expert RAS trace showed ~69 GB of distinct experts\n"
+                        " holding hot experts so the slow checkpoint disk is not re-read;\n"
+                        " a routed-expert RAS trace showed ~69 GB of distinct experts\n"
+  "  --embed-dir DIR      alternate directory holding the embed+lm_head shard\n"
+                        " (model-00094-of-000096). Put the 4.7 GB embed on sdd7 so the\n"
+                        " slow checkpoint disk is not read for it, like --trunk/--l2\n"
 "  --l2-gb X             size of that file in GB, rounded down to whole slots; default\n"
 "                        auto (half the free space on the fast volume, up to the 192 GB\n"
 "                        capacity knee measured on the expert trace)\n"
@@ -708,6 +711,7 @@ int main(int argc, char **argv)
     int incremental = 0;
     int incremental_default = 1;
     const char *l2_path = NULL;      /* fast-volume second-level expert cache file */
+    const char *embed_dir = NULL;    /* alternate dir for the embed+lm_head shard (sdd7) */
     double l2_gb = 200.0;
     int l2_gb_explicit = 0;
     int l2_policy = 0;               /* 0 = heat (default), 1 = lru */
@@ -756,6 +760,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--incremental")) incremental_default = 1;
         else if (!strcmp(argv[i], "--no-incremental")) incremental_default = 0;
         else if (!strcmp(argv[i], "--l2") && i + 1 < argc) l2_path = argv[++i];
+        else if (!strcmp(argv[i], "--embed-dir") && i + 1 < argc) embed_dir = argv[++i];
         else if (!strcmp(argv[i], "--l2-gb") && i + 1 < argc) { l2_gb = atof(argv[++i]); l2_gb_explicit = 1; }
         else if (!strcmp(argv[i], "--l2-policy") && i + 1 < argc) {
             const char *v = argv[++i];
@@ -1054,7 +1059,7 @@ int main(int argc, char **argv)
 
     K3St st;
     double t0 = now_s();
-    if (k3_st_open(&st, dir) != 0) return 1;
+    if (k3_st_open_dir(&st, dir, embed_dir) != 0) return 1;
     printf("indexed %d tensors from %d shards in %.2f s\n", st.nt, st.nshard, now_s() - t0);
 
     /* ---- how much will this take? Report BEFORE allocating, so a box that cannot

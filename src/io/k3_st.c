@@ -74,7 +74,13 @@ typedef struct { const char *p, *end; } Scan;
 
 static void ws(Scan *s) { while (s->p < s->end && (unsigned char)*s->p <= ' ') s->p++; }
 
-static int lit(Scan *s, char c) { ws(s); if (s->p < s->end && *s->p == c) { s->p++; return 1; } return 0; }
+static int lit(Scan *s, char c) { ws(s); if (s->p < s->end && *s->p == c) { s->p++; return 1; } return 0;
+}
+
+int k3_st_open(K3St *s, const char *dir)
+{
+    return k3_st_open_dir(s, dir, NULL);
+}
 
 /* Read a JSON string into out (NUL terminated). Tensor names are dotted identifiers so
  * escapes never appear in practice, but a parser that silently mangles one would
@@ -361,7 +367,7 @@ static int cmp_str(const void *a, const void *b)
     return strcmp(*(const char *const *)a, *(const char *const *)b);
 }
 
-int k3_st_open(K3St *s, const char *dir)
+int k3_st_open_dir(K3St *s, const char *dir, const char *embed_dir)
 {
     memset(s, 0, sizeof *s);
 
@@ -374,9 +380,14 @@ int k3_st_open(K3St *s, const char *dir)
         size_t n = strlen(e->d_name);
         if (n < 12 || strcmp(e->d_name + n - 12, ".safetensors")) continue;
         if (nf == cf) { cf = cf ? cf * 2 : 32; files = (char **)realloc(files, cf * sizeof *files); }
-        size_t len = strlen(dir) + 1 + n + 1;
+        /* The embed+lm_head shard (model-00094) loads off embed_dir when given --
+         * the same "put it on the fast volume" trick as --trunk and --l2. Match by
+         * the shard number so only that one file is redirected. */
+        const char *src = dir;
+        if (embed_dir && strstr(e->d_name, "model-00094-of")) src = embed_dir;
+        size_t len = strlen(src) + 1 + n + 1;
         files[nf] = (char *)malloc(len);
-        snprintf(files[nf], len, "%s/%s", dir, e->d_name);
+        snprintf(files[nf], len, "%s/%s", src, e->d_name);
         nf++;
     }
     closedir(d);

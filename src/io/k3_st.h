@@ -64,7 +64,12 @@ typedef struct {
     size_t     strcap, strlen_;
 } K3St;
 
-/* Open every *.safetensors in dir and index every tensor. Returns 0 on success. */
+/* Open every *.safetensors in dir and index every tensor. Returns 0 on success.
+ * embed_dir, when non-NULL, is an alternate directory holding the embed/lm_head
+ * shard (model-00094-of-000096): the shard's path is taken from there so the
+ * 4.7 GB of embed+lm_head load off a fast volume instead of the slow checkpoint
+ * disk, mirroring how --trunk/--l2 point at sdd7. Same directory as dir when NULL. */
+int  k3_st_open_dir(K3St *s, const char *dir, const char *embed_dir);
 int  k3_st_open(K3St *s, const char *dir);
 void k3_st_close(K3St *s);
 
