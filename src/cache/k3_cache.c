@@ -210,7 +210,23 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
     }
 
     /* ---- phase 2: read, concurrently ---- */
-    if (c->phase2_hold) c->phase2_hold(c->phase2_ctx, 1);
+    /* Gate only when this batch actually touches the SLOW checkpoint disk. A fully
+     * L2-hit batch reads sdd7 -- the SAME NVMe the trunk streams from -- and sharing
+     * the drive's 1.6 GB/s between the two sequential streams costs far less than
+     * parking the trunk reader for the whole burst. Measured (93L gen8, cache-gb 8):
+     * the trunk parked 1174 s on the gate while the expert phase-2 reads took only
+     * 144 s -- an 8x over-yield that doubled wall time. Misses (sdd7 miss, slow
+     * /model) are the case the gate exists for: there the expert read is slow and
+     * concurrent trunk traffic genuinely slows it. slot_of[key] < 0 is the miss test
+     * (key -> L2 slot, -1 when not resident, O(1) via direct indexing). */
+    int gate_needed = 0;
+    if (c->phase2_hold && c->l2) {
+        for (int i = 0; i < nw && !gate_needed; i++) {
+            const int32_t key = w[i].r.layer * c->l2->n_experts + w[i].r.expert;
+            if (c->l2->slot_of[key] < 0) gate_needed = 1;
+        }
+    }
+    if (c->phase2_hold && gate_needed) c->phase2_hold(c->phase2_ctx, 1);
     const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
     const double ms0 = c->l2 ? c->l2->miss_seconds : 0;
     const double t0 = now_s();
@@ -240,7 +256,7 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
         w[i].got = got;
         w[i].pad = pad;
     }
-    if (c->phase2_hold) c->phase2_hold(c->phase2_ctx, 0);
+    if (c->phase2_hold && gate_needed) c->phase2_hold(c->phase2_ctx, 0);
     const double t2 = now_s() - t0;
     c->phase2_seconds += t2;
     c->phase2_bytes += (uint64_t)nw * (uint64_t)c->slot_bytes;
