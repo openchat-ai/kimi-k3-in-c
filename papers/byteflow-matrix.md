@@ -601,3 +601,18 @@ PEAK RSS 11.09 GB
 - **待跑验证**：后台运行 + 10 分钟日志零进展自动 kill 保险；预计布线 2-3 分钟 → 全程 ~6 分钟出 bit = 提速 >10x。PLL 与 SDC 完全不动，仍 200MHz。
 - **若 3/2 仍不收敛的候补**（同为不降频）：place_option=4 / enable_dsrm=1（138K 专属路由资源）/ route_option=1（更优但更慢，不推荐）。
 - **遗留小疑点**：tcl set_option -timing 0 与 cmd.do 裸 -timing 不一致（0=关，裸=开）——本次未动，若 3/2 仍卡再核查。
+
+**2026-09-21 gate 按需触发修复：trunk 让位 1174s 消除，25min 基线恢复（重大）**
+- **现象**：93 层 gen 8（--trunk-gb auto --cache-gb auto，L2，heat），gate 全开时 trunk reader 停车 1174s（wall 2783s，336.68 s/token），而专家 phase-2 读仅 144s——**让位 8 倍不成比例**。
+- **根因**：k3_cache 每层 phase-2 都触发 gate（k3_cache.c:213/243），即使专家全 L2 命中（同盘 sdd7）。trunk 与专家同盘，gate 分时让 trunk 停 1174s，不如并行共享 1.6GB/s。
+- **修复**：gate 只在有 L2 miss（慢盘 sde）时触发。phase-2 前用 l2->slot_of[key]（O(1)）预判，全命中（同盘 sdd7）不 gate；有 miss 才 gate。
+- **实测对比（93 层 gen 8，同配置）**：
+  | 指标 | gate 全开（前） | gate 按需（后） |
+  |---|---|---|
+  | wall | 2783s（46min） | **1506s（25min）** |
+  | s/token | 336.68 | **177.61** |
+  | trunk gate 停车 | 1174s | **0.01s** |
+  | 专家 L2 命中 | 85%（冷） | **100%（热）** |
+  | 专家 L1 命中 | 85.11% | 99.99% |
+- **结论**：gate 的初衷（避免 trunk 抢专家慢盘）只在 L2 miss 时成立；L2 命中（同盘）时 gate 是纯分时损失。**修复后 wall 回到 25min 基线**，s/token 177.61（此口径 gen 8；论文 §4.3 的 262.78 是 gen 32，口径不同不可直比）。
+- 输出：81,170,222,222,68,170,222,222（8 token 完整，模型自身重复输出 222）。
