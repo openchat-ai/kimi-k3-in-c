@@ -47,6 +47,7 @@
 
 #include "k3_load.h"
 #include "k3_st.h"
+#include "k3_io.h"
 
 typedef struct K3L2 {
     int          fd;            /* buffered rw fd (miss write-back)               */
@@ -82,6 +83,11 @@ typedef struct K3L2 {
      * aggregate bandwidth. cache_getmany folds each batch's wall time (t2) into these
      * fields, split by the hit/miss share, so the report's MB/s reflects real throughput. */
     double       hit_wall, miss_wall;
+
+    /* Unified media-tier I/O scheduler; hit reads go through the NVMe tier so the
+     * trunk stream and the expert L2-hit burst share the fast drive by queue, not by
+     * a 0/1 gate. NULL = direct pread (unit tests / no scheduler). */
+    K3IO        *kio;
 } K3L2;
 
 /* Build the slot map for one expert. n_layers/keys are given so we can size slot_of.

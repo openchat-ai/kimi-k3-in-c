@@ -57,6 +57,7 @@
 #include "k3_bind.h"
 #include "k3_cache.h"
 #include "k3_l2cache.h"
+#include "k3_io.h"
 #include "k3_trunk.h"
 #include "k3_tok.h"   /* text in/out; the --ids path never touches it */
 #include "k3_cfg.h"   /* read the checkpoint's own config rather than assuming it */
@@ -1062,6 +1063,30 @@ int main(int argc, char **argv)
     if (k3_st_open_dir(&st, dir, embed_dir) != 0) return 1;
     printf("indexed %d tensors from %d shards in %.2f s\n", st.nt, st.nshard, now_s() - t0);
 
+    /* Unified media-tier I/O scheduler, one per process. Tier 0 = fast NVMe
+     * (trunk stream + expert L2 hit), 4 workers; tier 1 = slow checkpoint
+     * (expert miss), 1 worker. All disk reads queue through it so the slow tier
+     * can never stall the fast one (the old per-burst gate parked the trunk 382 s
+     * to let 153 s of slow-disk misses through). */
+    static K3IO g_io;
+    static int  g_io_once = 0;
+    if (!g_io_once) {
+        const int nw[2] = { 4, 1 };
+        k3_io_init(&g_io, 2, nw);
+        g_io_once = 1;
+    }
+    st.kio = getenv("K3_NOKIO") ? NULL : &g_io;
+    st.tier = (int *)calloc((size_t)st.nshard, sizeof(int));
+    if (!st.tier) return 1;
+    /* embed/lm_head shard lives on sdd7 (NVMe tier 0); routed experts stay on the
+     * slow checkpoint (tier 1). The embed shard is the one redirect to embed_dir. */
+    for (int s = 0; s < st.nshard; s++) st.tier[s] = 1;   /* slow checkpoint default */
+    if (embed_dir) {
+        for (int s = 0; s < st.nshard; s++) {
+            if (strstr(st.path[s], "model-00094")) st.tier[s] = 0;  /* NVMe */
+        }
+    }
+
     /* ---- how much will this take? Report BEFORE allocating, so a box that cannot
      * hold it fails with a number rather than an OOM kill. ---- */
     const int NL = (want_layers > 0 && want_layers < c.n_layers) ? want_layers : c.n_layers;
@@ -1162,6 +1187,12 @@ int main(int argc, char **argv)
             fprintf(stderr, "packed trunk has %d layers, need %d\n", trunk.n_layers, NL);
             return 1;
         }
+        /* Unified media-tier I/O: tier 0 = fast NVMe (trunk + expert L2 hit), 4
+         * workers; tier 1 = slow checkpoint (expert miss, embed), 1 worker. All disk
+         * reads queue through this scheduler, so the slow tier can never stall the
+         * fast one (the old per-burst gate parked the trunk 382 s to let 153 s of
+         * slow-disk misses through). */
+        trunk.kio = getenv("K3_NOKIO") ? NULL : &g_io;
         w.trunk = &trunk;
         w.n_bound = NL;
         printf("trunk streaming enabled from %s in %.1f s\n", trunk_dir, now_s() - t0);
@@ -1188,8 +1219,11 @@ int main(int argc, char **argv)
 
     K3Cache cache;
     if (k3_cache_init(&cache, &st, &c, (int64_t)(cache_gb * 1e9)) != 0) return 1;
-    cache.phase2_hold = ran_expert_hold;   /* NVMe gate: pause trunk reader while the
-                                              expert burst owns the drive */
+    /* The unified k3_io scheduler replaces the old 0/1 expert gate: trunk stream and
+     * expert reads now share the fast drive by separate media tiers, so the trunk
+     * reader is never parked for a slow-disk burst (was 382 s of parking for 153 s
+     * of misses). phase2_hold is left NULL on purpose. */
+    cache.phase2_hold = NULL;
     cache.phase2_ctx = (void *)&trunk;
 
     /* Optional second-level disk cache on a fast volume. The RAM slot_bytes holds
@@ -1201,6 +1235,7 @@ int main(int argc, char **argv)
         const int64_t l2_slot = cache.slot_bytes - 2 * K3_ST_ALIGN;
         if (k3_l2_init(&l2, l2_path, (int64_t)(l2_gb * 1e9),
                        c.n_layers, c.n_experts, l2_slot) == 0) {
+            l2.kio = getenv("K3_NOKIO") ? NULL : &g_io;
             cache.l2 = (struct K3L2 *)&l2;
             l2.policy = l2_policy;
             have_l2 = 1;

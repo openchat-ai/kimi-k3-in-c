@@ -17,6 +17,7 @@
 #include "json.h"
 #include "k3_st.h"
 #include "k3_bind.h"
+#include "k3_io.h"
 #include "k3_trunk.h"
 
 static int k3_alloc_direct(void **out, size_t bytes);   /* defined below */
@@ -543,7 +544,7 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
          * scattered reads (~640 MB/s) run simultaneously and share the ~1.6 GB/s the
          * drive can actually do: each gets ~0.5x of its single-stream rate, and decode
          * expert reads take 40 s instead of 14 s. */
-        if (io) {
+        if (io && !tr->kio) {
             pthread_mutex_lock(&io->mu);
             const double w0 = now_s();
             while (io->gate && !io->stop) pthread_cond_wait(&io->cv, &io->mu);
@@ -554,9 +555,28 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
         }
         const int64_t rem = lay->nbytes - got;
         size_t want = (size_t)(rem < (int64_t)TRUNK_READ_CHUNK ? rem : (int64_t)TRUNK_READ_CHUNK);
-        ssize_t r = pread(fd, dst + got, want, off + got);
+        ssize_t r;
+        if (tr->kio) {
+            /* Unified scheduler: submit the WHOLE remaining layer as ONE chunked
+             * request in at most two huge preads; the worker completes once --
+             * no submit/wait round-trip per 32 MB chunk. */
+            K3IOReq *q = k3_io_submit(tr->kio, 0, fd, off + got, (size_t)rem,
+                                      (size_t)((1u << 31) - 4096), dst + got);
+            /* Largest single O_DIRECT pread the kernel accepts (2 GB - 4k). The
+             * layer is read in at most two chunks; bench: 2010 MB/s vs 687 MB/s
+             * for 256 MB chunks, vs ~60 MB/s for the old 32 MB chunks under the
+             * engine. Fewer, bigger reads dominate. */
+            if (!q) return -1;
+            r = k3_io_wait(q);
+            if (getenv("K3_IO_DBG"))
+                fprintf(stderr, "DBG trunk load_run L=%d kio r=%ld got=%ld nbytes=%lld\n",
+                        L, (long)r, (long)got, (long long)lay->nbytes);
+            got += r;   /* worker read the whole span in chunks */
+        } else {
+            r = pread(fd, dst + got, want, off + got);
+            got += r;
+        }
         if (r <= 0) { fprintf(stderr, "k3_trunk: short read on layer %d\n", L); return -1; }
-        got += r;
     }
     tr->load_seconds += now_s() - t0;
     tr->bytes_read += (uint64_t)got;

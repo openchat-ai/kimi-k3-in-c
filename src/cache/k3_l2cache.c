@@ -199,8 +199,15 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
         if (want > bufcap) return -1;
         const int rfd = (l2->fdh >= 0 && want == l2->slot_bytes) ? l2->fdh : l2->fd;
         const double t0 = now_s();
-        const ssize_t n = pread(rfd, buf, (size_t)want,
-                                (off_t)s * l2->slot_bytes);
+        ssize_t n;
+        if (l2->kio) {
+            K3IOReq *q = k3_io_submit(l2->kio, 0 /* NVMe */, rfd, (off_t)s * l2->slot_bytes,
+                                      (size_t)want, 0, buf);
+            if (!q) return -1;
+            n = k3_io_wait(q);
+        } else {
+            n = pread(rfd, buf, (size_t)want, (off_t)s * l2->slot_bytes);
+        }
         l2->hit_seconds += now_s() - t0;
         if (n != (ssize_t)want) return -1;
         l2->hits++;

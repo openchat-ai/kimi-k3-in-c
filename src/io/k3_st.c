@@ -476,8 +476,17 @@ int64_t k3_st_read_aligned(const K3St *s, int shard, int64_t off, int64_t nbytes
         if (bufcap < nbytes) return 0;
         int64_t got = 0;
         while (got < nbytes) {
-            ssize_t r = pread(s->fd[shard], (char *)buf + got,
-                              (size_t)(nbytes - got), (off_t)(off + got));
+            ssize_t r;
+            if (s->kio && s->tier && s->tier[shard] >= 0) {
+                K3IOReq *q = k3_io_submit(s->kio, s->tier[shard], s->fd[shard],
+                                          (off_t)(off + got), (size_t)(nbytes - got),
+                                          0, (char *)buf + got);
+                if (!q) return 0;
+                r = k3_io_wait(q);
+            } else {
+                r = pread(s->fd[shard], (char *)buf + got,
+                          (size_t)(nbytes - got), (off_t)(off + got));
+            }
             if (r <= 0) return got;
             got += r;
         }
@@ -494,7 +503,15 @@ int64_t k3_st_read_aligned(const K3St *s, int shard, int64_t off, int64_t nbytes
 
     int64_t got = 0;
     while (got < len) {
-        ssize_t r = pread(dfd, (char *)buf + got, (size_t)(len - got), (off_t)(lo + got));
+        ssize_t r;
+        if (s->kio && s->tier && s->tier[shard] >= 0) {
+            K3IOReq *q = k3_io_submit(s->kio, s->tier[shard], dfd, (off_t)(lo + got),
+                                      (size_t)(len - got), K3_ST_ALIGN, (char *)buf + got);
+            if (!q) return 0;
+            r = k3_io_wait(q);
+        } else {
+            r = pread(dfd, (char *)buf + got, (size_t)(len - got), (off_t)(lo + got));
+        }
         if (r <= 0) {
             /* The final window of a shard can extend past EOF, which is a short read
              * rather than an error. Accept it once the payload itself is covered. */

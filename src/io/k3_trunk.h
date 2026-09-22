@@ -108,6 +108,7 @@ typedef struct {
     /* One asynchronous reader owns one spare ring slot. The worker never publishes a
      * layer name before its read succeeds; bind waits for completion before consuming it. */
     void         *io_state;
+    struct K3IO *kio;        /* unified media-tier I/O scheduler (NULL = direct pread) */
 
     /* stats */
     uint64_t     hits, misses;

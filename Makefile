@@ -94,7 +94,7 @@ INCLUDES := -Iinclude -Iinclude/k3 -Ithird_party \
 
 # ----------------------------------------------------------------------------- files --
 ENGINE_SRC := src/core/k3_ops.c \
-              src/io/k3_st.c src/io/k3_load.c src/io/k3_trunk.c \
+              src/io/k3_st.c src/io/k3_load.c src/io/k3_trunk.c src/io/k3_io.c \
               src/cache/k3_cache.c src/cache/k3_l2cache.c \
               src/model/k3_bind.c \
               src/chip/k3_chip.c
@@ -141,10 +141,10 @@ $(BIN)/test_ops: tests/unit/test_ops.c $(BUILD)/src/core/k3_ops.o \
 
 $(BIN)/test_cache: tests/unit/test_cache.c $(BUILD)/src/cache/k3_cache.o \
                    $(BUILD)/src/cache/k3_l2cache.o $(BUILD)/src/io/k3_load.o $(BUILD)/src/io/k3_st.o \
-                   $(BUILD)/src/core/k3_ops.o $(BUILD)/src/chip/k3_chip.o | $(BIN)
+                   $(BUILD)/src/io/k3_io.o $(BUILD)/src/core/k3_ops.o $(BUILD)/src/chip/k3_chip.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
-$(BIN)/test_st: tests/unit/test_st.c $(BUILD)/src/io/k3_st.o | $(BIN)
+$(BIN)/test_st: tests/unit/test_st.c $(BUILD)/src/io/k3_st.o $(BUILD)/src/io/k3_io.o | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # The tokenizer and config reader are portable C99 with no OpenMP and no platform calls,
