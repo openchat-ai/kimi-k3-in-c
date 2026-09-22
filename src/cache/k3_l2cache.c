@@ -256,12 +256,22 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
                 l2->count[slot] = 0;
             }
             /* Write the clean, aligned payload. r->nbytes is 4096-aligned for real K3
-             * so the slot write is aligned too. The pwrite must COMPLETE before the
+             * so the slot write is aligned too. The write must COMPLETE before the
              * mapping is published below, otherwise the lock-free HIT path could pread
-             * a slot whose bytes are not on sdd7 yet. */
+             * a slot whose bytes are not on sdd7 yet. Routed through the unified
+             * scheduler when present (NVMe tier), else direct pwrite. */
             const int64_t want = r->nbytes;
-            const ssize_t n = pwrite(l2->fd, buf + pad, (size_t)want,
-                                     (off_t)slot * l2->slot_bytes);
+            ssize_t n;
+            if (l2->kio) {
+                K3IOReq *q = k3_io_submit_write(l2->kio, 0 /* NVMe */, l2->fd,
+                                                (off_t)slot * l2->slot_bytes,
+                                                (size_t)want, buf + pad);
+                if (!q) { n = -1; }
+                else     { n = k3_io_wait(q); }
+            } else {
+                n = pwrite(l2->fd, buf + pad, (size_t)want,
+                           (off_t)slot * l2->slot_bytes);
+            }
             if (n == (ssize_t)want) {
                 /* Publish AFTER the bytes are durable: readers only trust slot_of. */
                 l2->slot_of[key] = slot;

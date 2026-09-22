@@ -1075,9 +1075,16 @@ int main(int argc, char **argv)
          * bandwidth with deep queues. Measured: 4 workers capped L2-hit throughput at
          * 249 MB/s (vs 1.6 GB/s direct), because one 17.5 MB pread per worker is not
          * enough in flight. 16 workers restore the ~1.6 GB/s the gate-era parallel
-         * pread achieved. Tier 1 (slow checkpoint) stays serial -- it is a 60 MB/s
-         * HDD whose throughput is unchanged by concurrency. */
-        const int nw[2] = { 16, 1 };
+         * pread achieved. Tier 1 (slow checkpoint) also takes 4 workers: direct
+         * measurement of /model reads went 22 MB/s single-stream to 57 MB/s with
+         * 4 parallel streams (8 saturated at 54 MB/s), so serial misses leave
+         * ~2.6x on the table during L2 cold start. K3_IO_NW0/K3_IO_NW1 override
+         * the worker counts for tuning on other boxes. */
+        int nw[2] = { 16, 4 };
+        const char *e0 = getenv("K3_IO_NW0");
+        const char *e1 = getenv("K3_IO_NW1");
+        if (e0) nw[0] = atoi(e0);
+        if (e1) nw[1] = atoi(e1);
         k3_io_init(&g_io, 2, nw);
         g_io_once = 1;
     }

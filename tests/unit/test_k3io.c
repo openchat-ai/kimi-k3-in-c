@@ -4,45 +4,139 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <pthread.h>
 
-int main(void)
+#define NFAIL_MAX 32
+static int nfail = 0;
+static void check(int cond, const char *what)
 {
-    const char *p = "/tmp/k3io_test.bin";
-    FILE *f = fopen(p, "wb");
-    unsigned char data[4096];
-    for (int i = 0; i < 4096; i++) data[i] = (unsigned char)(i & 0xFF);
-    fwrite(data, 1, 4096, f);
-    fclose(f);
-    int fd = open(p, O_RDONLY);
+    if (!cond) {
+        fprintf(stderr, "FAIL: %s\n", what);
+        if (nfail < NFAIL_MAX) nfail++;
+    }
+}
+
+/* 1. basic cross-tier read, chunked span, short span */
+static void test_basic(int *fd, unsigned char *data)
+{
+    K3IO io;
+    const int workers[2] = { 4, 1 };
+    k3_io_init(&io, 2, workers);
+
+    unsigned char buf[8192];
+    memset(buf, 0, sizeof buf);
+    /* chunked: read 0..4096 in 1024-byte chunks, one completion */
+    K3IOReq *q = k3_io_submit(&io, 0, fd[0], 0, 4096, 1024, buf);
+    check(q != NULL, "submit basic");
+    ssize_t r = k3_io_wait(q);
+    check(r == 4096, "chunked span returns full length");
+    check(memcmp(buf, data, 4096) == 0, "chunked span bytes");
+
+    /* single pread on tier 1 */
+    q = k3_io_submit(&io, 1, fd[0], 4096, 1024, 0, buf);
+    check(q != NULL, "submit tier1");
+    r = k3_io_wait(q);
+    check(r == 1024, "tier1 read length");
+    check(memcmp(buf, data + 4096, 1024) == 0, "tier1 bytes");
+
+    k3_io_free(&io);
+}
+
+/* 2. write path: pwrite through the scheduler, then read it back */
+static void test_write(void)
+{
+    const char *p = "/tmp/k3io_w.bin";
+    int fd = open(p, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    check(fd >= 0, "write file open");
 
     K3IO io;
     const int workers[2] = { 4, 1 };
     k3_io_init(&io, 2, workers);
-    fprintf(stderr, "init done\n");
 
-    unsigned char buf0[1024], buf1[1024], buf2[2048], buf3[512];
-    K3IOReq *r0 = k3_io_submit(&io, 0, fd, 0, 1024, buf0);
-    fprintf(stderr, "submit r0 done\n");
-    K3IOReq *r1 = k3_io_submit(&io, 1, fd, 1024, 1024, buf1);
-    fprintf(stderr, "submit r1 done\n");
-    K3IOReq *r2 = k3_io_submit(&io, 0, fd, 2048, 2048, buf2);
-    fprintf(stderr, "submit r2 done\n");
-    K3IOReq *r3 = k3_io_submit(&io, 1, fd, 3584, 512, buf3);
-    fprintf(stderr, "submit r3 done, waiting r0\n");
-    fflush(stderr);
+    unsigned char src[2048], back[2048];
+    for (int i = 0; i < 2048; i++) src[i] = (unsigned char)(i * 7);
+    K3IOReq *q = k3_io_submit_write(&io, 0, fd, 0, 2048, src);
+    check(q != NULL, "submit write");
+    ssize_t r = k3_io_wait(q);
+    check(r == 2048, "write length");
 
-    int rc0 = k3_io_wait(r0);
-    fprintf(stderr, "r0 done rc=%d\n", rc0);
-    int rc1 = k3_io_wait(r1);
-    fprintf(stderr, "r1 done rc=%d\n", rc1);
-    int rc2 = k3_io_wait(r2);
-    fprintf(stderr, "r2 done rc=%d\n", rc2);
-    int rc3 = k3_io_wait(r3);
-    fprintf(stderr, "r3 done rc=%d\n", rc3);
+    q = k3_io_submit(&io, 0, fd, 0, 2048, 0, back);
+    check(q != NULL, "read back");
+    r = k3_io_wait(q);
+    check(r == 2048, "read back length");
+    check(memcmp(back, src, 2048) == 0, "write/read roundtrip");
 
-    printf("rc: %d %d %d %d\n", rc0, rc1, rc2, rc3);
     k3_io_free(&io);
     close(fd);
     unlink(p);
+}
+
+/* 3. many threads submit concurrently, engine-style (16 getmany threads) */
+#define NCONC 16
+static K3IO *g_io;
+static int  g_fd;
+static int  g_fail;
+static void *conc_main(void *arg)
+{
+    long i = (long)arg;
+    unsigned char buf[1024];
+    /* staggered offsets so each thread reads a distinct region */
+    K3IOReq *q = k3_io_submit(g_io, i % 2, g_fd, i * 1024, 1024, 0, buf);
+    if (!q) { g_fail = 1; return NULL; }
+    ssize_t r = k3_io_wait(q);
+    if (r != 1024) g_fail = 1;
+    if (buf[0] != (unsigned char)(i * 1024 & 0xFF)) g_fail = 1;
+    return NULL;
+}
+static void test_concurrent(int *fd, unsigned char *data)
+{
+    K3IO io;
+    const int workers[2] = { 16, 1 };
+    k3_io_init(&io, 2, workers);
+    g_io = &io; g_fd = fd[0]; g_fail = 0;
+
+    pthread_t th[NCONC];
+    for (long i = 0; i < NCONC; i++) pthread_create(&th[i], NULL, conc_main, (void *)i);
+    for (int i = 0; i < NCONC; i++) pthread_join(th[i], NULL);
+    check(g_fail == 0, "concurrent submits all correct");
+    (void)data;
+    k3_io_free(&io);
+}
+
+/* 4. worker count clamped to [1, K3_IO_MAX_WORKERS] without overflow */
+static void test_clamp(void)
+{
+    K3IO io;
+    const int workers[2] = { 0, 9999 };
+    k3_io_init(&io, 2, workers);
+    check(io.nworkers[0] == 1, "clamp low");
+    check(io.nworkers[1] == K3_IO_MAX_WORKERS, "clamp high");
+    k3_io_free(&io);
+}
+
+int main(void)
+{
+    const char *p = "/tmp/k3io_test.bin";
+    enum { FSIZE = NCONC * 1024 };
+    unsigned char *data = malloc(FSIZE);
+    for (int i = 0; i < FSIZE; i++) data[i] = (unsigned char)(i & 0xFF);
+    int fd = open(p, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) { perror("open"); return 1; }
+    check(write(fd, data, FSIZE) == FSIZE, "seed file");
+    close(fd);
+    fd = open(p, O_RDONLY);
+    if (fd < 0) { perror("reopen"); return 1; }
+    int fds[1] = { fd };
+
+    test_basic(fds, data);
+    test_write();
+    test_concurrent(fds, data);
+    test_clamp();
+
+    close(fd);
+    unlink(p);
+    free(data);
+    if (nfail) { fprintf(stderr, "%d FAILURES\n", nfail); return 1; }
+    printf("k3_io: basic+write+concurrent+clamp OK\n");
     return 0;
 }

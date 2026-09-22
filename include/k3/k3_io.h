@@ -20,11 +20,14 @@
  *
  * Within a tier, requests queue FIFO and drain by a pool of workers; a fast tier
  * gets several workers so sequential and parallel streams share its bandwidth
- * concurrently, a slow tier gets one. Callers submit (tier, fd, off, n, dst) and
- * wait for completion.
+ * concurrently, a slow tier gets a few (a HDD measures ~2.6x single-stream rate
+ * at 4-way parallelism; more saturates). Callers submit (tier, fd, off, n, dst)
+ * and wait for completion. Writes submit through k3_io_submit_write and share the
+ * same pools.
  */
 
 #define K3_IO_MAX_TIERS 8
+#define K3_IO_MAX_WORKERS 32   /* per-tier worker-pool cap; init clamps to this */
 
 typedef struct K3IOReq {
     struct K3IOReq *next;
@@ -32,7 +35,8 @@ typedef struct K3IOReq {
     int      fd;
     off_t    offset;
     size_t   nbytes;
-    unsigned char *dst;
+    unsigned char *dst;          /* read: pread fills dst; write: pwrite drains dst */
+    int      write;              /* 1 = pwrite, 0 = pread */
     /* Optional chunked multi-read: when chunk > 0 the worker reads the WHOLE
      * [offset, offset+nbytes) span as consecutive `chunk`-byte preads instead of
      * one pread. This is how a sequential stream (trunk layer) avoids a
@@ -45,8 +49,7 @@ typedef struct K3IOReq {
 } K3IOReq;
 
 typedef struct K3IO {
-    pthread_t   thread[K3_IO_MAX_TIERS][32]; /* per-tier worker pool: NVMe needs
-                                                deep queues for SSD rated bandwidth */
+    pthread_t   thread[K3_IO_MAX_TIERS][K3_IO_MAX_WORKERS];
     pthread_mutex_t mu;
     pthread_cond_t  cv[K3_IO_MAX_TIERS];     /* one condvar PER TIER so a submit
                                                 wakes only that tier's workers */
@@ -58,7 +61,9 @@ typedef struct K3IO {
 } K3IO;
 
 /* io: module state. tiers: number of medium tiers. workers: array of worker
- * counts, one per tier (e.g. {4,1} for a fast NVMe tier and a slow HDD tier). */
+ * counts, one per tier (e.g. {4,1} for a fast NVMe tier and a slow HDD tier).
+ * Counts are clamped to [1, K3_IO_MAX_WORKERS]; a NULL workers array means 1
+ * everywhere. */
 void  k3_io_init(K3IO *io, int tiers, const int *workers);
 void  k3_io_free(K3IO *io);
 /* Submit one read (or a chunked span) on a tier; returns a request to wait on.
@@ -66,7 +71,12 @@ void  k3_io_free(K3IO *io);
  * `chunk`-byte preads -- one completion for the whole span. */
 K3IOReq *k3_io_submit(K3IO *io, int tier, int fd, off_t off,
                       size_t nbytes, size_t chunk, void *dst);
-/* Block until the request completes. Returns the pread result (bytes read, or <0). */
+/* Submit one write (pwrite of nbytes from src to fd at off); single completion.
+ * Writes never chunk: nbytes is written in one pwrite. */
+K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
+                            size_t nbytes, const void *src);
+/* Block until the request completes. Returns the pread/pwrite result (bytes
+ * transferred, or <0). */
 ssize_t k3_io_wait(K3IOReq *req);
 
 #endif /* K3_IO_H */

@@ -104,7 +104,7 @@ CLI_SRC    := src/cli/k3_run.c
 CLI_BIN    := $(BIN)/k3
 
 # Tests that need no checkpoint. These run in CI on every push.
-UNIT_TESTS := test_ops test_cache test_st test_cfg test_tok scale_test k3_model test_trunk
+UNIT_TESTS := test_ops test_cache test_st test_cfg test_tok scale_test k3_model test_trunk test_k3io
 # Tests that need real shards. Built and run by `make test-all` with SHARD_DIR set;
 # see the weights-test target below.
 WEIGHT_TESTS := test_expert test_real_layer
@@ -172,6 +172,9 @@ $(BIN)/bench_kernels: benchmarks/bench_kernels.c $(BUILD)/src/core/k3_ops.o \
 $(BIN)/test_trunk: tests/unit/test_trunk.c $(ENGINE_OBJ) | $(BIN)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
+$(BIN)/test_k3io: tests/unit/test_k3io.c $(BUILD)/src/io/k3_io.o | $(BIN)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
 ## test: everything that needs no model weights
 test: $(TEST_BINS)
 	@echo "== op kernels ==";        ./$(BIN)/test_ops $(FIXTURES)/ops
@@ -194,6 +197,7 @@ test: $(TEST_BINS)
 	@echo "== real dimensions ==";   ./$(BIN)/scale_test
 	@echo "== full-model oracle =="; ./$(BIN)/k3_model $(FIXTURES)
 	@echo "== trunk ring ==";       ./$(BIN)/test_trunk
+	@echo "== media-tier I/O ==";   ./$(BIN)/test_k3io
 	@echo
 	@if [ ! -f "$(TOK_FILES)/tiktoken.model" ]; then \
 	     echo "NOTE: tokenizer parity did NOT run; see above. Everything else did."; \
