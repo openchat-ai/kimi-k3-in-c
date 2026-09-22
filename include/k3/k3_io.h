@@ -45,7 +45,8 @@ typedef struct K3IOReq {
 } K3IOReq;
 
 typedef struct K3IO {
-    pthread_t   thread[K3_IO_MAX_TIERS][8];  /* per-tier worker pool */
+    pthread_t   thread[K3_IO_MAX_TIERS][32]; /* per-tier worker pool: NVMe needs
+                                                deep queues for SSD rated bandwidth */
     pthread_mutex_t mu;
     pthread_cond_t  cv[K3_IO_MAX_TIERS];     /* one condvar PER TIER so a submit
                                                 wakes only that tier's workers */

@@ -1071,7 +1071,13 @@ int main(int argc, char **argv)
     static K3IO g_io;
     static int  g_io_once = 0;
     if (!g_io_once) {
-        const int nw[2] = { 4, 1 };
+        /* Tier 0 NVMe needs HIGH concurrency: sdd7 is an SSD and only reaches rated
+         * bandwidth with deep queues. Measured: 4 workers capped L2-hit throughput at
+         * 249 MB/s (vs 1.6 GB/s direct), because one 17.5 MB pread per worker is not
+         * enough in flight. 16 workers restore the ~1.6 GB/s the gate-era parallel
+         * pread achieved. Tier 1 (slow checkpoint) stays serial -- it is a 60 MB/s
+         * HDD whose throughput is unchanged by concurrency. */
+        const int nw[2] = { 16, 1 };
         k3_io_init(&g_io, 2, nw);
         g_io_once = 1;
     }

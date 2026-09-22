@@ -505,8 +505,12 @@ int64_t k3_st_read_aligned(const K3St *s, int shard, int64_t off, int64_t nbytes
     while (got < len) {
         ssize_t r;
         if (s->kio && s->tier && s->tier[shard] >= 0) {
-            K3IOReq *q = k3_io_submit(s->kio, s->tier[shard], dfd, (off_t)(lo + got),
-                                      (size_t)(len - got), K3_ST_ALIGN, (char *)buf + got);
+            /* chunk=0: one aligned pread of the whole widened window. Never pass a
+             * small chunk here -- the worker would pread 4 KB at a time and an expert
+             * (17.5 MB) becomes ~4300 syscalls, ~100x slower. The window [lo,hi) is
+             * O_DIRECT-aligned and far under the 2 GB single-pread cap. */
+            K3IOReq *q = k3_io_submit(s->kio, s->tier[shard], dfd, (off_t)lo,
+                                      (size_t)len, 0, buf);
             if (!q) return 0;
             r = k3_io_wait(q);
         } else {
