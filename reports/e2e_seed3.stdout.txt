@@ -1,0 +1,4 @@
+T=8  |moe_in|max=0.0606  |ref MoE out|max=0.0694  (shared expert already added)
+  mxfp4-2bit   max|diff|=0.0163  mean|diff|=0.0015  mean_rel=2.004  cos=0.896972  >1%:98.9%  >10%:88.5%
+  ideal-2bit   max|diff|=0.0076  mean|diff|=0.0011  mean_rel=1.724  cos=0.959440  >1%:98.1%  >10%:81.5%
+wrote reports\e2e_seed3.json

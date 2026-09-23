@@ -1,0 +1,22 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+
+REFUSING TO START: this needs 29.38 GB and the machine has 28.63 GB available, a shortfall of 748.39 MB.
+Options: a larger box, a smaller --cache-gb, or fewer --layers.
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+  KV cache : 45.03 MB for 19 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 10 tokens, generating 8
+
+indexed 497220 tensors from 96 shards in 0.48 s
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 18.00 GB
+  embed + lm_head  4.70 GB
+  expert cache     6.00 GB
+  recurrent state  626.25 MB
+  buffers          14.03 MB
+  KV cache         44.94 MB
+  TOTAL            29.38 GB
+  available        28.63 GB

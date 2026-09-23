@@ -1,0 +1,58 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+[TOK] 163584 ranks (max id 163583) + 16 added tokens | kimi=1 rankbpe=1
+DBG getmany L1 nw=43 wall=5.378s thr(out)1 thr(in)16 conc_peak=16 pread=0.593s
+DBG getmany L2 nw=44 wall=7.674s thr(out)1 thr(in)16 conc_peak=16 pread=0.549s
+DBG getmany L3 nw=40 wall=6.403s thr(out)1 thr(in)16 conc_peak=16 pread=1.739s
+DBG getmany L4 nw=33 wall=4.805s thr(out)1 thr(in)16 conc_peak=16 pread=1.149s
+DBG getmany L5 nw=39 wall=5.262s thr(out)1 thr(in)16 conc_peak=16 pread=1.423s
+DBG getmany L6 nw=41 wall=6.236s thr(out)1 thr(in)16 conc_peak=16 pread=0.840s
+DBG getmany L7 nw=37 wall=5.690s thr(out)1 thr(in)16 conc_peak=16 pread=0.811s
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+NOTE: binding only the first 8 of 93 layers. Output is NOT the full model; it is a partial stack for testing the machinery.
+
+  tokenized: 15 bytes -> 3 ids
+  KV cache : 14.22 MB for 6 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 3 tokens, generating 2
+
+indexed 497220 tensors from 96 shards in 4.63 s
+trunk on disk : 10.46 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 6.00 GB
+  embed + lm_head  4.70 GB
+  expert cache     8.00 GB
+  recurrent state  53.87 MB
+  buffers          5.35 MB
+  KV cache         14.19 MB
+  TOTAL            18.77 GB
+  available        28.61 GB
+
+k3_trunk: trunk.bin absent - using per-layer slices (layer_%03d.bin)
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 2 x 1.30 GB
+              reads use buffered I/O
+              ring holds 2 slots: layers repeat over ~2 tokens, so recent ones are reused instead of re-read
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+embedding, final norm and lm_head: 4.70 GB in 61.8 s
+
+expert L2 cache enabled: 11397 slots x 17.55 MB = 199.99 GB on /mnt/nvme/experts.l2
+expert L2 eviction policy: heat
+peak RSS after loading weights: 4.80 GB  (the plan above is a forecast, this is measured)
+expert cache: 455 slots x 17.56 MB = 7.99 GB (0.55% of the 1.45 TB expert pool)
+
+recurrent state for 8 layers: 53.87 MB
+
+incremental decode: KV cache 1.18 MB for 2 MLA layers at 6 positions
+
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+0      110740     59.59        100.0      4.86       0.017
+  L2   resident=6298/11397 slots hit=31.8% read=1.53GB write=3.33GB
+DBG getmany L1 nw=25 wall=4.986s thr(out)1 thr(in)16 conc_peak=16 pread=0.069s
+DBG getmany L2 nw=40 wall=4.412s thr(out)1 thr(in)16 conc_peak=16 pread=0.902s
+k3: FATAL, MLA KV cache position is 6, which exceeds the limit of 5.
+    Aborting rather than returning without writing the output buffer,
+    which would fold the previous layer's values into the residual and
+    produce plausible-looking but meaningless output.
+    Shorten the prompt, lower --gen, or drop --incremental.

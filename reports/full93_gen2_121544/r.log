@@ -1,0 +1,273 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG getmany L1 nw=64 wall=0.657s thr(out)1 thr(in)16 conc_peak=16 pread=9.572s
+DBG getmany L2 nw=64 wall=0.675s thr(out)1 thr(in)16 conc_peak=16 pread=9.887s
+DBG getmany L3 nw=64 wall=0.671s thr(out)1 thr(in)16 conc_peak=16 pread=9.802s
+DBG getmany L4 nw=64 wall=0.684s thr(out)1 thr(in)16 conc_peak=16 pread=9.934s
+DBG getmany L5 nw=64 wall=1.390s thr(out)1 thr(in)16 conc_peak=16 pread=20.422s
+DBG getmany L6 nw=64 wall=0.619s thr(out)1 thr(in)16 conc_peak=16 pread=9.077s
+DBG getmany L7 nw=64 wall=0.630s thr(out)1 thr(in)16 conc_peak=16 pread=9.005s
+DBG getmany L8 nw=64 wall=0.612s thr(out)1 thr(in)16 conc_peak=16 pread=8.861s
+DBG getmany L9 nw=64 wall=0.614s thr(out)1 thr(in)16 conc_peak=16 pread=8.891s
+DBG getmany L10 nw=64 wall=0.614s thr(out)1 thr(in)16 conc_peak=16 pread=8.869s
+DBG getmany L11 nw=64 wall=0.686s thr(out)1 thr(in)16 conc_peak=16 pread=8.747s
+DBG getmany L12 nw=64 wall=0.635s thr(out)1 thr(in)16 conc_peak=16 pread=8.829s
+DBG getmany L13 nw=64 wall=0.601s thr(out)1 thr(in)16 conc_peak=16 pread=8.751s
+DBG getmany L14 nw=64 wall=0.604s thr(out)1 thr(in)16 conc_peak=16 pread=8.752s
+DBG getmany L15 nw=64 wall=0.612s thr(out)1 thr(in)16 conc_peak=16 pread=8.697s
+DBG getmany L16 nw=64 wall=0.598s thr(out)1 thr(in)16 conc_peak=16 pread=8.602s
+DBG getmany L17 nw=64 wall=0.599s thr(out)1 thr(in)16 conc_peak=16 pread=8.652s
+DBG getmany L18 nw=64 wall=0.600s thr(out)1 thr(in)16 conc_peak=16 pread=8.610s
+DBG getmany L19 nw=64 wall=0.598s thr(out)1 thr(in)16 conc_peak=16 pread=8.639s
+DBG getmany L20 nw=64 wall=0.621s thr(out)1 thr(in)16 conc_peak=16 pread=8.839s
+DBG getmany L21 nw=64 wall=0.613s thr(out)1 thr(in)16 conc_peak=16 pread=8.849s
+DBG getmany L22 nw=64 wall=0.611s thr(out)1 thr(in)16 conc_peak=16 pread=8.846s
+DBG getmany L23 nw=64 wall=0.624s thr(out)1 thr(in)16 conc_peak=16 pread=9.043s
+DBG getmany L24 nw=64 wall=0.614s thr(out)1 thr(in)16 conc_peak=16 pread=8.881s
+DBG getmany L25 nw=64 wall=0.612s thr(out)1 thr(in)16 conc_peak=16 pread=8.848s
+DBG getmany L26 nw=64 wall=0.609s thr(out)1 thr(in)16 conc_peak=16 pread=8.718s
+DBG getmany L27 nw=64 wall=0.638s thr(out)1 thr(in)16 conc_peak=16 pread=9.077s
+DBG getmany L28 nw=64 wall=0.611s thr(out)1 thr(in)16 conc_peak=16 pread=8.790s
+DBG getmany L29 nw=64 wall=0.614s thr(out)1 thr(in)16 conc_peak=16 pread=8.882s
+DBG getmany L30 nw=64 wall=0.612s thr(out)1 thr(in)16 conc_peak=16 pread=8.750s
+DBG getmany L31 nw=64 wall=0.630s thr(out)1 thr(in)16 conc_peak=16 pread=9.197s
+DBG getmany L32 nw=64 wall=0.604s thr(out)1 thr(in)16 conc_peak=16 pread=8.659s
+DBG getmany L33 nw=64 wall=0.605s thr(out)1 thr(in)16 conc_peak=16 pread=8.680s
+DBG getmany L34 nw=64 wall=0.606s thr(out)1 thr(in)16 conc_peak=16 pread=8.810s
+DBG getmany L35 nw=64 wall=0.619s thr(out)1 thr(in)16 conc_peak=16 pread=8.900s
+DBG getmany L36 nw=64 wall=0.614s thr(out)1 thr(in)16 conc_peak=16 pread=8.904s
+DBG getmany L37 nw=64 wall=0.609s thr(out)1 thr(in)16 conc_peak=16 pread=8.721s
+DBG getmany L38 nw=62 wall=0.587s thr(out)1 thr(in)16 conc_peak=16 pread=8.476s
+DBG getmany L39 nw=64 wall=0.605s thr(out)1 thr(in)16 conc_peak=16 pread=8.835s
+DBG getmany L40 nw=58 wall=0.553s thr(out)1 thr(in)16 conc_peak=16 pread=8.055s
+DBG getmany L41 nw=64 wall=0.603s thr(out)1 thr(in)16 conc_peak=16 pread=8.701s
+DBG getmany L42 nw=64 wall=0.614s thr(out)1 thr(in)16 conc_peak=16 pread=8.912s
+DBG getmany L43 nw=64 wall=0.634s thr(out)1 thr(in)16 conc_peak=16 pread=9.099s
+DBG getmany L44 nw=64 wall=0.607s thr(out)1 thr(in)16 conc_peak=16 pread=8.651s
+DBG getmany L45 nw=64 wall=0.602s thr(out)1 thr(in)16 conc_peak=16 pread=8.542s
+DBG getmany L46 nw=60 wall=0.572s thr(out)1 thr(in)16 conc_peak=16 pread=8.169s
+DBG getmany L47 nw=64 wall=0.624s thr(out)1 thr(in)16 conc_peak=16 pread=9.102s
+DBG getmany L48 nw=64 wall=0.618s thr(out)1 thr(in)16 conc_peak=16 pread=8.763s
+DBG getmany L49 nw=64 wall=0.627s thr(out)1 thr(in)16 conc_peak=16 pread=8.825s
+DBG getmany L50 nw=64 wall=0.606s thr(out)1 thr(in)16 conc_peak=16 pread=8.840s
+DBG getmany L51 nw=64 wall=0.635s thr(out)1 thr(in)16 conc_peak=16 pread=9.293s
+DBG getmany L52 nw=64 wall=0.613s thr(out)1 thr(in)16 conc_peak=16 pread=8.700s
+DBG getmany L53 nw=64 wall=0.600s thr(out)1 thr(in)16 conc_peak=16 pread=8.622s
+DBG getmany L54 nw=64 wall=0.603s thr(out)1 thr(in)16 conc_peak=16 pread=8.586s
+DBG getmany L55 nw=64 wall=0.679s thr(out)1 thr(in)16 conc_peak=16 pread=9.777s
+DBG getmany L56 nw=64 wall=0.717s thr(out)1 thr(in)16 conc_peak=16 pread=10.263s
+DBG getmany L57 nw=64 wall=0.624s thr(out)1 thr(in)16 conc_peak=16 pread=9.056s
+DBG getmany L58 nw=64 wall=0.674s thr(out)1 thr(in)16 conc_peak=16 pread=9.906s
+DBG getmany L59 nw=64 wall=0.667s thr(out)1 thr(in)16 conc_peak=16 pread=9.716s
+DBG getmany L60 nw=64 wall=0.603s thr(out)1 thr(in)16 conc_peak=16 pread=8.738s
+DBG getmany L61 nw=64 wall=0.603s thr(out)1 thr(in)16 conc_peak=16 pread=8.762s
+DBG getmany L62 nw=64 wall=0.608s thr(out)1 thr(in)16 conc_peak=16 pread=8.795s
+DBG getmany L63 nw=64 wall=0.608s thr(out)1 thr(in)16 conc_peak=16 pread=8.782s
+DBG getmany L64 nw=64 wall=0.605s thr(out)1 thr(in)16 conc_peak=16 pread=8.794s
+DBG getmany L65 nw=64 wall=0.609s thr(out)1 thr(in)16 conc_peak=16 pread=8.806s
+DBG getmany L66 nw=64 wall=0.597s thr(out)1 thr(in)16 conc_peak=16 pread=8.685s
+DBG getmany L67 nw=64 wall=0.631s thr(out)1 thr(in)16 conc_peak=16 pread=9.205s
+DBG getmany L68 nw=64 wall=0.628s thr(out)1 thr(in)16 conc_peak=16 pread=9.092s
+DBG getmany L69 nw=64 wall=0.614s thr(out)1 thr(in)16 conc_peak=16 pread=9.002s
+DBG getmany L70 nw=64 wall=0.610s thr(out)1 thr(in)16 conc_peak=16 pread=8.780s
+DBG getmany L71 nw=64 wall=0.631s thr(out)1 thr(in)16 conc_peak=16 pread=9.203s
+DBG getmany L72 nw=64 wall=0.602s thr(out)1 thr(in)16 conc_peak=16 pread=8.717s
+DBG getmany L73 nw=64 wall=0.622s thr(out)1 thr(in)16 conc_peak=16 pread=9.097s
+DBG getmany L74 nw=64 wall=0.629s thr(out)1 thr(in)16 conc_peak=16 pread=9.065s
+DBG getmany L75 nw=64 wall=0.628s thr(out)1 thr(in)16 conc_peak=16 pread=9.175s
+DBG getmany L76 nw=64 wall=0.601s thr(out)1 thr(in)16 conc_peak=16 pread=8.793s
+DBG getmany L77 nw=64 wall=0.600s thr(out)1 thr(in)16 conc_peak=16 pread=8.718s
+DBG getmany L78 nw=64 wall=0.600s thr(out)1 thr(in)16 conc_peak=16 pread=8.731s
+DBG getmany L79 nw=64 wall=0.617s thr(out)1 thr(in)16 conc_peak=16 pread=8.709s
+DBG getmany L80 nw=64 wall=0.601s thr(out)1 thr(in)16 conc_peak=16 pread=8.725s
+DBG getmany L81 nw=64 wall=0.596s thr(out)1 thr(in)16 conc_peak=16 pread=8.622s
+DBG getmany L82 nw=64 wall=0.602s thr(out)1 thr(in)16 conc_peak=16 pread=8.702s
+DBG getmany L83 nw=64 wall=0.621s thr(out)1 thr(in)16 conc_peak=16 pread=9.106s
+DBG getmany L84 nw=64 wall=0.607s thr(out)1 thr(in)16 conc_peak=16 pread=8.766s
+DBG getmany L85 nw=64 wall=0.613s thr(out)1 thr(in)16 conc_peak=16 pread=8.690s
+DBG getmany L86 nw=64 wall=0.612s thr(out)1 thr(in)16 conc_peak=16 pread=8.788s
+DBG getmany L87 nw=64 wall=0.608s thr(out)1 thr(in)16 conc_peak=16 pread=8.886s
+DBG getmany L88 nw=64 wall=0.606s thr(out)1 thr(in)16 conc_peak=16 pread=8.765s
+DBG getmany L89 nw=64 wall=0.601s thr(out)1 thr(in)16 conc_peak=16 pread=8.644s
+DBG getmany L90 nw=64 wall=0.605s thr(out)1 thr(in)16 conc_peak=16 pread=8.745s
+DBG getmany L91 nw=64 wall=0.602s thr(out)1 thr(in)16 conc_peak=16 pread=8.551s
+DBG getmany L92 nw=64 wall=0.585s thr(out)1 thr(in)16 conc_peak=16 pread=8.451s
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+  KV cache : 30.81 MB for 13 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 10 tokens, generating 2
+
+indexed 497220 tensors from 96 shards in 15.51 s
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 6.00 GB
+  embed + lm_head  4.70 GB
+  expert cache     8.00 GB
+  recurrent state  626.25 MB
+  buffers          10.02 MB
+  KV cache         30.75 MB
+  TOTAL            19.36 GB
+  available        28.61 GB
+
+k3_trunk: trunk.bin absent - using per-layer slices (layer_%03d.bin)
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 2 x 1.30 GB
+              reads use buffered I/O
+              ring holds 2 slots: layers repeat over ~2 tokens, so recent ones are reused instead of re-read
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+embedding, final norm and lm_head: 4.70 GB in 62.9 s
+
+expert L2 cache enabled: 11397 slots x 17.55 MB = 199.99 GB on /mnt/nvme/experts.l2
+expert L2 eviction policy: heat
+peak RSS after loading weights: 4.78 GB  (the plan above is a forecast, this is measured)
+expert cache: 455 slots x 17.56 MB = 7.99 GB (0.55% of the 1.45 TB expert pool)
+
+recurrent state for 93 layers: 626.25 MB
+
+incremental decode: KV cache 30.75 MB for 24 MLA layers at 13 positions
+
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+0      81         810.89       72.5       142.31     0.001
+  L2   resident=6298/11397 slots hit=100.0% read=103.04GB write=0.04GB
+DBG getmany L1 nw=16 wall=2.341s thr(out)1 thr(in)16 conc_peak=16 pread=0.203s
+DBG getmany L2 nw=16 wall=2.243s thr(out)1 thr(in)16 conc_peak=16 pread=0.219s
+DBG getmany L3 nw=16 wall=1.948s thr(out)1 thr(in)16 conc_peak=16 pread=0.696s
+DBG getmany L4 nw=16 wall=0.643s thr(out)1 thr(in)16 conc_peak=16 pread=1.389s
+DBG getmany L5 nw=16 wall=2.169s thr(out)1 thr(in)16 conc_peak=16 pread=0.636s
+DBG getmany L6 nw=16 wall=4.563s thr(out)1 thr(in)16 conc_peak=16 pread=0.000s
+DBG getmany L7 nw=16 wall=3.990s thr(out)1 thr(in)16 conc_peak=16 pread=0.055s
+DBG getmany L8 nw=16 wall=4.783s thr(out)1 thr(in)16 conc_peak=16 pread=0.056s
+DBG getmany L9 nw=16 wall=3.323s thr(out)1 thr(in)16 conc_peak=16 pread=0.151s
+DBG getmany L10 nw=16 wall=3.212s thr(out)1 thr(in)16 conc_peak=16 pread=0.259s
+DBG getmany L11 nw=16 wall=3.772s thr(out)1 thr(in)16 conc_peak=16 pread=0.169s
+DBG getmany L12 nw=16 wall=3.404s thr(out)1 thr(in)16 conc_peak=16 pread=0.256s
+DBG getmany L13 nw=16 wall=2.969s thr(out)1 thr(in)16 conc_peak=16 pread=0.072s
+DBG getmany L14 nw=16 wall=2.334s thr(out)1 thr(in)16 conc_peak=16 pread=0.118s
+DBG getmany L15 nw=16 wall=2.169s thr(out)1 thr(in)16 conc_peak=16 pread=0.264s
+DBG getmany L16 nw=16 wall=2.426s thr(out)1 thr(in)16 conc_peak=16 pread=0.233s
+DBG getmany L17 nw=16 wall=2.962s thr(out)1 thr(in)16 conc_peak=16 pread=0.102s
+DBG getmany L18 nw=16 wall=2.366s thr(out)1 thr(in)16 conc_peak=16 pread=0.136s
+DBG getmany L19 nw=16 wall=2.425s thr(out)1 thr(in)16 conc_peak=16 pread=0.164s
+DBG getmany L20 nw=16 wall=2.008s thr(out)1 thr(in)16 conc_peak=16 pread=0.255s
+DBG getmany L21 nw=16 wall=1.836s thr(out)1 thr(in)16 conc_peak=16 pread=0.347s
+DBG getmany L22 nw=16 wall=2.324s thr(out)1 thr(in)16 conc_peak=16 pread=0.236s
+DBG getmany L23 nw=16 wall=2.461s thr(out)1 thr(in)16 conc_peak=16 pread=0.418s
+DBG getmany L24 nw=16 wall=1.861s thr(out)1 thr(in)16 conc_peak=16 pread=8.471s
+DBG getmany L25 nw=16 wall=2.076s thr(out)1 thr(in)16 conc_peak=16 pread=0.285s
+DBG getmany L26 nw=16 wall=1.492s thr(out)1 thr(in)16 conc_peak=16 pread=0.802s
+DBG getmany L27 nw=16 wall=1.673s thr(out)1 thr(in)16 conc_peak=16 pread=0.476s
+DBG getmany L28 nw=16 wall=1.807s thr(out)1 thr(in)16 conc_peak=16 pread=0.410s
+DBG getmany L29 nw=16 wall=0.693s thr(out)1 thr(in)16 conc_peak=16 pread=1.256s
+DBG getmany L30 nw=16 wall=1.133s thr(out)1 thr(in)16 conc_peak=16 pread=0.934s
+DBG getmany L31 nw=16 wall=1.015s thr(out)1 thr(in)16 conc_peak=16 pread=0.983s
+DBG getmany L32 nw=16 wall=1.568s thr(out)1 thr(in)16 conc_peak=16 pread=0.414s
+DBG getmany L33 nw=16 wall=0.267s thr(out)1 thr(in)16 conc_peak=16 pread=1.462s
+DBG getmany L34 nw=16 wall=0.953s thr(out)1 thr(in)16 conc_peak=16 pread=1.222s
+DBG getmany L35 nw=16 wall=1.410s thr(out)1 thr(in)16 conc_peak=16 pread=0.667s
+DBG getmany L36 nw=16 wall=2.343s thr(out)1 thr(in)16 conc_peak=16 pread=0.448s
+DBG getmany L37 nw=16 wall=2.907s thr(out)1 thr(in)16 conc_peak=16 pread=0.687s
+DBG getmany L38 nw=16 wall=0.177s thr(out)1 thr(in)16 conc_peak=16 pread=1.849s
+DBG getmany L39 nw=16 wall=1.633s thr(out)1 thr(in)16 conc_peak=16 pread=0.934s
+DBG getmany L40 nw=16 wall=1.287s thr(out)1 thr(in)16 conc_peak=16 pread=1.422s
+DBG getmany L41 nw=16 wall=2.508s thr(out)1 thr(in)16 conc_peak=16 pread=1.003s
+DBG getmany L42 nw=16 wall=2.674s thr(out)1 thr(in)16 conc_peak=16 pread=1.069s
+DBG getmany L43 nw=16 wall=4.159s thr(out)1 thr(in)16 conc_peak=16 pread=0.754s
+DBG getmany L44 nw=16 wall=1.899s thr(out)1 thr(in)16 conc_peak=16 pread=1.300s
+DBG getmany L45 nw=16 wall=3.501s thr(out)1 thr(in)16 conc_peak=16 pread=0.765s
+DBG getmany L46 nw=16 wall=1.504s thr(out)1 thr(in)16 conc_peak=16 pread=1.248s
+DBG getmany L47 nw=16 wall=3.203s thr(out)1 thr(in)16 conc_peak=16 pread=0.838s
+DBG getmany L48 nw=16 wall=6.308s thr(out)1 thr(in)16 conc_peak=16 pread=0.380s
+DBG getmany L49 nw=16 wall=5.042s thr(out)1 thr(in)16 conc_peak=16 pread=0.466s
+DBG getmany L50 nw=16 wall=3.952s thr(out)1 thr(in)16 conc_peak=16 pread=0.602s
+DBG getmany L51 nw=16 wall=2.670s thr(out)1 thr(in)16 conc_peak=16 pread=0.804s
+DBG getmany L52 nw=16 wall=6.069s thr(out)1 thr(in)16 conc_peak=16 pread=0.148s
+DBG getmany L53 nw=16 wall=4.402s thr(out)1 thr(in)16 conc_peak=16 pread=0.539s
+DBG getmany L54 nw=16 wall=4.031s thr(out)1 thr(in)16 conc_peak=16 pread=0.480s
+DBG getmany L55 nw=16 wall=5.367s thr(out)1 thr(in)16 conc_peak=16 pread=0.551s
+DBG getmany L56 nw=16 wall=9.657s thr(out)1 thr(in)16 conc_peak=16 pread=0.066s
+DBG getmany L57 nw=16 wall=7.265s thr(out)1 thr(in)16 conc_peak=16 pread=0.308s
+DBG getmany L58 nw=16 wall=5.279s thr(out)1 thr(in)16 conc_peak=16 pread=0.378s
+DBG getmany L59 nw=16 wall=5.168s thr(out)1 thr(in)16 conc_peak=16 pread=0.140s
+DBG getmany L60 nw=16 wall=9.792s thr(out)1 thr(in)16 conc_peak=16 pread=0.147s
+DBG getmany L61 nw=16 wall=8.219s thr(out)1 thr(in)16 conc_peak=16 pread=0.000s
+DBG getmany L62 nw=16 wall=5.977s thr(out)1 thr(in)16 conc_peak=16 pread=0.064s
+DBG getmany L63 nw=16 wall=5.376s thr(out)1 thr(in)16 conc_peak=16 pread=0.131s
+DBG getmany L64 nw=16 wall=4.174s thr(out)1 thr(in)16 conc_peak=16 pread=0.434s
+DBG getmany L65 nw=16 wall=6.512s thr(out)1 thr(in)16 conc_peak=16 pread=0.136s
+DBG getmany L66 nw=16 wall=6.434s thr(out)1 thr(in)16 conc_peak=16 pread=0.094s
+DBG getmany L67 nw=16 wall=5.497s thr(out)1 thr(in)16 conc_peak=16 pread=0.169s
+DBG getmany L68 nw=16 wall=4.738s thr(out)1 thr(in)16 conc_peak=16 pread=0.405s
+DBG getmany L69 nw=16 wall=5.212s thr(out)1 thr(in)16 conc_peak=16 pread=0.069s
+DBG getmany L70 nw=16 wall=3.301s thr(out)1 thr(in)16 conc_peak=16 pread=0.224s
+DBG getmany L71 nw=16 wall=4.335s thr(out)1 thr(in)16 conc_peak=16 pread=0.365s
+DBG getmany L72 nw=16 wall=5.277s thr(out)1 thr(in)16 conc_peak=16 pread=0.475s
+DBG getmany L73 nw=16 wall=10.377s thr(out)1 thr(in)16 conc_peak=16 pread=0.102s
+DBG getmany L74 nw=16 wall=3.388s thr(out)1 thr(in)16 conc_peak=16 pread=0.130s
+DBG getmany L75 nw=16 wall=3.658s thr(out)1 thr(in)16 conc_peak=16 pread=0.150s
+DBG getmany L76 nw=16 wall=3.364s thr(out)1 thr(in)16 conc_peak=16 pread=0.322s
+DBG getmany L77 nw=16 wall=6.218s thr(out)1 thr(in)16 conc_peak=16 pread=0.251s
+DBG getmany L78 nw=16 wall=2.934s thr(out)1 thr(in)16 conc_peak=16 pread=0.817s
+DBG getmany L79 nw=16 wall=3.947s thr(out)1 thr(in)16 conc_peak=16 pread=0.081s
+DBG getmany L80 nw=16 wall=2.849s thr(out)1 thr(in)16 conc_peak=16 pread=0.410s
+DBG getmany L81 nw=16 wall=2.525s thr(out)1 thr(in)16 conc_peak=16 pread=0.706s
+DBG getmany L82 nw=16 wall=3.444s thr(out)1 thr(in)16 conc_peak=16 pread=0.236s
+DBG getmany L83 nw=16 wall=3.210s thr(out)1 thr(in)16 conc_peak=16 pread=0.409s
+DBG getmany L84 nw=16 wall=3.902s thr(out)1 thr(in)16 conc_peak=16 pread=0.318s
+DBG getmany L85 nw=16 wall=4.386s thr(out)1 thr(in)16 conc_peak=16 pread=0.031s
+DBG getmany L86 nw=16 wall=3.057s thr(out)1 thr(in)16 conc_peak=16 pread=0.352s
+DBG getmany L87 nw=16 wall=1.405s thr(out)1 thr(in)16 conc_peak=16 pread=1.036s
+DBG getmany L88 nw=16 wall=5.466s thr(out)1 thr(in)16 conc_peak=16 pread=0.297s
+DBG getmany L89 nw=16 wall=1.660s thr(out)1 thr(in)16 conc_peak=16 pread=0.505s
+DBG getmany L90 nw=16 wall=3.172s thr(out)1 thr(in)16 conc_peak=16 pread=0.450s
+DBG getmany L91 nw=16 wall=1.942s thr(out)1 thr(in)16 conc_peak=16 pread=0.513s
+DBG getmany L92 nw=16 wall=3.484s thr(out)1 thr(in)16 conc_peak=16 pread=0.240s
+1      170        399.17       100.0      25.83      0.003
+  L2   resident=6715/11397 slots hit=89.5% read=114.11GB write=14.69GB
+--------------------------------------------------------------------
+2 tokens in 1210.1 s, 605.03 s/token average
+PEAK RSS for the whole run: 17.12 GB   <- quote this, not the plan
+layers completed: 93/93; routed expert drops: 0
+
+
+[chip] simulated MXFP4 GEMV bill over 12 tokens
+  16192 expert chains | 1069648183296 flops | 284125298688 bytes (284.13 GB)
+  per token: 1349 chains | 23.68 GB | 0.09 Gflops
+  compute wall @ 4 TFLOPS : 0.27 s (22.28 ms/token)
+  bandwidth wall @ 200 GB/s : 1.42 s (118.39 ms/token)
+  -> bandwidth-bound; to be compute-bound at 4 TFLOPS this needs 1062 GB/s
+  expert fetch (host wall, measured): 788.07 s moving 168.14 GB = 0 GB/s
+  chip pool wall (measured): 237.39 s
+
+cache [final step]
+  slots        : 455 of 17.56 MB = 7.99 GB arena (455 resident, 0 pinned)
+  requests     : 1472  hits 1472 (100.00%)  misses 0  evictions 1472
+  of those hits : 1472 came from the batch prefetch, i.e. read from disk
+                  this token; TRUE resident hit rate 0.00%
+  read from disk: 25.83 GB in 320.85 s (81 MB/s while loading)
+  phase2 i/o    : 25.84 GB in 320.85 s (81 MB/s)  [pure parallel disk read]
+l2cache [final step]
+  requests     : 7262  hits 6503 (89.55%)  misses 759
+  read  from sdd7: 114.11 GB, written 14.69 GB
+  hit I/O   : 114.11 GB in 67.42 s (wall) = 1693 MB/s [pread 881.04 s, 130 MB/s per-thread]
+  miss I/O  : 759 misses, 13.32 GB from /model in 310.97 s (wall) = 43 MB/s
+  restored from meta: 6298 slots
+
+wrote reports/full93_gen2_121544/r.json
+I/O share of wall clock: 100.1%  (trunk 425.8 s + experts 785.3 s of 1210.1 s)
+  both figures are WHOLE-RUN totals over 2 steps
+  over 100% because trunk reads overlap compute on the reader thread;
+  1.0 s of device time was hidden behind arithmetic
+  experts, whole run: 168.14 GB read | 455 of 9582 requests retained in RAM (4.75%) | 9127 evictions
+    (retention = requests - evictions; the raw `hits` counter includes
+     experts the prefetcher had just read from disk, so it is not a
+     measure of avoided I/O)
+
+trunk [final]
+  pinned 1/93 layers, ring 2 slots
+  binds 186, hits 1 (0.5%), reads 185
+  read 110.87 GB in 108.42 s (1023 MB/s pread) + 317.35 s parked on the expert gate
+  per-layer loads [L]=count: 0=1 1=2 2=2 3=2 4=2 5=2 6=2 7=2 8=2 9=2 10=2 11=2 12=2 13=2 14=2 15=2 16=2 17=2 18=2 19=2 20=2 21=2 22=2 23=2 24=2 25=2 26=2 27=2 28=2 29=2 30=2 31=2 32=2 33=2 34=2 35=2 36=2 37=2 38=2 39=2 40=2 41=2 42=2 43=2 44=2 45=2 46=2 47=2 48=2 49=2 50=2 51=2 52=2 53=2 54=2 55=2 56=2 57=2 58=2 59=2 60=2 61=2 62=2 63=2 64=2 65=2 66=2 67=2 68=2 69=2 70=2 71=2 72=2 73=2 74=2 75=2 76=2 77=2 78=2 79=2 80=2 81=2 82=2 83=2 84=2 85=2 86=2 87=2 88=2 89=2 90=2 91=2 92=2
+  bind wall 30.02 s over 186 binds; read 108.42 + widen 1.00 = 109.42 s of device work,
+                    of which 79.40 s (73%) overlapped compute on the reader thread
+  widen breakdown: find 154 ms (4910)  copy 0 ms (2296)  deq 840 ms (1580)  timed 1 s of widen 1.00 s

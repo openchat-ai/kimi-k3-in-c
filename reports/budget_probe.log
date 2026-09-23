@@ -1,0 +1,3 @@
+L2 auto: 201 GB free on /mnt/nvme -> L2 at 101 GB
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+exit=124

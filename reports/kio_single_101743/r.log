@@ -1,0 +1,24 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG io submit tier=0 nbytes=2341216256 qhead=0x5ce6a72bd090
+DBG io worker tier=0 rc=2147479552 nbytes=2341216256
+DBG trunk load_run L=0 kio r=2147479552 got=0 nbytes=2341216256
+DBG io submit tier=0 nbytes=193736704 qhead=0x5ce6a72bd090
+DBG io worker tier=0 rc=193736704 nbytes=193736704
+DBG trunk load_run L=0 kio r=193736704 got=2147479552 nbytes=2341216256
+DBG io submit tier=0 nbytes=645562368 qhead=0x5ce6a72bd090
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=1 kio r=645562368 got=0 nbytes=645562368
+DBG getmany L1 nw=30 wall=0.352s thr(out)1 thr(in)16 conc_peak=16 pread=4.835s
+DBG io submit tier=0 nbytes=645562368 qhead=0x5ce6a72bd090
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=2 kio r=645562368 got=0 nbytes=645562368
+DBG getmany L2 nw=32 wall=0.373s thr(out)1 thr(in)16 conc_peak=16 pread=5.108s
+DBG io submit tier=0 nbytes=431890432 qhead=0x5ce6a72bd090
+DBG io worker tier=0 rc=431890432 nbytes=431890432
+DBG trunk load_run L=3 kio r=431890432 got=0 nbytes=431890432
+DBG getmany L3 nw=29 wall=0.365s thr(out)1 thr(in)16 conc_peak=16 pread=4.711s
+DBG io submit tier=0 nbytes=645562368 qhead=0x5ce6a72bd090
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=4 kio r=645562368 got=0 nbytes=645562368
+DBG getmany L4 nw=30 wall=6.389s thr(out)1 thr(in)16 conc_peak=16 pread=86.938s
+DBG io submit tier=0 nbytes=645562368 qhead=0x5ce6a72bd090

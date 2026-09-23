@@ -1,0 +1,88 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+[TOK] 163584 ranks (max id 163583) + 16 added tokens | kimi=1 rankbpe=1
+DBG getmany L1 nw=43 wall=5.253s thr(out)1 thr(in)16 conc_peak=16 pread=0.587s
+DBG getmany L2 nw=44 wall=5.777s thr(out)1 thr(in)16 conc_peak=16 pread=0.444s
+DBG getmany L3 nw=40 wall=6.182s thr(out)1 thr(in)16 conc_peak=16 pread=0.935s
+DBG getmany L4 nw=33 wall=34.449s thr(out)1 thr(in)16 conc_peak=16 pread=45.238s
+DBG getmany L5 nw=39 wall=5.395s thr(out)1 thr(in)16 conc_peak=16 pread=9.933s
+DBG getmany L6 nw=41 wall=6.096s thr(out)1 thr(in)16 conc_peak=16 pread=1.646s
+DBG getmany L7 nw=37 wall=13.363s thr(out)1 thr(in)16 conc_peak=16 pread=1.391s
+DBG getmany L8 nw=41 wall=7.593s thr(out)1 thr(in)16 conc_peak=16 pread=1.653s
+DBG getmany L9 nw=35 wall=6.491s thr(out)1 thr(in)16 conc_peak=16 pread=8.127s
+DBG getmany L10 nw=39 wall=10.669s thr(out)1 thr(in)16 conc_peak=16 pread=0.766s
+DBG getmany L11 nw=38 wall=6.469s thr(out)1 thr(in)16 conc_peak=16 pread=1.171s
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+NOTE: binding only the first 12 of 93 layers. Output is NOT the full model; it is a partial stack for testing the machinery.
+
+  tokenized: 15 bytes -> 3 ids
+  KV cache : 18.96 MB for 8 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 3 tokens, generating 4
+
+indexed 497220 tensors from 96 shards in 14.63 s
+trunk on disk : 15.16 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 12.00 GB
+  embed + lm_head  4.70 GB
+  expert cache     8.00 GB
+  recurrent state  80.81 MB
+  buffers          6.68 MB
+  KV cache         18.92 MB
+  TOTAL            24.80 GB
+  available        28.59 GB
+
+k3_trunk: trunk.bin absent - using per-layer slices (layer_%03d.bin)
+trunk stream: 56.60 GB packed, 6/93 layers PINNED (9.30 GB), ring 2 x 1.30 GB
+              reads use buffered I/O
+              ring holds 2 slots: layers repeat over ~2 tokens, so recent ones are reused instead of re-read
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+embedding, final norm and lm_head: 4.70 GB in 62.2 s
+
+expert L2 cache enabled: 11397 slots x 17.55 MB = 199.99 GB on /mnt/nvme/experts.l2
+expert L2 eviction policy: heat
+peak RSS after loading weights: 4.80 GB  (the plan above is a forecast, this is measured)
+expert cache: 455 slots x 17.56 MB = 7.99 GB (0.55% of the 1.45 TB expert pool)
+
+recurrent state for 12 layers: 80.81 MB
+
+incremental decode: KV cache 2.37 MB for 3 MLA layers at 8 positions
+
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+0      110740     182.42       100.0      7.55       0.005
+  L2   resident=6298/11397 slots hit=30.3% read=2.23GB write=5.32GB
+DBG getmany L1 nw=25 wall=7.894s thr(out)1 thr(in)16 conc_peak=16 pread=0.200s
+DBG getmany L2 nw=41 wall=24.480s thr(out)1 thr(in)16 conc_peak=16 pread=36.250s
+DBG getmany L3 nw=36 wall=23.485s thr(out)1 thr(in)16 conc_peak=16 pread=41.831s
+DBG getmany L4 nw=33 wall=20.209s thr(out)1 thr(in)16 conc_peak=16 pread=43.051s
+DBG getmany L5 nw=54 wall=24.417s thr(out)1 thr(in)16 conc_peak=16 pread=24.820s
+DBG getmany L6 nw=56 wall=21.436s thr(out)1 thr(in)16 conc_peak=16 pread=46.557s
+DBG getmany L7 nw=55 wall=12.425s thr(out)1 thr(in)16 conc_peak=16 pread=3.098s
+DBG getmany L8 nw=51 wall=23.225s thr(out)1 thr(in)16 conc_peak=16 pread=46.385s
+DBG getmany L9 nw=49 wall=9.123s thr(out)1 thr(in)16 conc_peak=16 pread=2.091s
+DBG getmany L10 nw=50 wall=11.072s thr(out)1 thr(in)16 conc_peak=16 pread=2.271s
+DBG getmany L11 nw=52 wall=8.584s thr(out)1 thr(in)16 conc_peak=16 pread=1.667s
+1      78817      295.50       93.8       9.42       0.003
+  L2   resident=6298/11397 slots hit=40.4% read=6.51GB write=9.84GB
+DBG getmany L1 nw=64 wall=7.952s thr(out)1 thr(in)16 conc_peak=16 pread=9.583s
+DBG getmany L2 nw=64 wall=12.832s thr(out)1 thr(in)16 conc_peak=16 pread=5.337s
+DBG getmany L3 nw=58 wall=10.909s thr(out)1 thr(in)16 conc_peak=16 pread=4.364s
+DBG getmany L4 nw=45 wall=16.691s thr(out)1 thr(in)16 conc_peak=16 pread=35.311s
+DBG getmany L5 nw=56 wall=9.253s thr(out)1 thr(in)16 conc_peak=16 pread=9.503s
+DBG getmany L6 nw=64 wall=10.502s thr(out)1 thr(in)16 conc_peak=16 pread=3.317s
+DBG getmany L7 nw=63 wall=16.235s thr(out)1 thr(in)16 conc_peak=16 pread=1.788s
+DBG getmany L8 nw=62 wall=12.518s thr(out)1 thr(in)16 conc_peak=16 pread=21.606s
+DBG getmany L9 nw=54 wall=6.944s thr(out)1 thr(in)16 conc_peak=16 pread=3.108s
+DBG getmany L10 nw=57 wall=7.757s thr(out)1 thr(in)16 conc_peak=16 pread=2.785s
+DBG getmany L11 nw=64 wall=10.934s thr(out)1 thr(in)16 conc_peak=16 pread=2.687s
+2      79660      184.57       98.0       11.65      0.005
+  L2   resident=6298/11397 slots hit=52.2% read=14.39GB write=13.39GB
+DBG getmany L1 nw=64 wall=4.841s thr(out)1 thr(in)16 conc_peak=16 pread=5.306s
+DBG getmany L2 nw=64 wall=11.461s thr(out)1 thr(in)16 conc_peak=16 pread=10.257s
+k3: FATAL, MLA KV cache position is 8, which exceeds the limit of 7.
+    Aborting rather than returning without writing the output buffer,
+    which would fold the previous layer's values into the residual and
+    produce plausible-looking but meaningless output.
+    Shorten the prompt, lower --gen, or drop --incremental.

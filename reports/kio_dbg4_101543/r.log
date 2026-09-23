@@ -1,0 +1,29 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG io submit tier=0 nbytes=2341216256 qhead=0x5f4d93eb5090
+DBG io worker tier=0 rc=2341216256 nbytes=2341216256
+DBG trunk load_run L=0 kio r=2341216256 got=0 nbytes=2341216256
+DBG io submit tier=0 nbytes=645562368 qhead=0x5f4d93eb5090
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=1 kio r=645562368 got=0 nbytes=645562368
+DBG getmany L1 nw=30 wall=0.394s thr(out)1 thr(in)16 conc_peak=16 pread=5.396s
+DBG io submit tier=0 nbytes=645562368 qhead=0x5f4d93eb5090
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=2 kio r=645562368 got=0 nbytes=645562368
+DBG getmany L2 nw=32 wall=0.393s thr(out)1 thr(in)16 conc_peak=16 pread=5.294s
+DBG io submit tier=0 nbytes=431890432 qhead=0x5f4d93eb5090
+DBG io worker tier=0 rc=431890432 nbytes=431890432
+DBG trunk load_run L=3 kio r=431890432 got=0 nbytes=431890432
+DBG getmany L3 nw=29 wall=3.187s thr(out)1 thr(in)16 conc_peak=16 pread=16.147s
+DBG io submit tier=0 nbytes=645562368 qhead=0x5f4d93eb5090
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=4 kio r=645562368 got=0 nbytes=645562368
+DBG getmany L4 nw=30 wall=0.322s thr(out)1 thr(in)16 conc_peak=16 pread=4.183s
+DBG io submit tier=0 nbytes=645562368 qhead=0x5f4d93eb5090
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=5 kio r=645562368 got=0 nbytes=645562368
+DBG io submit tier=0 nbytes=645562368 qhead=0x7a6b68000880
+DBG getmany L5 nw=30 wall=0.607s thr(out)1 thr(in)16 conc_peak=16 pread=7.407s
+DBG io worker tier=0 rc=645562368 nbytes=645562368
+DBG trunk load_run L=6 kio r=645562368 got=0 nbytes=645562368
+DBG io submit tier=0 nbytes=431890432 qhead=0x7a6b68000880
+DBG getmany L6 nw=32 wall=0.373s thr(out)1 thr(in)16 conc_peak=16 pread=5.083s

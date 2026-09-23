@@ -1,0 +1,21 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+k3_trunk: cannot read /mnt/nvme/trunk_layers_out/trunk_layers.json
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+  KV cache : 718.11 MB for 303 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 300 tokens, generating 2
+
+indexed 497220 tensors from 96 shards in 17.56 s
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 6.00 GB
+  embed + lm_head  4.70 GB
+  expert cache     8.00 GB
+  recurrent state  626.25 MB
+  buffers          203.75 MB
+  KV cache         716.73 MB
+  TOTAL            20.24 GB
+  available        28.66 GB
+

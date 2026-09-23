@@ -1,0 +1,134 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG fwd_inner loop_outer=1 loop_serial=1 T=6
+DBG block b0=0 L=0 rnd=0 hnorm_last=1.830
+DBG block b0=0 L=1 rnd=0 hnorm_last=0.821
+DBG getmany L1 nw=64 wall=0.678s thr(out)1 thr(in)16 conc_peak=16 pread=9.881s
+DBG block b0=0 L=2 rnd=0 hnorm_last=1.547
+DBG getmany L2 nw=64 wall=0.660s thr(out)1 thr(in)16 conc_peak=16 pread=9.662s
+DBG block b0=0 L=3 rnd=0 hnorm_last=2.792
+DBG getmany L3 nw=61 wall=0.645s thr(out)1 thr(in)16 conc_peak=16 pread=9.404s
+DBG block b0=4 L=4 rnd=0 hnorm_last=3.367
+DBG getmany L4 nw=48 wall=3.392s thr(out)1 thr(in)16 conc_peak=16 pread=51.912s
+DBG block b0=4 L=5 rnd=0 hnorm_last=6.382
+DBG getmany L5 nw=64 wall=1.777s thr(out)1 thr(in)16 conc_peak=16 pread=24.574s
+DBG block b0=4 L=6 rnd=0 hnorm_last=12.308
+DBG getmany L6 nw=64 wall=4.176s thr(out)1 thr(in)16 conc_peak=16 pread=62.090s
+DBG block b0=4 L=7 rnd=0 hnorm_last=23.774
+DBG getmany L7 nw=64 wall=0.827s thr(out)1 thr(in)16 conc_peak=16 pread=10.547s
+DBG block b0=8 L=8 rnd=0 hnorm_last=33.275
+DBG getmany L8 nw=64 wall=13.619s thr(out)1 thr(in)16 conc_peak=16 pread=0.451s
+DBG block b0=8 L=9 rnd=0 hnorm_last=41.094
+DBG getmany L9 nw=1 wall=0.556s thr(out)1 thr(in)16 conc_peak=1 pread=0.000s
+DBG block b0=8 L=10 rnd=0 hnorm_last=-nan
+DBG getmany L10 nw=1 wall=0.528s thr(out)1 thr(in)16 conc_peak=1 pread=0.000s
+DBG block b0=8 L=11 rnd=0 hnorm_last=-nan
+DBG getmany L11 nw=1 wall=0.602s thr(out)1 thr(in)16 conc_peak=1 pread=0.000s
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+NOTE: binding only the first 12 of 93 layers. Output is NOT the full model; it is a partial stack for testing the machinery.
+
+  KV cache : 18.96 MB for 8 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 6 tokens, generating 1
+
+indexed 497220 tensors from 96 shards in 3.80 s
+trunk on disk : 15.16 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 12.00 GB
+  embed + lm_head  4.70 GB
+  expert cache     8.00 GB
+  recurrent state  80.81 MB
+  buffers          6.68 MB
+  KV cache         18.92 MB
+  TOTAL            24.80 GB
+  available        28.58 GB
+
+k3_trunk: trunk.bin absent - using per-layer slices (layer_%03d.bin)
+trunk stream: 56.60 GB packed, 6/93 layers PINNED (9.30 GB), ring 2 x 1.30 GB
+              reads use buffered I/O
+              ring holds 2 slots: layers repeat over ~2 tokens, so recent ones are reused instead of re-read
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+embedding, final norm and lm_head: 4.70 GB in 104.0 s
+
+expert L2 cache enabled: 11397 slots x 17.55 MB = 199.99 GB on /mnt/nvme/experts.l2
+expert L2 eviction policy: heat
+peak RSS after loading weights: 4.78 GB  (the plan above is a forecast, this is measured)
+expert cache: 455 slots x 17.56 MB = 7.99 GB (0.55% of the 1.45 TB expert pool)
+
+recurrent state for 12 layers: 80.81 MB
+
+incremental decode: KV cache 2.37 MB for 3 MLA layers at 8 positions
+
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+0      0          145.66       87.5       9.95       0.007
+  L2   resident=6298/11397 slots hit=89.3% read=7.74GB write=0.93GB
+DBG fwd_inner loop_outer=1 loop_serial=1 T=1
+DBG std2 L=0 hnorm_last=0.602
+DBG getmany L1 nw=16 wall=2.662s thr(out)1 thr(in)16 conc_peak=16 pread=0.634s
+DBG std2 L=1 hnorm_last=1.374
+DBG getmany L2 nw=12 wall=1.602s thr(out)1 thr(in)16 conc_peak=12 pread=0.420s
+DBG std2 L=2 hnorm_last=3.043
+DBG std L=3 hnorm_last=3.043
+DBG getmany L3 nw=4 wall=1.827s thr(out)1 thr(in)16 conc_peak=4 pread=0.000s
+DBG getmany L4 nw=3 wall=0.971s thr(out)1 thr(in)16 conc_peak=3 pread=0.030s
+DBG std2 L=4 hnorm_last=6.691
+DBG getmany L5 nw=5 wall=1.953s thr(out)1 thr(in)16 conc_peak=5 pread=0.082s
+DBG std2 L=5 hnorm_last=11.638
+DBG getmany L6 nw=10 wall=3.110s thr(out)1 thr(in)16 conc_peak=7 pread=0.082s
+DBG std2 L=6 hnorm_last=20.222
+DBG std L=7 hnorm_last=20.222
+DBG getmany L7 nw=9 wall=2.135s thr(out)1 thr(in)16 conc_peak=9 pread=0.126s
+DBG getmany L8 nw=13 wall=4.412s thr(out)1 thr(in)16 conc_peak=12 pread=0.055s
+DBG std2 L=8 hnorm_last=34.470
+DBG std2 L=9 hnorm_last=-nan
+DBG std2 L=10 hnorm_last=-nan
+DBG std L=11 hnorm_last=-nan
+1      0          25.74        98.3       1.32       0.039
+  L2   resident=6298/11397 slots hit=83.9% read=8.23GB write=1.70GB
+--------------------------------------------------------------------
+1 tokens in 171.4 s, 171.40 s/token average
+PEAK RSS for the whole run: 19.70 GB   <- quote this, not the plan
+layers completed: 12/12; routed expert drops: 0
+
+
+[chip] simulated MXFP4 GEMV bill over 7 tokens
+  1232 expert chains | 81386274816 flops | 21618229248 bytes (21.62 GB)
+  per token: 176 chains | 3.09 GB | 0.01 Gflops
+  compute wall @ 4 TFLOPS : 0.02 s (2.91 ms/token)
+  bandwidth wall @ 200 GB/s : 0.11 s (15.44 ms/token)
+  -> bandwidth-bound; to be compute-bound at 4 TFLOPS this needs 1062 GB/s
+  expert fetch (host wall, measured): 67.36 s moving 13.04 GB = 0 GB/s
+  chip pool wall (measured): 21.63 s
+
+cache [final step]
+  slots        : 455 of 17.56 MB = 7.99 GB arena (455 resident, 0 pinned)
+  requests     : 176  hits 173 (98.30%)  misses 3  evictions 75
+  of those hits : 72 came from the batch prefetch, i.e. read from disk
+                  this token; TRUE resident hit rate 57.39%
+  read from disk: 1.32 GB in 19.14 s (69 MB/s while loading)
+  phase2 i/o    : 1.26 GB in 18.67 s (68 MB/s)  [pure parallel disk read]
+l2cache [final step]
+  requests     : 559  hits 469 (83.90%)  misses 90
+  read  from sdd7: 8.23 GB, written 1.70 GB
+  hit I/O   : 8.23 GB in 12.55 s (wall) = 656 MB/s [pread 179.95 s, 46 MB/s per-thread]
+  miss I/O  : 90 misses, 1.58 GB from /model in 33.58 s (wall) = 47 MB/s
+  restored from meta: 6298 slots
+
+wrote reports/loop_cmp_191336/b.json
+I/O share of wall clock: 76.5%  (trunk 66.6 s + experts 64.4 s of 171.4 s)
+  both figures are WHOLE-RUN totals over 1 steps
+  experts, whole run: 11.27 GB read | 556 of 743 requests retained in RAM (74.83%) | 187 evictions
+    (retention = requests - evictions; the raw `hits` counter includes
+     experts the prefetcher had just read from disk, so it is not a
+     measure of avoided I/O)
+
+trunk [final]
+  pinned 6/93 layers, ring 2 slots
+  binds 24, hits 6 (25.0%), reads 18
+  read 12.25 GB in 66.64 s (184 MB/s pread) + 0.00 s parked on the expert gate
+  per-layer loads [L]=count: 0=1 1=1 2=1 3=1 4=1 5=1 6=2 7=2 8=2 9=2 10=2 11=2 12=0 13=0 14=0 15=0 16=0 17=0 18=0 19=0 20=0 21=0 22=0 23=0 24=0 25=0 26=0 27=0 28=0 29=0 30=0 31=0 32=0 33=0 34=0 35=0 36=0 37=0 38=0 39=0 40=0 41=0 42=0 43=0 44=0 45=0 46=0 47=0 48=0 49=0 50=0 51=0 52=0 53=0 54=0 55=0 56=0 57=0 58=0 59=0 60=0 61=0 62=0 63=0 64=0 65=0 66=0 67=0 68=0 69=0 70=0 71=0 72=0 73=0 74=0 75=0 76=0 77=0 78=0 79=0 80=0 81=0 82=0 83=0 84=0 85=0 86=0 87=0 88=0 89=0 90=0 91=0 92=0
+  bind wall 68.55 s over 24 binds  =  read 66.64 + widen 1.91 + other 0.00
+                    shares:      read 97%  widen 3%  other 0%
+  widen breakdown: find 74 ms (626)  copy 0 ms (274)  deq 1837 ms (200)  timed 2 s of widen 1.91 s

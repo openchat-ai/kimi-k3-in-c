@@ -1,0 +1,19 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG getmany L1 nw=64 wall=0.659s thr(out)1 thr(in)16 conc_peak=16 pread=9.619s
+DBG getmany L2 nw=64 wall=3.770s thr(out)1 thr(in)16 conc_peak=16 pread=58.055s
+DBG getmany L3 nw=64 wall=0.851s thr(out)1 thr(in)16 conc_peak=16 pread=11.246s
+DBG getmany L4 nw=64 wall=3.158s thr(out)1 thr(in)16 conc_peak=16 pread=47.176s
+DBG getmany L5 nw=64 wall=0.666s thr(out)1 thr(in)16 conc_peak=16 pread=9.824s
+DBG getmany L6 nw=64 wall=0.609s thr(out)1 thr(in)16 conc_peak=16 pread=8.862s
+DBG getmany L7 nw=64 wall=0.622s thr(out)1 thr(in)16 conc_peak=16 pread=8.852s
+DBG getmany L8 nw=64 wall=0.613s thr(out)1 thr(in)16 conc_peak=16 pread=8.855s
+DBG getmany L9 nw=64 wall=0.607s thr(out)1 thr(in)16 conc_peak=16 pread=8.829s
+DBG getmany L10 nw=64 wall=0.601s thr(out)1 thr(in)16 conc_peak=16 pread=8.782s
+DBG getmany L11 nw=64 wall=0.616s thr(out)1 thr(in)16 conc_peak=16 pread=8.751s
+DBG getmany L12 nw=64 wall=0.595s thr(out)1 thr(in)16 conc_peak=16 pread=8.633s
+DBG getmany L13 nw=64 wall=0.595s thr(out)1 thr(in)16 conc_peak=16 pread=8.721s
+DBG getmany L14 nw=64 wall=0.594s thr(out)1 thr(in)16 conc_peak=16 pread=8.617s
+DBG getmany L15 nw=64 wall=0.594s thr(out)1 thr(in)16 conc_peak=16 pread=8.556s
+DBG getmany L16 nw=64 wall=0.601s thr(out)1 thr(in)16 conc_peak=16 pread=8.555s
+DBG getmany L17 nw=64 wall=0.594s thr(out)1 thr(in)16 conc_peak=16 pread=8.569s
+DBG getmany L18 nw=64 wall=0.591s thr(out)1 thr(in)16 conc_peak=16 pread=8.618s

@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "F:\kimi-k3-in-c\tools\e2e_2bit_vs_mxfp4.py", line 198, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "F:\kimi-k3-in-c\tools\e2e_2bit_vs_mxfp4.py", line 83, in main
+    gate_w = sh.get(mp + "gate.weight").astype(np.float32)
+             ~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "F:\kimi-k3-in-c\tools\verify_real_layer.py", line 78, in get
+    buf, dt, shape = self.raw(name)
+                     ~~~~~~~~^^^^^^
+  File "F:\kimi-k3-in-c\tools\verify_real_layer.py", line 72, in raw
+    p, dt, shape, off, nb = self.index[name]
+                            ~~~~~~~~~~^^^^^^
+KeyError: 'language_model.model.layers.2.block_sparse_moe.gate.weight'

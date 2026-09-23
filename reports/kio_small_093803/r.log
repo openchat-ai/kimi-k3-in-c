@@ -1,0 +1,4 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG getmany L1 nw=64 wall=0.651s thr(out)1 thr(in)16 conc_peak=16 pread=9.492s
+DBG getmany L2 nw=64 wall=0.616s thr(out)1 thr(in)16 conc_peak=16 pread=8.951s
+DBG getmany L3 nw=64 wall=0.619s thr(out)1 thr(in)16 conc_peak=16 pread=8.847s

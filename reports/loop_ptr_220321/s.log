@@ -1,0 +1,91 @@
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG fwd_inner loop_outer=0 loop_serial=0 T=6
+DBG std2 L=0 hnorm_last=0.821
+DBG getmany L1 nw=64 wall=0.665s thr(out)1 thr(in)16 conc_peak=16 pread=9.814s
+DBG std2 L=1 hnorm_last=1.547
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+NOTE: binding only the first 2 of 93 layers. Output is NOT the full model; it is a partial stack for testing the machinery.
+
+  KV cache : 18.96 MB for 8 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 6 tokens, generating 1
+
+indexed 497220 tensors from 96 shards in 16.51 s
+trunk on disk : 3.62 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 12.00 GB
+  embed + lm_head  4.70 GB
+  expert cache     8.00 GB
+  recurrent state  13.47 MB
+  buffers          6.68 MB
+  KV cache         18.92 MB
+  TOTAL            24.74 GB
+  available        28.61 GB
+
+k3_trunk: trunk.bin absent - using per-layer slices (layer_%03d.bin)
+trunk stream: 56.60 GB packed, 4/93 layers PINNED (6.70 GB), ring 4 x 1.30 GB
+              reads use buffered I/O
+              ring holds 4 slots: layers repeat over ~4 tokens, so recent ones are reused instead of re-read
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+embedding, final norm and lm_head: 4.70 GB in 61.8 s
+
+expert L2 cache enabled: 11397 slots x 17.55 MB = 199.99 GB on /mnt/nvme/experts.l2
+expert L2 eviction policy: heat
+peak RSS after loading weights: 4.78 GB  (the plan above is a forecast, this is measured)
+expert cache: 455 slots x 17.56 MB = 7.99 GB (0.55% of the 1.45 TB expert pool)
+
+recurrent state for 2 layers: 13.47 MB
+
+incremental decode: KV cache 0.00 B for 0 MLA layers at 8 positions
+
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+0      141447     13.96        73.6       1.53       0.072
+  L2   resident=6298/11397 slots hit=100.0% read=1.12GB write=0.00GB
+--------------------------------------------------------------------
+1 tokens in 14.0 s, 13.96 s/token average
+PEAK RSS for the whole run: 9.34 GB   <- quote this, not the plan
+layers completed: 2/2; routed expert drops: 0
+
+
+[chip] simulated MXFP4 GEMV bill over 7 tokens
+  96 expert chains | 6341787648 flops | 1684537344 bytes (1.68 GB)
+  per token: 13 chains | 0.24 GB | 0.00 Gflops
+  compute wall @ 4 TFLOPS : 0.00 s (0.23 ms/token)
+  bandwidth wall @ 200 GB/s : 0.01 s (1.20 ms/token)
+  -> bandwidth-bound; to be compute-bound at 4 TFLOPS this needs 1062 GB/s
+  expert fetch (host wall, measured): 5.81 s moving 1.53 GB = 0 GB/s
+  chip pool wall (measured): 1.83 s
+
+cache [final step]
+  slots        : 455 of 17.56 MB = 7.99 GB arena (87 resident, 0 pinned)
+  requests     : 87  hits 64 (73.56%)  misses 23  evictions 0
+  of those hits : 64 came from the batch prefetch, i.e. read from disk
+                  this token; TRUE resident hit rate 0.00%
+  read from disk: 1.53 GB in 5.81 s (263 MB/s while loading)
+  phase2 i/o    : 1.12 GB in 0.67 s (1689 MB/s)  [pure parallel disk read]
+l2cache [final step]
+  requests     : 64  hits 64 (100.00%)  misses 0
+  read  from sdd7: 1.12 GB, written 0.00 GB
+  hit I/O   : 1.12 GB in 0.67 s (wall) = 1689 MB/s [pread 9.81 s, 114 MB/s per-thread]
+  miss I/O  : 0 misses, 0.00 GB from /model in 0.00 s (wall) = 0 MB/s
+  restored from meta: 6298 slots
+
+wrote reports/loop_ptr_220321/s.json
+I/O share of wall clock: 75.4%  (trunk 4.7 s + experts 5.8 s of 14.0 s)
+  both figures are WHOLE-RUN totals over 1 steps
+  experts, whole run: 1.53 GB read | 87 of 87 requests retained in RAM (100.00%) | 0 evictions
+    (retention = requests - evictions; the raw `hits` counter includes
+     experts the prefetcher had just read from disk, so it is not a
+     measure of avoided I/O)
+
+trunk [final]
+  pinned 4/93 layers, ring 4 slots
+  binds 2, hits 0 (0.0%), reads 2
+  read 2.99 GB in 4.72 s (632 MB/s pread) + 0.00 s parked on the expert gate
+  per-layer loads [L]=count: 0=1 1=1 2=0 3=0 4=0 5=0 6=0 7=0 8=0 9=0 10=0 11=0 12=0 13=0 14=0 15=0 16=0 17=0 18=0 19=0 20=0 21=0 22=0 23=0 24=0 25=0 26=0 27=0 28=0 29=0 30=0 31=0 32=0 33=0 34=0 35=0 36=0 37=0 38=0 39=0 40=0 41=0 42=0 43=0 44=0 45=0 46=0 47=0 48=0 49=0 50=0 51=0 52=0 53=0 54=0 55=0 56=0 57=0 58=0 59=0 60=0 61=0 62=0 63=0 64=0 65=0 66=0 67=0 68=0 69=0 70=0 71=0 72=0 73=0 74=0 75=0 76=0 77=0 78=0 79=0 80=0 81=0 82=0 83=0 84=0 85=0 86=0 87=0 88=0 89=0 90=0 91=0 92=0
+  bind wall 4.75 s over 2 binds  =  read 4.72 + widen 0.03 + other 0.00
+                    shares:      read 99%  widen 1%  other 0%
+  widen breakdown: find 0 ms (51)  copy 0 ms (13)  deq 26 ms (14)  timed 0 s of widen 0.03 s

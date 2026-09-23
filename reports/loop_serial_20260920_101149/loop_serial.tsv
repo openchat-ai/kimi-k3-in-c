@@ -1,0 +1,3 @@
+config	s/token	trunk_binds	trunk_reads	trunk_GB	l2_hit_pct	l2_read_GB	l2_write_GB	out_ids
+standard	169.90			15.26	18.5	1.91	9.37	8611,82784
+loop_block4	103.30			15.26	100.0	11.27	0.00	8611,82784
