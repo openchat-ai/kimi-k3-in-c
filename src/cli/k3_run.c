@@ -710,7 +710,7 @@ int main(int argc, char **argv)
     int incremental_default = 1;
     const char *l2_path = NULL;      /* fast-volume second-level expert cache file */
     const char *embed_dir = NULL;    /* alternate dir for the embed+lm_head shard (sdd7) */
-    double l2_gb = 200.0;
+    double l2_gb = 300.0;
     int l2_gb_explicit = 0;
     int l2_policy = 0;               /* 0 = heat (default), 1 = lru */
     int l1_policy = 1;               /* 1 = heat (default), 0 = lru */
@@ -835,9 +835,9 @@ int main(int argc, char **argv)
      * routed experts from the slow checkpoint volume (measured ~87% of wall time on the
      * reference machine). Explicit --l2 / --l2-gb / --l2-policy still mean what they
      * meant; the engine just opens the cache on the fast volume and, unless --l2-gb
-     * says otherwise, sizes it from the free space there up to the capacity knee
-     * measured on the expert trace (docs/data/expert-cache-capacity.txt: full benefit
-     * at 192 GB, flat above it). */
+     * says otherwise, sizes it from the free space there: 256 GB floor to keep the
+     * whole 92-layer hot set resident, 300 GB cap as the physical budget on this
+     * box leaves room for the layer files, embedding and future fills. */
     if (!l2_path) {
         l2_path = "/mnt/nvme/experts.l2";
         if (!l2_gb_explicit) {
@@ -848,8 +848,8 @@ int main(int argc, char **argv)
             if (slash) *slash = '\0';
             if (slash != svdir && statvfs(svdir, &sv) == 0) {
                 const double free_gb = (double)sv.f_bavail * (double)sv.f_frsize / 1e9;
-                const double want = free_gb * 0.5;
-                l2_gb = want > 192.0 ? 192.0 : want;
+                const double want = free_gb;
+                l2_gb = want > 300.0 ? 300.0 : (want < 256.0 ? 256.0 : want);
                 fprintf(stderr, "L2 auto: %.0f GB free on %s -> L2 at %.0f GB\n",
                         free_gb, svdir, l2_gb);
             }
