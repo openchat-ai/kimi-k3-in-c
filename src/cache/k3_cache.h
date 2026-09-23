@@ -97,10 +97,12 @@ typedef struct {
     uint64_t     phase2_bytes;
     uint32_t    *hist;            /* [n_layers*n_experts] request counts       */
 
-    /* L1 replacement policy, mirroring K3L2. 0 = LRU (default, evict least-recently
-     * touched via used_at), 1 = heat (evict lowest cumulative request count via hist,
-     * ties by LRU stamp). The histogram every request already feeds, so heat costs
-     * nothing extra to track; it is selected with K3_L1_POLICY=heat. */
+    /* L1 replacement policy, mirroring K3L2. 1 = heat (default; evict lowest
+     * cumulative request count via hist, ties by LRU stamp), 0 = LRU (evict
+     * least-recently touched via used_at). The histogram every request already feeds,
+     * so heat costs nothing extra to track. Heat is the default because LRU cannot
+     * survive arena < per-token working set (measured TRUE hit 0.00% at any size with
+     * LRU vs 3.46% at 8 GB with heat); K3_L1_POLICY=lru opts back to LRU. */
     int          policy;
 
     /* THE ACCESS TRACE, and why it is worth recording.

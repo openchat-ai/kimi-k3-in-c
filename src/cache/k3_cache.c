@@ -67,25 +67,41 @@ static int pick_victim(K3Cache *c)
         if (c->policy == 1) {
             /* heat: among experts NOT touched this token (used_at below the recency
              * floor), evict the least-requested. Zero-count slots are batch-prefetched
-             * experts whose get() has not run yet; they are only used when nothing
-             * counted and stale exists, and then by LRU. */
+             * experts whose get() has not run yet; they are only evicted when nothing
+             * counted and stale exists, and then by LRU (oldest first). */
             const int32_t key = c->key_of[i];
             const uint32_t cnt = key >= 0 ? c->hist[key] : 0;
-            if (c->used_at[i] > recency_floor) continue;   /* in use right now: protected */
+            const uint64_t ua = c->used_at[i];
+            if (ua > recency_floor) continue;             /* in use right now: protected */
             if (cnt == 0) {
-                if (best_zero < 0 || c->used_at[i] < oldest_zero) {
-                    oldest_zero = c->used_at[i]; best_zero = i;
+                if (best_zero < 0 || ua < oldest_zero) {
+                    oldest_zero = ua; best_zero = i;
                 }
                 continue;
             }
-            if (cnt < mincnt || (cnt == mincnt && c->used_at[i] < oldest)) {
-                mincnt = cnt; oldest = c->used_at[i]; best = i;
+            if (cnt < mincnt || (cnt == mincnt && ua < oldest)) {
+                mincnt = cnt; oldest = ua; best = i;
             }
         } else {
             if (c->used_at[i] < oldest) { oldest = c->used_at[i]; best = i; }
         }
     }
     if (best < 0) best = best_zero;   /* only fall back to a zero-count slot if no counted one exists */
+    /* Fallback two: every slot is inside the recency window (cold start or a small
+     * arena). The window is K3_MAX_TOPK wide, so on an 8-slot cache the first few
+     * dozen serial requests all look "in use this token" and heat would otherwise
+     * return -1, refusing to evict anything and failing admit() on a cache that is
+     * genuinely full. Return -1 only when every non-pinned slot is INFLIGHT. When the
+     * whole arena is within the window we simply fall back to plain LRU: the window
+     * protected only the most recent experts, and the cold-start consumer has no
+     * accumulation to protect against. */
+    if (best < 0) {
+        uint64_t v = (uint64_t)-1;
+        for (int i = 0; i < c->nslot; i++) {
+            if (c->pinned[i] || c->key_of[i] == K3_SLOT_INFLIGHT) continue;
+            if (c->used_at[i] < v) { v = c->used_at[i]; best = i; }
+        }
+    }
     return best;
 }
 
@@ -351,10 +367,13 @@ static int cache_get(K3ExpertSrc *self, int layer, int expert, K3ExpertQ *out)
 int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_bytes)
 {
     memset(c, 0, sizeof *c);
-    /* L1 replacement policy. 0 = LRU (default); 1 = heat (lowest hist count evicted).
-     * This mirrors K3L2's policy selection and is set here so a single binary serves
-     * both A/B arms (K3_L1_POLICY=heat). */
-    c->policy = (!getenv("K3_L1_POLICY") || strcmp(getenv("K3_L1_POLICY"), "heat")) ? 0 : 1;
+    /* L1 replacement policy. 1 = heat (default; lowest hist count evicted), 0 = LRU.
+     * Heat is the default because LRU cannot survive a token that touches more keys
+     * than the arena holds: per-token JRAM scanning, LRU evicts the just-used prefix
+     * and the next token starts all-miss (measured TRUE hit 0.00% at 8 GB LRU vs
+     * 3.46% at 8 GB heat). K3_L1_POLICY=lru (or the CLI --l1-policy, which sets that
+     * env var) opts back to LRU. */
+    c->policy = (getenv("K3_L1_POLICY") && !strcmp(getenv("K3_L1_POLICY"), "lru")) ? 0 : 1;
     c->src.get = cache_get;
     c->src.resident = cache_resident;
     /* K3_NOPREFETCH=1 disables the batch path at runtime. An A/B between two BUILDS

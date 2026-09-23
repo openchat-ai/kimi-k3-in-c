@@ -69,14 +69,6 @@ static double now_s(void)
     return t.tv_sec + t.tv_nsec * 1e-9;
 }
 
-/* Bridge from K3Cache's phase2_hold(void*, int) to the trunk reader's gate. ctx is the
- * K3Trunk* (set as cache.phase2_ctx). The trunk reader cooperates by pausing at its
- * chunk boundaries, so the expert burst and the trunk stream stop sharing the drive. */
-static void ran_expert_hold(void *ctx, int hold)
-{
-    k3_trunk_expert_hold((K3Trunk *)ctx, hold);
-}
-
 static void human(double b, char *o, size_t n)
 {
     const char *u[] = {"B", "KB", "MB", "GB", "TB"};
@@ -380,6 +372,11 @@ static void usage(FILE *f)
 "                        capacity knee measured on the expert trace)\n"
 "  --l2-policy POL       L2 eviction policy: heat (default, evict lowest cumulative\n"
 "                        count) or lru (evict least recently touched)\n"
+"  --l1-policy POL       L1 (memory) cache eviction policy: heat (default) or lru.\n"
+"                        heat evicts the lowest-request-count resident experts; lru\n"
+"                        evicts least recently touched. heat survives a per-token\n"
+"                        working set larger than the arena; lru cannot (measured\n"
+"                        TRUE hit 0.00%% lru vs 3.46%% heat at 8 GB on K3)\n"
 "\n"
 "generation:\n"
 "  --gen N               tokens to generate (default 8)\n"
@@ -716,6 +713,7 @@ int main(int argc, char **argv)
     double l2_gb = 200.0;
     int l2_gb_explicit = 0;
     int l2_policy = 0;               /* 0 = heat (default), 1 = lru */
+    int l1_policy = 1;               /* 1 = heat (default), 0 = lru */
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--ids") && i + 1 < argc) ids_s = argv[++i];
         else if (!strcmp(argv[i], "--prompt") && i + 1 < argc) prompt_text = argv[++i];
@@ -769,6 +767,15 @@ int main(int argc, char **argv)
             else if (!strcmp(v, "heat")) l2_policy = 0;
             else {
                 fprintf(stderr, "unknown --l2-policy '%s' (use 'heat' or 'lru')\n\n", v);
+                return 2;
+            }
+        }
+        else if (!strcmp(argv[i], "--l1-policy") && i + 1 < argc) {
+            const char *v = argv[++i];
+            if (!strcmp(v, "heat")) l1_policy = 1;
+            else if (!strcmp(v, "lru")) l1_policy = 0;
+            else {
+                fprintf(stderr, "unknown --l1-policy '%s' (use 'heat' or 'lru')\n\n", v);
                 return 2;
             }
         }
@@ -902,22 +909,23 @@ int main(int argc, char **argv)
             trunk_gb = trunk_full;
             cache_gb = usable - trunk_full;
         } else {
-            /* Sub-residency: the whole trunk cannot fit this machine. The tuned optimum,
-             * measured on the reference 28 GB box, is trunk 12 GB / cache 8 GB:
-             *   - trunk 12 pins layers 0..5 (a prefix bound first every token), shrinking
-             *     per-token trunk re-read from the full 56.6 GB down to ~50.6 GB while
-             *     keeping the NVMe streaming fast; more than ~16 GB pins the small
-             *     0.65 GB layers almost one per GB and buys little.
-             *   - expert cache past ~10 GB is nearly useless on K3's flat router (LRU
-             *     and even LFU/heat both measure ~0% hit below a 32 GB arena on the
-             *     captured traces), so 8 GB is a comfortable floor, not a starvation.
-             * Scale the split down proportionally if the box is even smaller; the
-             * fixed reserve already keeps the process clear of the OOM killer without
-             * the old 55%-of-RAM pin ceiling (which starved the cache to 0.5 GB). */
-            const double tuned = 20.0;      /* trunk 12 + cache 8 */
-            const double k = usable >= tuned ? 1.0 : usable / tuned;
-            trunk_gb = 12.0 * k;
-            cache_gb = 8.0 * k;
+            /* Sub-residency: the whole trunk cannot fit this machine. Give the spare
+             * RAM to the expert cache, not the trunk. The trunk is re-read every token
+             * anyway (only ~3.5-12 GB pin shave its 56.6 GB sweep); heat -- now L1's
+             * default -- turns arena size directly into TRUE-resident hit (measured
+             * 8 GB -> 3.46%, 13 GB -> 10.28% TRUE hit on this hardware; LRU measured
+             * 0.00% at every size because a token touches 1472 keys and LRU evicts
+             * the just-used prefix). So pin only enough trunk to keep the ring
+             * streaming (two slots' worth) and hand everything else to the cache.
+             * Explicit --trunk-gb/--cache-gb still override this split. */
+            const double trunk_floor = slot_min + 1.5; /* two ring slots + headroom */
+            if (usable < trunk_floor + cache_min) {
+                trunk_gb = usable * 0.5;
+                cache_gb = usable - trunk_gb;
+            } else {
+                trunk_gb = trunk_floor;
+                cache_gb = usable - trunk_floor;
+            }
             if (trunk_gb < slot_min) trunk_gb = slot_min;
             if (cache_gb < cache_min) cache_gb = cache_min;
         }
@@ -1231,13 +1239,14 @@ int main(int argc, char **argv)
     printf("embedding, final norm and lm_head: %s in %.1f s\n\n", b1, now_s() - t0);
 
     K3Cache cache;
+    /* --l1-policy / default heat is read by k3_cache_init via K3_L1_POLICY=lru -> LRU,
+     * anything else -> heat. Set it here so the CLI owns the default, matching the L2
+     * --l2-policy handling right below. */
+    setenv("K3_L1_POLICY", l1_policy ? "heat" : "lru", 1);
     if (k3_cache_init(&cache, &st, &c, (int64_t)(cache_gb * 1e9)) != 0) return 1;
-    /* The unified k3_io scheduler replaces the old 0/1 expert gate: trunk stream and
-     * expert reads now share the fast drive by separate media tiers, so the trunk
-     * reader is never parked for a slow-disk burst (was 382 s of parking for 153 s
-     * of misses). phase2_hold is left NULL on purpose. */
     cache.phase2_hold = NULL;
     cache.phase2_ctx = (void *)&trunk;
+    printf("expert L1 eviction policy: %s\n", l1_policy ? "heat" : "lru");
 
     /* Optional second-level disk cache on a fast volume. The RAM slot_bytes holds
      * nbytes + 2*ALIGN for the widened O_DIRECT read, so the clean expert payload is
