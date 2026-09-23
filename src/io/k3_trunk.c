@@ -560,7 +560,8 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
             /* Unified scheduler: submit the WHOLE remaining layer as ONE chunked
              * request in at most two huge preads; the worker completes once --
              * no submit/wait round-trip per 32 MB chunk. */
-            K3IOReq *q = k3_io_submit(tr->kio, 0, fd, off + got, (size_t)rem,
+            K3IOReq *q = k3_io_submit_g(tr->kio, 0, 0 /* trunk group */, fd, off + got,
+                                      (size_t)rem,
                                       (size_t)((1u << 31) - 4096), dst + got);
             /* Largest single O_DIRECT pread the kernel accepts (2 GB - 4k). The
              * layer is read in at most two chunks; bench: 2010 MB/s vs 687 MB/s
@@ -626,6 +627,7 @@ void k3_trunk_release(K3Trunk *tr, int L)
 {
     if (L < 0 || L >= tr->n_layers || L < tr->npin) return;
     K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
+    if (!io) return;
     pthread_mutex_lock(&io->mu);
     if (io->busy && io->layer == L) {
         /* cannot happen (see above); leave it alone rather than race the reader */

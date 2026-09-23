@@ -20,8 +20,15 @@ static void *k3_io_tier_main(void *arg)
     free(arg);
     for (;;) {
         pthread_mutex_lock(&io->mu);
-        K3IOReq *r = io->q[tier];
-        if (r) { io->q[tier] = r->next; if (!io->q[tier]) io->qtail[tier] = NULL; }
+        /* Drain only the ACTIVE group's FIFO. Requests in parked groups wait until
+         * k3_io_set_active switches to them, so the L2 burst owns the device while
+         * the trunk stream queues (and vice versa) instead of both sharing it. */
+        int g = io->active_group[tier];
+        K3IOReq *r = io->q[tier][g];
+        if (r) {
+            io->q[tier][g] = r->next;
+            if (!io->q[tier][g]) io->qtail[tier][g] = NULL;
+        }
         if (!r && io->stop) { pthread_mutex_unlock(&io->mu); return NULL; }
         if (!r) {
             pthread_cond_wait(&io->cv[tier], &io->mu);
@@ -110,12 +117,15 @@ void k3_io_free(K3IO *io)
     pthread_mutex_destroy(&io->mu);
 }
 
-K3IOReq *k3_io_submit(K3IO *io, int tier, int fd, off_t off,
-                      size_t nbytes, size_t chunk, void *dst)
+K3IOReq *k3_io_submit_g(K3IO *io, int tier, int group, int fd, off_t off,
+                        size_t nbytes, size_t chunk, void *dst)
 {
+    if (group < 0) group = 0;
+    if (group >= K3_IO_MAX_GROUPS) group = K3_IO_MAX_GROUPS - 1;
     K3IOReq *r = (K3IOReq *)calloc(1, sizeof *r);
     if (!r) return NULL;
     r->tier = tier;
+    r->group = group;
     r->fd = fd;
     r->offset = off;
     r->nbytes = nbytes;
@@ -125,14 +135,31 @@ K3IOReq *k3_io_submit(K3IO *io, int tier, int fd, off_t off,
     pthread_cond_init(&r->cv, NULL);
 
     pthread_mutex_lock(&io->mu);
-    if (io->qtail[tier]) io->qtail[tier]->next = r;
-    else                 io->q[tier] = r;
-    io->qtail[tier] = r;
+    if (io->qtail[tier][group]) io->qtail[tier][group]->next = r;
+    else                        io->q[tier][group] = r;
+    io->qtail[tier][group] = r;
     if (getenv("K3_IO_DBG"))
-        fprintf(stderr, "DBG io submit tier=%d nbytes=%zu qhead=%p\n", tier, nbytes, (void*)io->q[tier]);
+        fprintf(stderr, "DBG io submit tier=%d g=%d nbytes=%zu qhead=%p\n",
+                tier, group, nbytes, (void*)io->q[tier][group]);
     pthread_cond_broadcast(&io->cv[tier]);
     pthread_mutex_unlock(&io->mu);
     return r;
+}
+
+K3IOReq *k3_io_submit(K3IO *io, int tier, int fd, off_t off,
+                      size_t nbytes, size_t chunk, void *dst)
+{
+    return k3_io_submit_g(io, tier, 0, fd, off, nbytes, chunk, dst);
+}
+
+void k3_io_set_active(K3IO *io, int tier, int group)
+{
+    if (group < 0) group = 0;
+    if (group >= K3_IO_MAX_GROUPS) group = K3_IO_MAX_GROUPS - 1;
+    pthread_mutex_lock(&io->mu);
+    io->active_group[tier] = group;
+    pthread_cond_broadcast(&io->cv[tier]);
+    pthread_mutex_unlock(&io->mu);
 }
 
 K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
@@ -151,11 +178,11 @@ K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
     pthread_cond_init(&r->cv, NULL);
 
     pthread_mutex_lock(&io->mu);
-    if (io->qtail[tier]) io->qtail[tier]->next = r;
-    else                 io->q[tier] = r;
-    io->qtail[tier] = r;
+    if (io->qtail[tier][0]) io->qtail[tier][0]->next = r;
+    else                    io->q[tier][0] = r;
+    io->qtail[tier][0] = r;
     if (getenv("K3_IO_DBG"))
-        fprintf(stderr, "DBG io submit_w tier=%d nbytes=%zu qhead=%p\n", tier, nbytes, (void*)io->q[tier]);
+        fprintf(stderr, "DBG io submit_w tier=%d nbytes=%zu qhead=%p\n", tier, nbytes, (void*)io->q[tier][0]);
     pthread_cond_broadcast(&io->cv[tier]);
     pthread_mutex_unlock(&io->mu);
     return r;
