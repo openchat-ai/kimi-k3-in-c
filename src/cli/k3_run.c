@@ -918,7 +918,9 @@ int main(int argc, char **argv)
              * the just-used prefix). So pin only enough trunk to keep the ring
              * streaming (two slots' worth) and hand everything else to the cache.
              * Explicit --trunk-gb/--cache-gb still override this split. */
-            const double trunk_floor = slot_min + 1.5; /* two ring slots + headroom */
+            const double trunk_floor = slot_min * 2 + 1.0; /* two ring slots + headroom;
+                                                             1 ring slot is NOT enough:
+                                                             reads stop overlapping compute */
             if (usable < trunk_floor + cache_min) {
                 trunk_gb = usable * 0.5;
                 cache_gb = usable - trunk_gb;

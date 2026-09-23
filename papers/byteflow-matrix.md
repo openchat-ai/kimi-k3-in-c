@@ -616,3 +616,18 @@ PEAK RSS 11.09 GB
   | 专家 L1 命中 | 85.11% | 99.99% |
 - **结论**：gate 的初衷（避免 trunk 抢专家慢盘）只在 L2 miss 时成立；L2 命中（同盘）时 gate 是纯分时损失。**修复后 wall 回到 25min 基线**，s/token 177.61（此口径 gen 8；论文 §4.3 的 262.78 是 gen 32，口径不同不可直比）。
 - 输出：81,170,222,222,68,170,222,222（8 token 完整，模型自身重复输出 222）。
+
+**2026-09-23 auto 预算 two-slot ring 修正：trunk 4.0→6.0GB 后单 token 252.75→152.49s/token（-40%），L1 heat 默认 + cache 优先确认有效**
+- **背景**：L1 默认策略改为 heat、auto 预算 sub-residency 分支改为 cache 优先（commit 1e766b7）后，首测 93L gen1 得 252.75s/token——反常地比 gate 修复后 177.61 慢 40%。
+- **根因（日志 L117-120 实锤）**：auto 给 trunk 只 4.0GB，而 trunk ring 需 6.0GB 才开得了 2-slot 重叠；4.0GB 只够 1 ring slot ⇒ **trunk 读与计算完全串行**（56.6GB/token 串行 pread 每层 ~4-5s）。
+- **修复**：`k3_run.c` 的 sub-residency `trunk_floor` 从 `slot_min+1.5`(4.0GB) 提到 `slot_min*2+1.0`(6.0GB)，保证 ring 恒为 2 槽。
+- **实测对比（93L 全模型，gen1 冷启动，同一台）**：
+  | 指标 | trunk 4.0GB（1-slot ring） | trunk 6.0GB（2-slot ring） |
+  |---|---|---|
+  | s/token | 252.75 | **152.49** |
+  | trunk 读重叠 | 0%（串行） | 93% overlapped |
+  | RSS | 23.5GB | 22.8GB |
+  | expert / trunk 读 | 25.83GB / 56.60GB | 同 |
+  | expert cache | 15.8GB | 13.7GB（781/781 resident） |
+- **口径说明**：gen1 单 token 冷启动为最保守口径；历史 177.61（gen8）、262.78（gen32）、127.46（共享 NVMe）均为热稳态或不同介质，不可直比。当前 152.49 已是冷启动口径最佳。
+- 环境：28.7GB RAM、trunk 落 sdd7、模型 /model（84MB/s 慢盘）、模拟 chip 4 workers 200GB/s。
