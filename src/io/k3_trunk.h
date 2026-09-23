@@ -94,13 +94,18 @@ typedef struct {
 
     /* Pinned layers get exact-size allocations; only the streaming ring is uniform.
      * Uniform slots everywhere would size EVERY slot for layer 0, whose dense MLP makes
-     * it 2.34 GB against 1.27 GB for a normal layer, wasting about half the budget. */
-    unsigned char **pin;        /* [npin] one exact allocation per pinned layer */
+     * it 2.34 GB against 1.27 GB for a normal layer, wasting about half the budget.
+     *
+     * Pins are indexed by LAYER id, not by a dense 0..npin-1 prefix: the unified
+     * layer-bundle planner pins an arbitrary footprint-selected set (rare layers plus
+     * the heavy streamers), and only the legacy prefix planner fills 0..npin-1. */
+    unsigned char **pin;        /* [n_layers] one exact allocation per pinned layer */
+    unsigned char *pin_yes;     /* [n_layers] 1 when layer is pinned-resident       */
     unsigned char *arena;       /* [nslot] uniform ring slots                   */
     int64_t      slot_bytes;    /* raw run + the widen area                     */
     int64_t      widen_bytes;   /* of slot_bytes, the fp32 expansion area       */
     int          nslot;
-    int          npin;          /* layers 0..npin-1 are pinned                  */
+    int          npin;          /* number of pinned layers (any subset)         */
     int         *layer_of;      /* [nslot] which layer occupies each ring slot  */
     int32_t     *slot_of;       /* [n_layers], -1 when not resident             */
     int          ring;          /* next ring slot to reuse                      */
@@ -123,13 +128,24 @@ typedef struct {
  * this machine" is measured against the ACTUAL trunk, not a stale hardcoded figure. */
 int64_t k3_trunk_packed_bytes(const char *dir);
 
+/* Per-layer packed sizes from the same manifest, for the layer-bundle planner that
+ * picks the resident set by static footprint. bytes must hold n_layers int64s; returns
+ * the layer count, or 0 on any read/parse failure. */
+int  k3_trunk_layer_bytes(const char *dir, int64_t *bytes, int cap);
+
 /* budget_bytes sizes the slot array. Layers 0..K-1 are pinned, where K is as large as
  * the budget allows minus a streaming ring. ring_want is the DESIRED number of ring
  * slots; the allocator takes as many as the budget can pay for, down to 1. A larger
  * ring keeps more recently-streamed layers resident across tokens, so a mid-budget run
- * re-reads the trunk fewer than once-per-layer-per-token. Returns 0 on success. */
+ * re-reads the trunk fewer than once-per-layer-per-token. Returns 0 on success.
+ *
+ * pin_set overrides the prefix: when non-NULL it names the exact layers (length
+ * npin_set) to hold resident in exact-size allocations, and everything else streams
+ * through the ring. This is the trunk half of the unified layer-bundle cache -- the
+ * caller (k3_run.c) picks the set from static footprints so a resident layer serves
+ * its trunk AND its routed experts from RAM. Pass NULL, 0 for the legacy prefix. */
 int  k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_bytes,
-                   int ring_want);
+                   int ring_want, const int *pin_set, int npin_set);
 void k3_trunk_close(K3Trunk *tr);
 
 /* Make layer L resident and point b's weight pointers at it. b must already have been

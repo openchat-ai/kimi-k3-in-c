@@ -76,6 +76,126 @@ static void human(double b, char *o, size_t n)
     snprintf(o, n, "%.2f %s", b, u[i]);
 }
 
+/* Estimated MXFP4 expert payload bytes, for the layer-bundle planner. The real slot
+ * size comes from the checkpoint probe in k3_cache_init; this is only for choosing the
+ * resident layer set, where a per-layer bias of a few percent changes which layers sit
+ * next to the budget line, not the mechanism. */
+#define K3_BUNDLE_EXP_BYTES 17547264
+#define K3_BUNDLE_ROUTE 16          /* top-k routed experts per layer per token */
+#define K3_BUNDLE_EXP_PER_LAYER 18  /* top-16 routed + 2 shared, conservative */
+/* Estimated fp32 widen area per trunk slot. k3_trunk_open sizes it exactly from the
+ * layer's mxfp8 tensors; this only reserves budget, and being low merely shrinks RING. */
+#define K3_BUNDLE_WIDEN_EST 300000000LL
+
+/* Per-layer expert reservation for a resident layer, bounded by the run horizon: a
+ * layer routes K3_BUNDLE_ROUTE distinct experts per token, so an expected run of
+ * `horizon` forward passes can plausibly demand up to ROUTE*horizon of its L2-alive
+ * set. A short run therefore reserves far less than the full alive set; the floor
+ * (top-16 + 2 shared) keeps a resident layer covered for its first token. alive==NULL
+ * (no L2 data) keeps the fixed estimate. */
+static int bundle_reserve(const int *alive, int L, int horizon)
+{
+    int a = alive ? alive[L] : K3_BUNDLE_EXP_PER_LAYER;
+    if (alive) {
+        int want = K3_BUNDLE_ROUTE * horizon;
+        if (want < K3_BUNDLE_EXP_PER_LAYER) want = K3_BUNDLE_EXP_PER_LAYER;
+        if (a > want) a = want;
+        if (a < 1) a = 1;
+    }
+    return a;
+}
+
+/* Cheap count of whitespace-separated token ids in an --ids file, for the run-horizon
+ * estimate. 0 on error or for text sources (the horizon then reflects --gen only). */
+static int count_ids_file(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    int n = 0, in = 0, c;
+    while ((c = fgetc(f)) != EOF) {
+        if (c >= '0' && c <= '9') { if (!in) { in = 1; n++; } }
+        else in = 0;
+    }
+    fclose(f);
+    return n;
+}
+
+/* Unified layer-bundle plan: choose the resident layer set S by static footprint, as
+ * tools/sim_layer_bundle.py models it. Every layer is walked once per token, so a
+ * resident layer saves its whole footprint (trunk + its routed experts) every token;
+ * the resident set is the largest-footprint layers that fit the pool minus the
+ * streaming reserves. cost[L] is the trunk packed bytes per layer (from the manifest).
+ * out: pin[0..npin-1] the chosen layers, and trunk_gb/cache_gb the split of the pool
+ * that the unified tax returns. n_layers must match the manifest. alive[L] is the
+ * per-layer L2-alive expert count (NULL for the fixed K3_BUNDLE_EXP_PER_LAYER);
+ * horizon is the expected forward passes, scaling each layer's expert reservation to
+ * what the run can actually route (bundle_reserve). */
+static int plan_layer_bundles(int64_t *trunk_bytes, const int *alive, int n_layers,
+                              int horizon, double pool_gb,
+                              int *pin, int pin_cap, int *npin_out,
+                              double *trunk_gb, double *cache_gb)
+{
+    static double expb[512];
+    double expb_mean = 0.0;
+    for (int L = 0; L < n_layers; L++) {
+        expb[L] = (double)K3_BUNDLE_EXP_BYTES * bundle_reserve(alive, L, horizon);
+        expb_mean += expb[L];
+    }
+    expb_mean /= (double)n_layers;
+    static int rank[512], sel[512];
+    for (int L = 0; L < n_layers; L++) rank[L] = L;
+    for (int i = 0; i < n_layers; i++) {
+        int best = i;
+        for (int j = i + 1; j < n_layers; j++) {
+            const double fb = (double)trunk_bytes[rank[best]] + K3_BUNDLE_WIDEN_EST + expb[rank[best]];
+            const double fj = (double)trunk_bytes[rank[j]] + K3_BUNDLE_WIDEN_EST + expb[rank[j]];
+            if (fj > fb) best = j;
+        }
+        const int t = rank[i]; rank[i] = rank[best]; rank[best] = t;
+    }
+
+    int nsel = 0;
+    double resident = 0.0;
+    int64_t max_nonpin = 0;
+    for (int i = 0; i < n_layers; i++)
+        max_nonpin = max_nonpin > trunk_bytes[i] ? max_nonpin : trunk_bytes[i];
+    for (int iter = 0; iter < 4; iter++) {
+        const double ring_r = 2.0 * ((double)max_nonpin + K3_BUNDLE_WIDEN_EST) / 1e9;
+        const double exp_r = 2.0 * expb_mean / 1e9;
+        const double resident_budget = pool_gb - ring_r - exp_r;
+        nsel = 0;
+        resident = 0.0;
+        for (int i = 0; i < n_layers; i++) {
+            const int L = rank[i];
+            const double cost = ((double)trunk_bytes[L] + K3_BUNDLE_WIDEN_EST + expb[L]) / 1e9;
+            if (resident + cost > resident_budget) break;
+            if (nsel >= pin_cap) break;
+            sel[nsel++] = L;
+            resident += cost;
+        }
+        int64_t mx = 0;
+        for (int L = 0; L < n_layers; L++) {
+            int isin = 0;
+            for (int k = 0; k < nsel; k++) if (sel[k] == L) { isin = 1; break; }
+            if (!isin && trunk_bytes[L] > mx) mx = trunk_bytes[L];
+        }
+        if (mx == max_nonpin) break;
+        max_nonpin = mx;
+    }
+
+    if (nsel > pin_cap) nsel = pin_cap;
+    int64_t trunk_sum = 0;
+    for (int i = 0; i < nsel; i++)
+        trunk_sum += trunk_bytes[sel[i]] + K3_BUNDLE_WIDEN_EST;
+    for (int i = 0; i < nsel; i++) pin[i] = sel[i];
+    *npin_out = nsel;
+    const double ring_r = 2.0 * ((double)max_nonpin + K3_BUNDLE_WIDEN_EST) / 1e9;
+    *trunk_gb = (double)trunk_sum / 1e9 + ring_r;
+    *cache_gb = pool_gb - *trunk_gb;
+    if (*cache_gb < 0.25) { *trunk_gb = pool_gb * 0.8; *cache_gb = pool_gb * 0.2; }
+    return nsel;
+}
+
 /* The released constants, kept ONLY as a fallback for runs against a shard directory
  * that has no config.json (partial fixtures, hand-assembled trunks). Every value here
  * matches the released config.json, but a hardcoded table cannot notice a checkpoint
@@ -413,8 +533,13 @@ static void usage(FILE *f)
                         " --incremental\n"
 "  --loop-serial N     EXPERIMENT: block-serial trunk I/O grouping. Layers run in the\n"
                          " standard order but are prefetched and released a block of\n"
-                         " --loop-block layers at a time (N is kept for parity, ignored).\n"
-                         " Output is identical to the standard path; scheduling-only\n"
+" --loop-block layers at a time (N is kept for parity, ignored).\n"
+                          " Output is identical to the standard path; scheduling-only\n"
+"  --layer-bundle        unified layer-bundle cache: pick ONE resident layer set by static\n"
+                          " footprint and pin it across trunk (exact allocs) and expert arena\n"
+                          " (first-touch pins). Resident layers serve trunk AND their routed\n"
+                          " experts from RAM; everything else streams. Needs --trunk. Planned\n"
+                          " from the pool; the trunk 6 GB floor is not a policy here.\n"
 "  --tok DIR             directory with tiktoken.model and tokenizer_config.json\n"
 "\n"
 "diagnostics:\n"
@@ -700,6 +825,8 @@ int main(int argc, char **argv)
     int batch_gen = 0;       /* once-BATCH-decode: emit --gen tokens from ONE forward */
     int loop_serial = 0;     /* EXPERIMENT: block-serial trunk I/O grouping; 0 = OFF */
     int loop_block = 4;      /* EXPERIMENT: layers per serial block */
+    int layer_bundle = 0;    /* unified layer-bundle cache: resident layers keyed by layer */
+    int dry_run = 0;         /* print the plan's per-token byte/time forecast, then exit */
     int stop_id[8]; int n_stop = 0, hit_stop = 0, stopped_at = -1;
     int tf_check = 0;
     const char *draft_dir = NULL;
@@ -730,6 +857,8 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--batch-gen")) batch_gen = 1;
         else if (!strcmp(argv[i], "--loop-serial") && i + 1 < argc) loop_serial = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--loop-block") && i + 1 < argc) loop_block = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--layer-bundle")) layer_bundle = 1;
+        else if (!strcmp(argv[i], "--dry-run")) dry_run = 1;
         else if (!strcmp(argv[i], "--stop-id") && i + 1 < argc) {
             if (n_stop >= (int)(sizeof stop_id / sizeof stop_id[0])) {
                 fprintf(stderr, "--stop-id given more than %d times\n",
@@ -813,7 +942,7 @@ int main(int argc, char **argv)
     }
     {
         int nsrc = (ids_s != NULL) + (prompt_text != NULL) + (prompt_file != NULL);
-        if (nsrc == 0) {
+        if (nsrc == 0 && !(dry_run && trunk_dir)) {
             fprintf(stderr, "one of --ids, --prompt or --prompt-file is required\n");
             return 2;
         }
@@ -947,6 +1076,142 @@ int main(int argc, char **argv)
         printf("NOTE: binding only the first %d of %d layers. Output is NOT the full "
                "model; it is a partial stack for testing the machinery.\n\n",
                want_layers, c.n_layers);
+    }
+
+    /* ---- unified layer-bundle plan ----
+     * One pool, one resident set, keyed by LAYER: the planner pins the largest-footprint
+     * layers in exact trunk allocations and first-touch-pins their routed experts in the
+     * arena, so a resident layer serves trunk AND experts from RAM every token. The
+     * trunk's separate 6 GB floor disappears -- the streaming ring just reserves its two
+     * slots out of the same pool. Off unless --layer-bundle and a packed trunk manifest. */
+    static int bundle_pin[128];
+    int bundle_pin_n = 0;
+    if (layer_bundle && trunk_dir) {
+        static int64_t tb[512];
+        const int nl = k3_trunk_layer_bytes(trunk_dir, tb, 512);
+        if (nl <= 0 || nl != c.n_layers) {
+            fprintf(stderr, "--layer-bundle needs the packed trunk manifest in %s; "
+                            "cannot plan the resident layer set.\n", trunk_dir);
+            return 2;
+        }
+        const double bundle_pool = trunk_gb + cache_gb;
+        static int alive[512];
+        const int *alivep = NULL;
+        if (l2_path) {
+            /* tot <= 0 means no validated alive set (fresh L2, or the file/meta
+             * cannot be read): fall back to the fixed per-layer estimate so the
+             * planner never plans against an all-zero reservation. */
+            const int tot = k3_l2_count_alive(l2_path, (int64_t)(l2_gb * 1e9),
+                                              nl, c.n_experts, K3_BUNDLE_EXP_BYTES, alive);
+            if (tot > 0) alivep = alive;
+        }
+        /* Run horizon: forward passes a layer will actually see. --ids counts the
+         * prompt tokens directly; text sources contribute only --gen. Scales each
+         * layer's expert reservation so a short run does not pin a full alive set. */
+        int horizon = gen;
+        if (ids_s && !batch_gen) horizon += count_ids_file(ids_s);
+        int np = 0;
+        bundle_pin_n = plan_layer_bundles(tb, alivep, nl, horizon, bundle_pool,
+                                          bundle_pin, 128, &np, &trunk_gb, &cache_gb);
+        if (bundle_pin_n != np) bundle_pin_n = np;
+        fprintf(stderr, "layer-bundle plan: resident %d/%d layers -> "
+                        "trunk %.1f GB (incl ring) / expert arena %.1f GB%s "
+                        "(horizon %d passes, %s)\n",
+                bundle_pin_n, nl, trunk_gb, cache_gb,
+                alivep ? " [L2-alive expert preload]" : "", horizon,
+                alivep ? "alive-bounded" : "fixed 18/layer");
+        if (dry_run) {
+            /* Per-token steady-state bytes that MUST cross the disk, C: the trunk layers
+             * not resident, plus the routed experts of the non-resident layers (resident
+             * layers' top-k served from the arena). This is the t = C / B forecast; the
+             * fastest layer feeds infinitely, so only the disk crossing remains. */
+            int64_t trunk_total = 0, resident_trunk = 0;
+            for (int i = 0; i < nl; i++) trunk_total += tb[i];
+            for (int i = 0; i < bundle_pin_n; i++) resident_trunk += tb[bundle_pin[i]];
+            const double routed_total = (double)(nl - 1) * c.topk * K3_BUNDLE_EXP_BYTES;
+            double resident_exp = 0.0;
+            for (int i = 0; i < bundle_pin_n; i++) {
+                const int L = bundle_pin[i];
+                int cv = c.topk;
+                if (alivep) {
+                    const int a = bundle_reserve(alive, L, horizon);
+                    if (cv > a) cv = a;
+                }
+                resident_exp += (double)cv * K3_BUNDLE_EXP_BYTES;
+            }
+            double C = (double)(trunk_total - resident_trunk)
+                       + (routed_total > resident_exp ? routed_total - resident_exp : 0.0);
+            /* The trunk manifest is ALREADY the 8-bit form on this box (int8_trunk.py
+             * halved the 110 GB bf16 pack to ~56.6 GB I8R): another 8-bit pass buys
+             * nothing, so the second column is correctly labelled the risky 4-bit
+             * lever instead of an invented "BF8" that would double-book the halving. */
+            const double C_4b =
+                (double)(trunk_total - resident_trunk) / 2.0
+                + (routed_total > resident_exp ? routed_total - resident_exp : 0.0);
+            printf("\ndry-run forecast (t = C / B; C = bytes re-read from disk per token)\n");
+            printf("  expert preload   : %s\n",
+                   alivep ? "per-layer L2-alive set from <l2>.meta (adaptive, "
+                           "bounded by horizon)"
+                          : "fixed 18/layer (no L2 meta read)");
+            printf("  resident %d/%d layers pinned:\n", bundle_pin_n, nl);
+            for (int i = 0; i < bundle_pin_n; i++) {
+                const int L = bundle_pin[i];
+                const int a = bundle_reserve(alivep, L, horizon);
+                printf("    layer %3d: trunk %7.2f GB + %4d alive experts %6.2f GB pinned\n",
+                       L, (double)tb[L] / 1e9, a, (double)a * K3_BUNDLE_EXP_BYTES / 1e9);
+            }
+            printf("  trunk %s: %.1f GB total, %.1f GB resident -> re-read %.1f GB/token%s\n",
+                   trunk_dir, (double)trunk_total / 1e9, (double)resident_trunk / 1e9,
+                   (double)(trunk_total - resident_trunk) / 1e9, "");
+            printf("  routed experts     : %.1f GB/token, %.1f GB resident-covered\n",
+                   routed_total / 1e9, resident_exp / 1e9);
+            printf("  C = %.1f GB/token  (4-bit trunk, risky ~12%% err: %.1f GB/token)\n",
+                   C / 1e9, C_4b / 1e9);
+            /* Speculative decode ("--spec N") amortises the position-INVARIANT trunk
+             * bytes: one batched verification sweep of N positions reads the trunk
+             * once, so the trunk term of C divides by N (best case = all N accepted).
+             * Replay loss from partial acceptances is NOT modelled, and the n-gram
+             * drafter measured 0.91x on low-repetition content, so below is an upper
+             * bound on the gain, not a promise. */
+            printf("\n  tier bandwidth B             %-12s %-12s\n",
+                   "t = C/B", "t = C_4b/B");
+            const int Bs[] = {1300, 1786, 2400};
+            const char *bl[] = {"modest", "sdd7-ish (your L2 meas.)", "sequential spec"};
+            for (int i = 0; i < 3; i++) {
+                printf("  %-23s (%4d MB/s)  %-10.1fs %-10.1fs", bl[i], Bs[i],
+                       C / 1e9 / ((double)Bs[i] / 1e3), C_4b / 1e9 / ((double)Bs[i] / 1e3));
+                if (spec_n > 0) {
+                    double K = spec_n;
+                    if (K > (double)horizon) K = (double)horizon;
+                    if (K < 1.0) K = 1.0;
+                    const double Cs = (double)(trunk_total - resident_trunk) / K
+                                      + (C - (double)(trunk_total - resident_trunk));
+                    printf("   %-10.1fs  spec %g", Cs / 1e9 / ((double)Bs[i] / 1e3), K);
+                }
+                printf("\n");
+            }
+            if (spec_n > 0) {
+                double K0 = spec_n;
+                if (K0 > (double)horizon) K0 = (double)horizon;
+                if (K0 < 1.0) K0 = 1.0;
+                const double Cs = (double)(trunk_total - resident_trunk) / K0
+                                  + (C - (double)(trunk_total - resident_trunk));
+                const double ts = Cs / 1e9 / (1800.0 / 1e3);
+                printf("  --spec %d: trunk read / %.0f -> C_spec = %.1f GB/token -> ~%.1f s/tok "
+                       "at 1800 MB/s (replay loss not modelled; n-gram draft 0.91x on code)\n",
+                       spec_n, K0, Cs / 1e9, ts);
+            }
+            const double t1 = C / 1e9 / (1800.0 / 1e3);
+            printf("\n  1.0 s/tok needs C <= 1.8 GB at 1800 MB/s; forecast C = %.0f GB "
+                   "-> ~%.0f s/tok, %.0fx from the 1 s line\n",
+                   C / 1e9, t1, t1);
+            return 0;   /* dry-run resolves the plan; no weights are loaded */
+        }
+    }
+    if (dry_run) {
+        fprintf(stderr, "--dry-run needs --layer-bundle and --trunk DIR "
+                        "(a packed trunk manifest is required to estimate C)\n");
+        return 2;
     }
 
     /* Simulated MXFP4 GEMV chip (k3_chip.h). Reads K3_NO_CHIP / CHIP_NWORKERS /
@@ -1205,7 +1470,8 @@ int main(int argc, char **argv)
          * and becomes a dial, and unlike quantisation it costs no accuracy, which
          * matters because the K3 report (4.1.4) keeps exactly these tensors in higher
          * precision on purpose. */
-        if (k3_trunk_open(&trunk, trunk_dir, &c, (int64_t)(trunk_gb * 1e9), trunk_ring) != 0) return 1;
+        if (k3_trunk_open(&trunk, trunk_dir, &c, (int64_t)(trunk_gb * 1e9), trunk_ring,
+                          bundle_pin_n > 0 ? bundle_pin : NULL, bundle_pin_n) != 0) return 1;
         if (trunk.n_layers < NL) {
             fprintf(stderr, "packed trunk has %d layers, need %d\n", trunk.n_layers, NL);
             return 1;
@@ -1249,6 +1515,11 @@ int main(int argc, char **argv)
     cache.phase2_hold = NULL;
     cache.phase2_ctx = (void *)&trunk;
     printf("expert L1 eviction policy: %s\n", l1_policy ? "heat" : "lru");
+    if (bundle_pin_n > 0) {
+        for (int i = 0; i < bundle_pin_n; i++) k3_cache_pin_layer(&cache, bundle_pin[i], 1);
+        printf("expert arena: resident-layer first-touch pins armed for %d layers\n",
+               bundle_pin_n);
+    }
 
     /* Optional second-level disk cache on a fast volume. The RAM slot_bytes holds
      * nbytes + 2*ALIGN for the widened O_DIRECT read, so the clean expert payload is
@@ -1429,7 +1700,7 @@ int main(int argc, char **argv)
                 spec_snap = (float *)malloc(kper_f * (size_t)w.n_bound * sizeof(float));
                 if (!spec_snap) { fprintf(stderr, "OOM for the --spec snapshot\n"); return 1; }
             }
-            if (k3_trunk_open(&trunk_d, draft_dir, &c, (int64_t)(draft_gb * 1e9), 2) != 0)
+            if (k3_trunk_open(&trunk_d, draft_dir, &c, (int64_t)(draft_gb * 1e9), 2, NULL, 0) != 0)
                 return 1;
             dw.lay = (K3LayerBind *)calloc((size_t)NL, sizeof(K3LayerBind));
             dks   = (float *)calloc(kper_f * (size_t)w.n_bound, sizeof(float));

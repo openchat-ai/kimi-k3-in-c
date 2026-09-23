@@ -5,7 +5,14 @@ bin/
 *.a
 *.so
 *.exe
+*.obj
 compile_commands.json
+
+# corrupt/exploratory experiments; never commit these
+/_bak_corrupt/
+
+# full-model safetensors index blob (497K lines); shard map lives beside the weights
+/model.safetensors.index.json
 
 # Model weights and derived data. Hundreds of gigabytes; never commit these.
 # The patterns are broad on purpose; test fixtures are re-included at the bottom.

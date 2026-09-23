@@ -156,6 +156,64 @@ void k3_l2_free(K3L2 *l2)
     memset(l2, 0, sizeof *l2);
 }
 
+/* Count per-layer L2-alive expert slots without keeping any cache state, so the
+ * layer-bundle planner can reserve the exact "L2 存活集" per layer instead of a fixed
+ * constant. Mirrors k3_l2_init's revalidation: the <path>.meta map is trusted only
+ * where the slot's payload fingerprint matches the stored crc32. out[L] receives the
+ * number of validated slots whose key maps to layer L; returns the total, or -1 when
+ * the payload file or meta cannot be read (caller falls back to a fixed estimate).
+ * slot_bytes must be the slot size actually used to write the file. */
+int k3_l2_count_alive(const char *path, int64_t size_bytes,
+                      int n_layers, int n_experts, int64_t slot_bytes,
+                      int *out)
+{
+    for (int L = 0; L < n_layers; L++) out[L] = 0;
+    const int nslot = (int)(size_bytes / slot_bytes);
+    if (nslot < 1) return -1;
+    const int nkey = n_layers * n_experts;
+
+    /* The planner runs before k3_l2_init, so the crc table would still be zeros
+     * here and every fingerprint would silently mismatch. Build it explicitly
+     * (idempotent, ~1 us) so validated counts are real. */
+    k3_crc32_build();
+
+    const int fd = open(path, O_RDONLY);
+    if (fd < 0) return -1;
+    char meta_path[512];
+    if (snprintf(meta_path, sizeof meta_path, "%s.meta", path) >= (int)sizeof meta_path) {
+        close(fd);
+        return -1;
+    }
+    const int meta_fd = open(meta_path, O_RDONLY);
+    if (meta_fd < 0) { close(fd); return -1; }
+
+    const off_t mlen = (off_t)nslot * 8;
+    int total = 0;
+    unsigned char *m = (unsigned char *)malloc((size_t)mlen);
+    if (m) {
+        const ssize_t got = pread(meta_fd, m, (size_t)mlen, 0);
+        unsigned char probe[L2_CRC_N];
+        for (int i = 0; got >= (ssize_t)(i * 8 + 8); i++) {
+            int32_t key;
+            uint32_t crc;
+            memcpy(&key, m + i * 8, 4);
+            memcpy(&crc, m + i * 8 + 4, 4);
+            if (key < 0 || key >= nkey) continue;
+            const int layer = key / n_experts;
+            if (layer >= n_layers) continue;
+            const ssize_t pr = pread(fd, probe, sizeof probe, (off_t)i * slot_bytes);
+            if (pr != (ssize_t)sizeof probe) continue;
+            if (k3_slot_crc(key, probe, sizeof probe) != crc) continue;
+            out[layer]++;
+            total++;
+        }
+        free(m);
+    }
+    close(fd);
+    close(meta_fd);
+    return total;
+}
+
 /* Find the slot holding this key, or -1. O(1) direct map. The key namespace is
  * (layer, expert) so a flat slot_of[] indexed by key is exact -- no probing, and no
  * way for a stored key to sit unreachable on another probe chain. */

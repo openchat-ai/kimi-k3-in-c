@@ -65,6 +65,12 @@ typedef struct {
     int32_t     *key_of;          /* [nslot] -> layer*n_experts+expert, or -1  */
     uint64_t    *used_at;         /* [nslot] LRU stamp                         */
     unsigned char *pinned;        /* [nslot] never evict while set             */
+    unsigned char *pin_layer;     /* [n_layers] resident layer: pin any expert
+                                   * of this layer on FIRST touch, not just the
+                                   * ones resident at pin time. The layer-bundle
+                                   * cache uses this so a resident layer's routed
+                                   * experts accumulate in RAM and cannot be
+                                   * evicted once present.                        */
     K3ExpertRef *ref;             /* [nslot] geometry of the resident expert   */
     int32_t     *pad;             /* [nslot] where the payload starts in the slot;
                                    * non-zero only on the O_DIRECT path, where the
@@ -128,6 +134,12 @@ void k3_cache_free(K3Cache *c);
 /* Pin or unpin whatever slot currently holds this expert. Pinning a resident hot set
  * is the payoff from the histogram. Returns 0 if the expert was not resident. */
 int  k3_cache_pin(K3Cache *c, int layer, int expert, int pin);
+
+/* Arm/disable the layer-bundle rule for a layer: any expert of this layer is pinned
+ * on FIRST touch, so the layer's routed set truly accumulates in the arena and stays.
+ * Returns 0. This is the expert half of the unified layer-bundle cache; the trunk half
+ * is k3_trunk_open's pin_set. */
+int  k3_cache_pin_layer(K3Cache *c, int layer, int pin);
 
 /* Load an expert without returning it, so a prefetcher can warm the cache. */
 int  k3_cache_prefetch(K3Cache *c, int layer, int expert);

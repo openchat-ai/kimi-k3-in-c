@@ -152,6 +152,7 @@ static int admit(K3Cache *c, int layer, int expert)
     c->key_of[slot] = key;
     c->slot_of[key] = slot;
     c->used_at[slot] = ++c->clock;
+    if (c->pin_layer && c->pin_layer[layer]) c->pinned[slot] = 1;
     return slot;
 }
 
@@ -314,6 +315,7 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
         c->key_of[w[i].slot] = key;
         c->slot_of[key] = w[i].slot;
         c->used_at[w[i].slot] = ++c->clock;
+        if (c->pin_layer && c->pin_layer[layer]) c->pinned[w[i].slot] = 1;
         c->bytes_read += (uint64_t)w[i].got;
         c->prefetch_reads++;
         ok++;
@@ -452,10 +454,12 @@ int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_b
     c->key_of  = (int32_t *)malloc((size_t)c->nslot * sizeof(int32_t));
     c->used_at = (uint64_t *)calloc((size_t)c->nslot, sizeof(uint64_t));
     c->pinned  = (unsigned char *)calloc((size_t)c->nslot, 1);
+    c->pin_layer = (unsigned char *)calloc((size_t)c->n_layers, 1);
     c->ref     = (K3ExpertRef *)calloc((size_t)c->nslot, sizeof(K3ExpertRef));
     c->pad     = (int32_t *)calloc((size_t)c->nslot, sizeof(int32_t));
     c->hist    = (uint32_t *)calloc(nkey, sizeof(uint32_t));
-    if (!c->slot_of || !c->key_of || !c->used_at || !c->pinned || !c->ref || !c->pad || !c->hist) {
+    if (!c->slot_of || !c->key_of || !c->used_at || !c->pinned || !c->pin_layer ||
+        !c->ref || !c->pad || !c->hist) {
         k3_cache_free(c); return -1;
     }
     for (size_t i = 0; i < nkey; i++) c->slot_of[i] = -1;
@@ -466,7 +470,8 @@ int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_b
 void k3_cache_free(K3Cache *c)
 {
     k3_aligned_free(c->arena); free(c->slot_of); free(c->key_of);
-    free(c->used_at); free(c->pinned); free(c->ref); free(c->pad); free(c->hist);
+    free(c->used_at); free(c->pinned); free(c->pin_layer);
+    free(c->ref); free(c->pad); free(c->hist);
     free(c->trace);
     memset(c, 0, sizeof *c);
 }
@@ -491,6 +496,13 @@ int k3_cache_pin(K3Cache *c, int layer, int expert, int pin)
     if (slot < 0) return 0;
     c->pinned[slot] = pin ? 1 : 0;
     return 1;
+}
+
+int k3_cache_pin_layer(K3Cache *c, int layer, int pin)
+{
+    if (!c->pin_layer || layer < 0 || layer >= c->n_layers) return -1;
+    c->pin_layer[layer] = pin ? 1 : 0;
+    return 0;
 }
 
 int k3_cache_prefetch(K3Cache *c, int layer, int expert)

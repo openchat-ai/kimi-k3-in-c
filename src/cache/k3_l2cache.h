@@ -98,6 +98,13 @@ int  k3_l2_init(K3L2 *l2, const char *path, int64_t size_bytes,
 
 void k3_l2_free(K3L2 *l2);
 
+/* Count per-layer L2-alive expert slots from <path>.meta + payload fingerprints,
+ * without keeping any cache state (for the layer-bundle planner). Returns the total
+ * alive, or -1 when the file/meta cannot be read (caller falls back to a constant). */
+int k3_l2_count_alive(const char *path, int64_t size_bytes,
+                      int n_layers, int n_experts, int64_t slot_bytes,
+                      int *out);
+
 /* Load expert (layer, expert) into buf so the caller can dequantise it, exactly like
  * k3_expert_load_direct but with the sdd7 second level in front. buf must hold
  * slot_bytes and be O_DIRECT-alignable. On a hit the bytes come from sdd7 (pread,

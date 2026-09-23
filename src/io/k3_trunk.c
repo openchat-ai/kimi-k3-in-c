@@ -151,8 +151,38 @@ int64_t k3_trunk_packed_bytes(const char *dir)
     return total;
 }
 
+int k3_trunk_layer_bytes(const char *dir, int64_t *bytes, int cap)
+{
+    char p[1024];
+    snprintf(p, sizeof p, "%s/trunk.json", dir);
+    size_t jn = 0;
+    char *txt = slurp(p, &jn);
+    if (!txt) {
+        snprintf(p, sizeof p, "%s/trunk_layers.json", dir);
+        jn = 0;
+        txt = slurp(p, &jn);
+    }
+    if (!txt) return 0;
+    char *arena = NULL;
+    jval *root = json_parse(txt, &arena);
+    if (!root) { free(txt); return 0; }
+    jval *jl = json_get(root, "layers");
+    int n = 0;
+    if (jl && jl->t == J_ARR) {
+        if (jl->len > cap) { free(txt); free(arena); return 0; }
+        for (int i = 0; i < jl->len; i++) {
+            jval *v = json_get(jl->kids[i], "nbytes");
+            bytes[i] = (v && v->t == J_NUM) ? (int64_t)v->num : 0;
+        }
+        n = jl->len;
+    }
+    free(txt);
+    free(arena);
+    return n;
+}
+
 int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_bytes,
-                  int ring_want)
+                  int ring_want, const int *pin_set, int npin_set)
 {
     memset(tr, 0, sizeof *tr);
     /* memset leaves fd == 0, which is stdin. Every failure path below returns without
@@ -285,90 +315,128 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
     tr->slot_of = (int32_t *)malloc((size_t)tr->n_layers * sizeof(int32_t));
     if (!tr->slot_of) return -1;
     for (int i = 0; i < tr->n_layers; i++) tr->slot_of[i] = -1;
+    tr->pin_yes = (unsigned char *)calloc((size_t)tr->n_layers, 1);
+    tr->pin     = (unsigned char **)calloc((size_t)tr->n_layers, sizeof(unsigned char *));
+    if (!tr->pin_yes || !tr->pin) return -1;
     tr->reads_by_layer = (uint64_t *)calloc((size_t)tr->n_layers, sizeof(uint64_t));
     if (!tr->reads_by_layer) return -1;
 
-    /* Two ring slots: the layer being computed on, plus one asynchronous read in flight.
-     *
-     * This is a REQUEST, not a guarantee. The second slot costs a full slot's worth of
-     * memory, which at the floor is 2.37 GB, and the budget the caller asked for has to
-     * come first: measured on the released checkpoint, taking the second slot
-     * unconditionally moved the laptop preset from 8.78 GB to 11.12 GB peak RSS, a 27%
-     * overshoot of a 3.0 GB trunk budget, and left the printed memory plan understating
-     * the real figure. So it is granted only when it fits, and reported when it does not.
-     * A single slot is exactly what this file did before the asynchronous reader existed,
-     * so falling back is always safe; it costs speed, not correctness. */
+    int npin = 0;
+    int64_t ring_slot = 0, spent = 0;
     const int RING_WANT = ring_want > 0 ? ring_want : 2;
     int RING = RING_WANT;
 
-    /* Size the ring from the layers that will actually STREAM through it.
-     *
-     * Pinning is a PREFIX: layers 0..npin-1 are held resident and never touch the ring,
-     * so only npin..n_layers-1 ever occupy a slot. Sizing the slot from the maximum over
-     * ALL layers therefore reserves room for layer 0 -- which at 2.34 GB is the largest
-     * in the model, being the only dense one with a 33792-wide MLP, and which prefix
-     * pinning pins FIRST whenever anything is pinned at all. That wasted about 1.17 GB
-     * for nothing at every budget above the floor.
-     *
-     * Ring size and pin count are mutually dependent: a smaller ring frees budget, which
-     * pins more layers, which can shrink the ring again. Iterate to a fixed point. It
-     * converges in two or three passes and is monotone, so the loop is bounded. At the
-     * floor, where npin is 0, this correctly changes nothing: every layer streams and the
-     * ring must still hold the biggest of them. */
-    int64_t ring_slot = 0, spent = 0;
-    int npin = 0;
-    /* Layer 0 is 2.34 GB, three to four times any other layer. If it streams, every
-     * ring slot must be sized for it, so an 8 GB budget fits only two fat slots and the
-     * ring cannot hold enough layers to reuse them across tokens. Pinning layer 0 (it is
-     * read once anyway) shrinks the ring slot to the other layers' ~646 MB and buys the
-     * multi-slot ring the user asks for. Do that whenever layer 0 plus at least one
-     * compact slot fits the budget; otherwise keep the old behavior and the fat slot. */
-    const int64_t l0_need = tr->lay[0].nbytes + (int64_t)widen;
-    int64_t compact = 0;
-    for (int i = 1; i < tr->n_layers; i++)
-        if (tr->lay[i].nbytes > compact) compact = tr->lay[i].nbytes;
-    if (compact == 0) compact = tr->lay[0].nbytes;
-    compact = (compact + K3_TRUNK_ALIGN - 1) & ~(int64_t)(K3_TRUNK_ALIGN - 1);
-    compact += (int64_t)widen;
-    const int force_l0 = (l0_need + compact <= budget_bytes) ? 1 : 0;
-
-    /* Ring size and pin count are mutually dependent: a smaller ring frees budget, which
-     * pins more layers, which can shrink the ring again. The passes start npin high
-     * enough that the ring slots are sized from the compact (post-layer-0) layers, then
-     * iterate to a fixed point. */
-    for (int pass = 0; pass < 4; pass++) {
-        int64_t big = 0;
-        const int lo = npin ? npin : (force_l0 ? 1 : 0);
-        for (int i = lo; i < tr->n_layers; i++)
-            if (tr->lay[i].nbytes > big) big = tr->lay[i].nbytes;
-        if (big == 0) big = tr->lay[tr->n_layers - 1].nbytes;   /* all pinned */
-        int64_t rs = (big + K3_TRUNK_ALIGN - 1) & ~(int64_t)(K3_TRUNK_ALIGN - 1);
-        rs += (int64_t)widen;
-        rs = (rs + 4095) & ~(int64_t)4095;
-
-        RING = RING_WANT;
-        while (RING > 1 && (int64_t)RING * rs + (force_l0 ? l0_need : 0) > budget_bytes) RING--;
-
-        int64_t sp = (int64_t)RING * rs + (force_l0 ? l0_need : 0);
-        int np = force_l0 ? 1 : 0;
-        while (np < tr->n_layers) {
-            const int64_t need = tr->lay[np].nbytes + (int64_t)widen;
-            if (sp + need > budget_bytes) break;
-            sp += need;
-            np++;
+    if (pin_set && npin_set > 0) {
+        /* Unified layer-bundle pin set. Mark the requested layers, then size the ring
+         * from the max layer that still STREAMS (the pin set excludes it). The caller's
+         * planner already charged the correct budget; this validates and fits the ring. */
+        for (int i = 0; i < npin_set; i++) {
+            const int L = pin_set[i];
+            if (L < 0 || L >= tr->n_layers || tr->pin_yes[L]) continue;
+            tr->pin_yes[L] = 1;
+            npin++;
         }
-        if (np >= tr->n_layers) np = tr->n_layers;
-        if (rs == ring_slot && np == npin) { ring_slot = rs; spent = sp; break; }
-        ring_slot = rs; npin = np; spent = sp;
+        int64_t pin_sum = 0, stream_max = 0;
+        for (int i = 0; i < tr->n_layers; i++) {
+            if (tr->pin_yes[i]) {
+                pin_sum += (int64_t)((tr->lay[i].nbytes + K3_TRUNK_ALIGN - 1)
+                                     & ~(int64_t)(K3_TRUNK_ALIGN - 1)) + widen;
+            } else if (tr->lay[i].nbytes > stream_max) {
+                stream_max = tr->lay[i].nbytes;
+            }
+        }
+        if (pin_sum > budget_bytes) {
+            fprintf(stderr, "k3_trunk: pin set needs %.2f GB, trunk budget is %.2f GB\n",
+                    (double)pin_sum / 1e9, (double)budget_bytes / 1e9);
+            return -1;
+        }
+        if (stream_max > 0) {
+            ring_slot = ((stream_max + K3_TRUNK_ALIGN - 1) & ~(int64_t)(K3_TRUNK_ALIGN - 1));
+            ring_slot += widen;
+            ring_slot = (ring_slot + 4095) & ~(int64_t)4095;
+            while (RING > 1 && (int64_t)RING * ring_slot + pin_sum > budget_bytes) RING--;
+            if (RING < 1) RING = 1;
+        } else {
+            RING = 0;
+            ring_slot = 0;
+        }
+        spent = pin_sum + (int64_t)RING * ring_slot;
+    } else {
+        /* Two ring slots: the layer being computed on, plus one asynchronous read in flight.
+         *
+         * This is a REQUEST, not a guarantee. The second slot costs a full slot's worth of
+         * memory, which at the floor is 2.37 GB, and the budget the caller asked for has to
+         * come first: measured on the released checkpoint, taking the second slot
+         * unconditionally moved the laptop preset from 8.78 GB to 11.12 GB peak RSS, a 27%
+         * overshoot of a 3.0 GB trunk budget, and left the printed memory plan understating
+         * the real figure. So it is granted only when it fits, and reported when it does not.
+         * A single slot is exactly what this file did before the asynchronous reader existed,
+         * so falling back is always safe; it costs speed, not correctness. */
+        RING = RING_WANT;
+
+        /* Size the ring from the layers that will actually STREAM through it.
+         *
+         * Pinning is a PREFIX: layers 0..npin-1 are held resident and never touch the ring,
+         * so only npin..n_layers-1 ever occupy a slot. Sizing the slot from the maximum over
+         * ALL layers therefore reserves room for layer 0 -- which at 2.34 GB is the largest
+         * in the model, being the only dense one with a 33792-wide MLP, and which prefix
+         * pinning pins FIRST whenever anything is pinned at all. That wasted about 1.17 GB
+         * for nothing at every budget above the floor.
+         *
+         * Ring size and pin count are mutually dependent: a smaller ring frees budget, which
+         * pins more layers, which can shrink the ring again. Iterate to a fixed point. It
+         * converges in two or three passes and is monotone, so the loop is bounded. At the
+         * floor, where npin is 0, this correctly changes nothing: every layer streams and the
+         * ring must still hold the biggest of them. */
+        /* Layer 0 is 2.34 GB, three to four times any other layer. If it streams, every
+         * ring slot must be sized for it, so an 8 GB budget fits only two fat slots and the
+         * ring cannot hold enough layers to reuse them across tokens. Pinning layer 0 (it is
+         * read once anyway) shrinks the ring slot to the other layers' ~646 MB and buys the
+         * multi-slot ring the user asks for. Do that whenever layer 0 plus at least one
+         * compact slot fits the budget; otherwise keep the old behavior and the fat slot. */
+        const int64_t l0_need = tr->lay[0].nbytes + (int64_t)widen;
+        int64_t compact = 0;
+        for (int i = 1; i < tr->n_layers; i++)
+            if (tr->lay[i].nbytes > compact) compact = tr->lay[i].nbytes;
+        if (compact == 0) compact = tr->lay[0].nbytes;
+        compact = (compact + K3_TRUNK_ALIGN - 1) & ~(int64_t)(K3_TRUNK_ALIGN - 1);
+        compact += (int64_t)widen;
+        const int force_l0 = (l0_need + compact <= budget_bytes) ? 1 : 0;
+
+        for (int pass = 0; pass < 4; pass++) {
+            int64_t big = 0;
+            const int lo = npin ? npin : (force_l0 ? 1 : 0);
+            for (int i = lo; i < tr->n_layers; i++)
+                if (tr->lay[i].nbytes > big) big = tr->lay[i].nbytes;
+            if (big == 0) big = tr->lay[tr->n_layers - 1].nbytes;   /* all pinned */
+            int64_t rs = (big + K3_TRUNK_ALIGN - 1) & ~(int64_t)(K3_TRUNK_ALIGN - 1);
+            rs += (int64_t)widen;
+            rs = (rs + 4095) & ~(int64_t)4095;
+
+            RING = RING_WANT;
+            while (RING > 1 && (int64_t)RING * rs + (force_l0 ? l0_need : 0) > budget_bytes) RING--;
+
+            int64_t sp = (int64_t)RING * rs + (force_l0 ? l0_need : 0);
+            int np = force_l0 ? 1 : 0;
+            while (np < tr->n_layers) {
+                const int64_t need = tr->lay[np].nbytes + (int64_t)widen;
+                if (sp + need > budget_bytes) break;
+                sp += need;
+                np++;
+            }
+            if (np >= tr->n_layers) np = tr->n_layers;
+            if (rs == ring_slot && np == npin) { ring_slot = rs; spent = sp; break; }
+            ring_slot = rs; npin = np; spent = sp;
+        }
+        for (int i = 0; i < npin; i++) tr->pin_yes[i] = 1;
     }
 
     tr->npin = npin;
     tr->nslot = RING;
     tr->slot_bytes = ring_slot;
 
-    tr->pin = (unsigned char **)calloc((size_t)(npin ? npin : 1), sizeof(unsigned char *));
-    if (!tr->pin) return -1;
-    for (int i = 0; i < npin; i++) {
+    for (int i = 0; i < tr->n_layers; i++) {
+        if (!tr->pin_yes[i]) continue;
         const size_t need = (size_t)((tr->lay[i].nbytes + K3_TRUNK_ALIGN - 1)
                                      & ~(int64_t)(K3_TRUNK_ALIGN - 1)) + widen;
         if (k3_alloc_direct((void **)&tr->pin[i], need) != 0) {
@@ -377,12 +445,13 @@ int k3_trunk_open(K3Trunk *tr, const char *dir, const K3Cfg *c, int64_t budget_b
             return -1;
         }
     }
-    if (k3_alloc_direct((void **)&tr->arena, (size_t)RING * (size_t)ring_slot) != 0) {
+    if (RING > 0 && k3_alloc_direct((void **)&tr->arena, (size_t)RING * (size_t)ring_slot) != 0) {
         fprintf(stderr, "k3_trunk: cannot allocate the %.2f GB streaming ring\n",
                 (double)RING * ring_slot / 1e9);
         return -1;
     }
-    tr->layer_of = (int *)malloc((size_t)RING * sizeof(int));
+    tr->layer_of = (int *)malloc((size_t)(RING > 0 ? RING : 1) * sizeof(int));
+    if (!tr->layer_of) return -1;
     for (int i = 0; i < RING; i++) tr->layer_of[i] = -1;
     tr->widen_bytes = (int64_t)widen;
 
@@ -472,8 +541,8 @@ void k3_trunk_close(K3Trunk *tr)
         free(tr->layer_fd);
     }
     free(tr->slice_dir);
-    if (tr->pin) { for (int i = 0; i < tr->npin; i++) free(tr->pin[i]); free(tr->pin); }
-    free(tr->arena); free(tr->layer_of); free(tr->slot_of);
+    if (tr->pin) { for (int i = 0; i < tr->n_layers; i++) free(tr->pin[i]); free(tr->pin); }
+    free(tr->arena); free(tr->layer_of); free(tr->slot_of); free(tr->pin_yes);
     free(tr->reads_by_layer);
     if (tr->lay) { for (int i = 0; i < tr->n_layers; i++) free(tr->lay[i].t); free(tr->lay); }
     free(tr->json_arena);   /* every K3TrunkTensor.name points into this */
@@ -625,7 +694,7 @@ static void *trunk_io_main(void *arg)
  * resident-not-in-flight slot is released here. */
 void k3_trunk_release(K3Trunk *tr, int L)
 {
-    if (L < 0 || L >= tr->n_layers || L < tr->npin) return;
+    if (L < 0 || L >= tr->n_layers || tr->pin_yes[L]) return;
     K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
     if (!io) return;
     pthread_mutex_lock(&io->mu);
@@ -688,7 +757,7 @@ int k3_trunk_bind(K3Trunk *tr, const K3Cfg *c, int L, K3LayerBind *b)
     k3_trunk_binds++;
     unsigned char *base;
 
-    if (L < tr->npin) {
+    if (tr->pin_yes[L]) {
         base = tr->pin[L];
         if (tr->slot_of[L] < 0) {            /* first touch: load once, keep forever */
             if (load_run(tr, L, base) != 0) return -1;
@@ -738,7 +807,8 @@ int k3_trunk_bind(K3Trunk *tr, const K3Cfg *c, int L, K3LayerBind *b)
 
 void k3_trunk_prefetch(K3Trunk *tr, int L)
 {
-    if (L < 0 || L >= tr->n_layers || L < tr->npin) return;
+    if (L < 0 || L >= tr->n_layers || tr->pin_yes[L]) return;
+    if (tr->nslot == 0) return;
     for (int i = 0; i < tr->nslot; i++) if (tr->layer_of[i] == L) return;
 
     K3TrunkIO *io = (K3TrunkIO *)tr->io_state;

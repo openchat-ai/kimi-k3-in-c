@@ -345,7 +345,7 @@ static int gen_fixture(const char *dir)
 static int test_one_slot(const char *dir, const K3Cfg *c)
 {
     K3Trunk tr;
-    if (k3_trunk_open(&tr, dir, c, 12288, 0) != 0) {
+    if (k3_trunk_open(&tr, dir, c, 12288, 0, NULL, 0) != 0) {
         fprintf(stderr, "TRUNK OPEN FAILED (one-slot)\n"); return 1;
     }
     ck(tr.nslot == 1, "one-slot: ring is 1 slot", "");
@@ -398,7 +398,7 @@ static int test_one_slot(const char *dir, const K3Cfg *c)
 static int test_two_slot(const char *dir, const K3Cfg *c)
 {
     K3Trunk tr;
-    if (k3_trunk_open(&tr, dir, c, 40960, 0) != 0) {
+    if (k3_trunk_open(&tr, dir, c, 40960, 0, NULL, 0) != 0) {
         fprintf(stderr, "TRUNK OPEN FAILED (two-slot)\n"); return 1;
     }
     ck(tr.nslot == 2, "two-slot: ring has 2 slots", "");
@@ -483,7 +483,7 @@ static int test_two_slot(const char *dir, const K3Cfg *c)
 static int test_truncated(const char *dir, const K3Cfg *c)
 {
     K3Trunk tr;
-    if (k3_trunk_open(&tr, dir, c, 40960, 0) != 0) {
+    if (k3_trunk_open(&tr, dir, c, 40960, 0, NULL, 0) != 0) {
         fprintf(stderr, "TRUNK OPEN FAILED (truncated)\n"); return 1;
     }
 
