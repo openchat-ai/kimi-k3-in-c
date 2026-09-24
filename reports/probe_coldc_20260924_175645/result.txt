@@ -1,0 +1,5 @@
+warm ... done
+  trunk single (cold)            56.60 GB    37.50 s     1509 MB/s
+  expert single (cold)           12.91 GB     3.96 s     3264 MB/s
+  concurrent trunk+expert (cold)   69.52 GB    55.31 s     1257 MB/s
+done2
