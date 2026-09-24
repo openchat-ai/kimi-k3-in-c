@@ -1,0 +1,4 @@
+warm ... done
+  trunk cold                   56.60 GB    39.20 s     1444 MB/s
+  expert cold (16thr)          12.91 GB     5.04 s     2565 MB/s
+done2

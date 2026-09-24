@@ -15,6 +15,9 @@ ALIGN = 4096
 
 def now(): return time.monotonic()
 
+def aligned(size):
+    return mmap.mmap(-1, (size + ALIGN - 1) & ~(ALIGN - 1))
+
 def cold():
     os.system("sync")
     with open("/proc/sys/vm/drop_caches", "w") as f: f.write("3")
