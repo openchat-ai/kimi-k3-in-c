@@ -1,0 +1,8 @@
+t0 dircache/stat
+stat ok 0.00s
+pread1 16MiB: 0.104s (16777216 bytes)
+pread2 16MiB @12e3: 0.086s
+drop_caches...
+drop_caches done 4.296s
+pread3 16MiB cold @999: 0.084s
+100 cold preads: 5.14s

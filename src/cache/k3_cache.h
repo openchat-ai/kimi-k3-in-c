@@ -37,6 +37,8 @@
 #include "k3_load.h"
 #include "k3_st.h"
 
+#include <pthread.h>
+
 struct K3L2;   /* opaque: second-level disk cache (k3_l2cache.h) */
 
 /* Slot states for key_of[]. EMPTY must stay -1: k3_cache_init memsets the array and
@@ -45,6 +47,14 @@ struct K3L2;   /* opaque: second-level disk cache (k3_l2cache.h) */
  * has not landed yet. */
 #define K3_SLOT_EMPTY     (-1)
 #define K3_SLOT_INFLIGHT  (-2)
+
+/* One mailbox job for the async prefetch reader: a whole previous-token routing of one
+ * layer, resolved (copied) from prev_idx at hint time while holding the mutex. */
+typedef struct {
+    int     layer;                 /* the layer to warm: L + prefetch_depth    */
+    int     idx[K3_MAX_TOPK];      /* the previous token's routed experts, -1-padded */
+    int     n;                     /* valid entries in idx[]                     */
+} K3PrefJob;
 
 typedef struct {
     K3ExpertSrc  src;             /* MUST be first: pass &cache->src to K3MoeW */
@@ -111,6 +121,44 @@ typedef struct {
      * LRU vs 3.46% at 8 GB with heat); K3_L1_POLICY=lru opts back to LRU. */
     int          policy;
 
+    /* ---- async prefetch-ahead (the lookahead-depth probe) ------------------
+     * prefetch_depth > 0 arms a background reader thread. Forward path hints
+     * layer L after the router selects it (src.on_route records each layer's
+     * routing; that is the key output for the NEXT token), and on entering layer L
+     * the main thread submits the recorded PREVIOUS-token routing of layer
+     * L+prefetch_depth into a newest-wins mailbox. The reader pulls one job at a
+     * time and runs cache_getmany from the L2, overlapping the main thread's
+     * phase-2 disk reads.
+     *
+     * prefetch_depth = 0 is the baseline: no thread, no mutex taken anywhere in
+     * the hot path. The reader is created lazily on the first hint, and
+     * pref_started is stable from then on, so cache_getmany phases decide locking
+     * once via `const int locked = c->pref_started;`.
+     *
+     * Locking: the mutex guards ALL shared bookkeeping (pick_victim, slot_of /
+     * key_of / used_at publications, admit, the trace, prev_idx, the mailbox).
+     * The phase-2 DISK READS intentionally run unlocked so the main thread and the
+     * reader can overlap on the drive. */
+    int              prefetch_depth;
+    int              prefetch_cap;       /* per-layer max routed experts per hint; 0 = no limit */
+    int32_t         *prev_idx;          /* [n_layers][1+K3_MAX_TOPK]: row[0]=count,
+                                         * row[1..]=routed experts, else -1 */
+    pthread_mutex_t  mu;
+    pthread_cond_t   cv;
+    pthread_t        pref_thr;          /* reader, created lazily on first hint   */
+    int              pref_started;      /* reader exists; also the lock gate       */
+    int              pref_stop;         /* reader exit request                    */
+    int              pref_busy;         /* 1 = reader has a mailbox job to do     */
+    K3PrefJob        pref_job;          /* newest-wins mailbox                    */
+    int              pref_inited;       /* mu/cv valid (destroy only then)        */
+    uint64_t         prefetch_issued;   /* experts the reader actually published  */
+    uint64_t         prefetch_late;     /* reader published on an already-resident
+                                         * key: read wasted, duplicate NOT remade */
+    uint64_t         prefetch_kept;     /* survival numerator: prev-token routed
+                                         * experts of this layer still resident when
+                                         * the main thread reaches the layer      */
+    uint64_t         prefetch_cands;    /* survival denominator                   */
+
     /* THE ACCESS TRACE, and why it is worth recording.
      * The question this project exists to answer is how much RAM Kimi K3 actually
      * needs, which is a question about hit rate versus cache size. Measuring that
@@ -143,6 +191,11 @@ int  k3_cache_pin_layer(K3Cache *c, int layer, int pin);
 
 /* Load an expert without returning it, so a prefetcher can warm the cache. */
 int  k3_cache_prefetch(K3Cache *c, int layer, int expert);
+
+/* Async lookahead: called from the main forward path after layer L's router has
+ * run. Submits the previous token's routing of layer L+prefetch_depth to the reader
+ * mailbox (newest-wins), starting the reader on first use. O(1) in the hot path. */
+void k3_cache_prefetch_ahead(K3Cache *c, int layer);
 
 void k3_cache_reset_stats(K3Cache *c);
 void k3_cache_report(const K3Cache *c, const char *label);

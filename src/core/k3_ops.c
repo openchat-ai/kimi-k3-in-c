@@ -570,6 +570,12 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
         k3_router(idx, wt, xt, w->gate, w->bias, E, c->n_experts, c->topk,
                   c->moe_renorm, c->routed_scale);
 
+        /* Record this routing for the next token's prefetch lookahead. The async
+         * reader consumes prev_idx keyed on layer; it runs at any depth so prefetch
+         * survival can be compared against the baseline. */
+        if (w->src && w->src->on_route)
+            w->src->on_route(w->src, w->layer, idx, c->topk);
+
         int nk = c->topk;
         /* Draft cache-only routing: keep only the top-k experts already resident, and
          * renormalise their weights so the mixture still sums as intended. This makes a

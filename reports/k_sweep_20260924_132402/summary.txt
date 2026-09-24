@@ -1,0 +1,28 @@
+--- k-sweep (b leg)
+=== k0 ===
+8 tokens in 642.6 s, 80.32 s/token average
+                  this token; TRUE resident hit rate 18.61%
+I/O share of wall clock: 142.7%  (trunk 482.7 s + experts 434.5 s of 642.6 s)
+  pinned 1/93 layers, ring 2 slots
+TIME_ELAPSED=675.46
+=== k1 ===
+8 tokens in 805.2 s, 100.65 s/token average
+                  this token; TRUE resident hit rate 0.00%
+  prefetch      : issued 1047  LATE 0  survival 42.0% (618/1472 prev-token routed experts still resident)
+I/O share of wall clock: 183.7%  (trunk 574.5 s + experts 905.0 s of 805.2 s)
+  pinned 1/93 layers, ring 2 slots
+TIME_ELAPSED=831.64
+=== k2 ===
+8 tokens in 844.8 s, 105.60 s/token average
+                  this token; TRUE resident hit rate 0.00%
+  prefetch      : issued 1033  LATE 0  survival 28.1% (413/1472 prev-token routed experts still resident)
+I/O share of wall clock: 201.8%  (trunk 674.7 s + experts 1029.9 s of 844.8 s)
+  pinned 1/93 layers, ring 2 slots
+TIME_ELAPSED=882.55
+=== k4 ===
+8 tokens in 806.0 s, 100.75 s/token average
+                  this token; TRUE resident hit rate 0.00%
+  prefetch      : issued 1011  LATE 0  survival 28.0% (412/1472 prev-token routed experts still resident)
+I/O share of wall clock: 204.0%  (trunk 655.6 s + experts 988.7 s of 806.0 s)
+  pinned 1/93 layers, ring 2 slots
+TIME_ELAPSED=827.92

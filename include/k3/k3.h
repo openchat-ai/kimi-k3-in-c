@@ -367,6 +367,12 @@ typedef struct K3ExpertSrc {
      * out when non-NULL. The draft model's cache-only routing uses this to propose tokens
      * with zero expert I/O. May be NULL; callers must cope. */
     int (*resident)(struct K3ExpertSrc *self, int layer, int expert, K3ExpertQ *out);
+    /* OPTIONAL: report the routed top-k just computed for this layer, right after the
+     * router chooses it and BEFORE any cache_only (draft) filtering drops entries. The
+     * async prefetch reader uses it to keep per-layer routing for the NEXT token, so a
+     * future layer can be warmed with what this token actually selected. The callback
+     * runs in the hot forward path and must be cheap. May be NULL. */
+    void (*on_route)(struct K3ExpertSrc *self, int layer, const int *idx, int n);
     void *ctx;
 } K3ExpertSrc;
 

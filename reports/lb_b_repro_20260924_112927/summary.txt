@@ -1,0 +1,14 @@
+--- b
+8 tokens in 695.4 s, 86.93 s/token average
+                  this token; TRUE resident hit rate 5.64%
+  read from disk: 24.37 GB in 57.67 s (423 MB/s while loading)
+  pinned 4/93 layers, ring 2 slots
+  read 422.89 GB in 513.71 s (823 MB/s pread)
+tok 220 148.41 s
+tok 802 65.54 s
+tok 24 76.05 s
+tok 12 81.12 s
+tok 2975 78.10 s
+tok 15 89.11 s
+tok 3629 78.44 s
+tok 1389 78.65 s

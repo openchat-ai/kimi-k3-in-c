@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
 #include <sys/mman.h>
 #ifdef _OPENMP
 #include <omp.h>
@@ -105,8 +106,10 @@ static int pick_victim(K3Cache *c)
     return best;
 }
 
-/* Bring (layer, expert) resident and return its slot, or -1. */
-static int admit(K3Cache *c, int layer, int expert)
+/* Bring (layer, expert) resident and return its slot, or -1. Caller must hold
+ * c->mu whenever the reader thread exists (c->pref_started); the async reader and the
+ * main thread both publish through here and the slot bookkeeping is shared state. */
+static int admit_unlocked(K3Cache *c, int layer, int expert)
 {
     const int32_t key = layer * c->n_experts + expert;
     int slot = c->slot_of[key];
@@ -156,6 +159,18 @@ static int admit(K3Cache *c, int layer, int expert)
     return slot;
 }
 
+/* Self-locking admit for the two single-call users (dead code k3_cache_prefetch and
+ * nothing else at depth 0). With no reader thread pref_started is 0 and no lock is
+ * taken at all, so the baseline path is unchanged. */
+static int admit(K3Cache *c, int layer, int expert)
+{
+    const int locked = c->pref_started;
+    if (locked) pthread_mutex_lock(&c->mu);
+    const int slot = admit_unlocked(c, layer, expert);
+    if (locked) pthread_mutex_unlock(&c->mu);
+    return slot;
+}
+
 /* Bring a whole top-k resident, with the reads issued CONCURRENTLY.
  *
  * The serial path admits one expert per call, so the drive sees a queue depth of one:
@@ -175,9 +190,8 @@ static int admit(K3Cache *c, int layer, int expert)
  * next request for that expert would count a HIT and multiply garbage. That exact bug
  * existed in the trunk ring and is why the order here is deliberate.
  */
-static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
+static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int from_reader)
 {
-    K3Cache *c = (K3Cache *)self;
     if (n <= 0) return 0;
 
     typedef struct { int slot; int expert; K3ExpertRef r; int64_t got, pad; } Work;
@@ -187,6 +201,12 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
     const int cap = (int)(sizeof w / sizeof *w);
 
     /* ---- phase 1: reserve, serially ---- */
+    /* The reader and the main thread both hop on the mutex here and in phase 3;
+     * pick_victim and the slot bookkeeping are shared mutable state and must not race.
+     * Phase 2 (the disk reads) runs UNLOCKED so the two threads overlap on the drive.
+     * With no reader thread pref_started is 0 and no lock is taken: baseline is unchanged. */
+    const int locked = c->pref_started;
+    if (locked) pthread_mutex_lock(&c->mu);
     for (int i = 0; i < n && nw < cap; i++) {
         const int e = ids[i];
         if (e < 0 || e >= c->n_experts) continue;
@@ -212,7 +232,22 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
         w[nw].slot = slot; w[nw].expert = e; w[nw].r = r; w[nw].got = -1; w[nw].pad = 0;
         nw++;
     }
-    if (nw == 0) return 0;
+    /* Survival of the prefetch: how much of this layer's PREVIOUS-token routing is
+     * still resident when the main thread reaches the layer. The prefetcher's whole
+     * point is that they should be; if they are sparse the lookahead is wasteful. */
+    if (!from_reader && c->prefetch_depth > 0) {
+        const int32_t *row = c->prev_idx + (size_t)layer * (K3_MAX_TOPK + 1);
+        const int pn = row[0] < K3_MAX_TOPK ? row[0] : K3_MAX_TOPK;
+        if (pn > 0) {
+            int kept = 0;
+            for (int i = 0; i < pn; i++)
+                if (c->slot_of[(size_t)layer * c->n_experts + row[1 + i]] >= 0) kept++;
+            c->prefetch_cands += (uint64_t)pn;
+            c->prefetch_kept += (uint64_t)kept;
+        }
+    }
+    if (nw == 0) { if (locked) pthread_mutex_unlock(&c->mu); return 0; }
+    if (locked) pthread_mutex_unlock(&c->mu);
 
     /* Issue in DISK-OFFSET order. Experts are not stored id-ordered inside a shard, so
      * sorting by where the bytes actually live turns a scattered set of seeks into a
@@ -295,11 +330,12 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
         nth = omp_get_num_threads();
 #endif
         double p2pread = (c->l2 ? c->l2->hit_seconds : 0) - (c->l2 ? hs0 : 0);
-        fprintf(stderr, "DBG getmany L%d nw=%d wall=%.3fs thr(out)%d thr(in)%d conc_peak=%d pread=%.3fs\n",
-                layer, nw, t2, nth, omp_inr_nt, inr_peak, p2pread);
+        fprintf(stderr, "DBG getmany L%d nw=%d wall=%.3fs thr(out)%d thr(in)%d conc_peak=%d pread=%.3fs%s\n",
+                layer, nw, t2, nth, omp_inr_nt, inr_peak, p2pread, from_reader ? " [reader]" : "");
     }
 
     /* ---- phase 3: publish only what actually arrived ---- */
+    if (locked) pthread_mutex_lock(&c->mu);
     int ok = 0;
     for (int i = 0; i < nw; i++) {
         if (w[i].got != w[i].r.nbytes) {
@@ -310,6 +346,16 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
             continue;
         }
         const int32_t key = layer * c->n_experts + w[i].expert;
+        /* The reader can lose the race: while it was reading during phase 2 (unlocked)
+         * the main thread admitted the very same key. Publishing a duplicate resident
+         * copy would leave two slots with one slot_of pointer -- inconsistent. Release
+         * the slot and count the wasted read. */
+        if (from_reader && c->slot_of[key] >= 0) {
+            c->prefetch_late++;
+            c->key_of[w[i].slot] = K3_SLOT_EMPTY;
+            c->bytes_read += (uint64_t)w[i].got;
+            continue;
+        }
         c->ref[w[i].slot] = w[i].r;
         c->pad[w[i].slot] = (int32_t)w[i].pad;
         c->key_of[w[i].slot] = key;
@@ -318,9 +364,99 @@ static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
         if (c->pin_layer && c->pin_layer[layer]) c->pinned[w[i].slot] = 1;
         c->bytes_read += (uint64_t)w[i].got;
         c->prefetch_reads++;
+        if (from_reader) c->prefetch_issued++;
         ok++;
     }
+    if (locked) pthread_mutex_unlock(&c->mu);
     return ok;
+}
+
+/* Main-thread entry: the forward path routes here via src.getmany. */
+static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
+{
+    return cache_getmany_inner((K3Cache *)self, layer, ids, n, 0);
+}
+
+/* src.on_route: record this layer's routing for the NEXT token, under the same mutex
+ * as the reader consumes it. Recording happens ALWAYS (even at prefetch_depth 0) so
+ * prefetch survival can be compared against the baseline; only the forward-path hint
+ * and the reader are gated on the depth. */
+static void cache_on_route(K3ExpertSrc *self, int layer, const int *idx, int n)
+{
+    K3Cache *c = (K3Cache *)self;
+    if (n > K3_MAX_TOPK) n = K3_MAX_TOPK;
+    if (n <= 0) return;
+    int32_t *row = c->prev_idx + (size_t)layer * (K3_MAX_TOPK + 1);
+    const int locked = c->pref_started;
+    if (locked) pthread_mutex_lock(&c->mu);
+    row[0] = n;
+    memcpy(row + 1, idx, (size_t)n * sizeof(int32_t));
+    for (int i = n; i < K3_MAX_TOPK; i++) row[1 + i] = -1;
+    if (locked) pthread_mutex_unlock(&c->mu);
+}
+
+/* The async reader: newest-wins mailbox. pref_busy == 1 always means "a job waits" --
+ * a hint arriving while the reader is mid-run rewrites the mailbox for the NEXT loop,
+ * and the reader picks it up because busy is still set. Each consumed job runs the
+ * same cache_getmany_inner as the main thread, from the L2, unlocked reads. */
+static void *pref_io_main(void *arg)
+{
+    K3Cache *c = (K3Cache *)arg;
+    pthread_mutex_lock(&c->mu);
+    for (;;) {
+        while (!c->pref_stop && !c->pref_busy)
+            pthread_cond_wait(&c->cv, &c->mu);
+        if (c->pref_stop) break;
+        K3PrefJob j = c->pref_job;
+        c->pref_busy = 0;
+        pthread_mutex_unlock(&c->mu);
+
+        if (j.n > 0)
+            cache_getmany_inner(c, j.layer, j.idx, j.n, 1);
+
+        pthread_mutex_lock(&c->mu);
+    }
+    pthread_mutex_unlock(&c->mu);
+    return NULL;
+}
+
+/* Forward-path hint, called once per layer after the router runs. Submits the
+ * previous token's routing of layer+prefetch_depth to the mailbox and starts the
+ * reader lazily. O(1) plus one lock when depth is armed; a no-op at depth 0. */
+void k3_cache_prefetch_ahead(K3Cache *c, int layer)
+{
+    const int target = layer + c->prefetch_depth;
+    if (target < 0 || target >= c->n_layers) return;
+
+    /* Lazy reader start, serialised by the mutex so only one pthread_create wins. */
+    if (!c->pref_started) {
+        pthread_mutex_lock(&c->mu);
+        if (!c->pref_started) {
+            c->pref_started = 1;
+            if (pthread_create(&c->pref_thr, NULL, pref_io_main, c) != 0) {
+                c->pref_started = 0;                    /* stay in the no-thread baseline */
+                pthread_mutex_unlock(&c->mu);
+                return;
+            }
+        }
+        pthread_mutex_unlock(&c->mu);
+    }
+
+    const int32_t *row = c->prev_idx + (size_t)target * (K3_MAX_TOPK + 1);
+    pthread_mutex_lock(&c->mu);
+    K3PrefJob *j = &c->pref_job;
+    int n = row[0] < K3_MAX_TOPK ? row[0] : K3_MAX_TOPK;
+    if (c->prefetch_cap > 0 && c->prefetch_cap < n) n = c->prefetch_cap;
+    if (n > 0) {
+        j->layer = target;
+        j->n = n;
+        memcpy(j->idx, row + 1, (size_t)n * sizeof(int32_t));
+    }
+    if (n > 0 && !c->pref_busy) {   /* busy: mailbox content is already the newest */
+        c->pref_busy = 1;
+        pthread_cond_signal(&c->cv);
+    }
+    pthread_mutex_unlock(&c->mu);
 }
 
 /* Is this expert already resident, i.e. would get() serve it with no disk read? Used by
@@ -331,11 +467,17 @@ static int cache_resident(K3ExpertSrc *self, int layer, int expert, K3ExpertQ *o
     K3Cache *c = (K3Cache *)self;
     if (layer < 0 || layer >= c->n_layers || expert < 0 || expert >= c->n_experts)
         return 0;
+    const int locked = c->pref_started;
+    if (locked) pthread_mutex_lock(&c->mu);
     const int32_t key = layer * c->n_experts + expert;
     const int slot = c->slot_of[key];
-    if (slot < 0) return 0;
-    if (out) fill_q(c, slot, out);
-    return 1;
+    int rc = 0;
+    if (slot >= 0) {
+        if (out) fill_q(c, slot, out);
+        rc = 1;
+    }
+    if (locked) pthread_mutex_unlock(&c->mu);
+    return rc;
 }
 
 static int cache_get(K3ExpertSrc *self, int layer, int expert, K3ExpertQ *out)
@@ -345,6 +487,8 @@ static int cache_get(K3ExpertSrc *self, int layer, int expert, K3ExpertQ *out)
         fprintf(stderr, "k3_cache: out of range L%d expert %d\n", layer, expert);
         return -1;
     }
+    const int locked = c->pref_started;
+    if (locked) pthread_mutex_lock(&c->mu);
     c->hist[layer * c->n_experts + expert]++;
 
     /* Record the request before serving it. The trace must reflect what the MODEL
@@ -360,10 +504,12 @@ static int cache_get(K3ExpertSrc *self, int layer, int expert, K3ExpertQ *out)
         c->trace[c->ntrace++] = expert;
     }
 
-    const int slot = admit(c, layer, expert);
-    if (slot < 0) return -1;
-    fill_q(c, slot, out);
-    return 0;
+    const int slot = admit_unlocked(c, layer, expert);
+    int rc;
+    if (slot < 0) rc = -1;
+    else { fill_q(c, slot, out); rc = 0; }
+    if (locked) pthread_mutex_unlock(&c->mu);
+    return rc;
 }
 
 int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_bytes)
@@ -385,6 +531,7 @@ int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_b
     c->src.getmany = getenv("K3_NOPREFETCH") ? NULL : cache_getmany;
     if (!c->src.getmany)
         fprintf(stderr, "k3_cache: batch prefetch DISABLED by K3_NOPREFETCH\n");
+    c->src.on_route = cache_on_route;
     c->src.ctx = c;
     c->st = st;
     c->n_layers = cfg->n_layers;
@@ -458,20 +605,42 @@ int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_b
     c->ref     = (K3ExpertRef *)calloc((size_t)c->nslot, sizeof(K3ExpertRef));
     c->pad     = (int32_t *)calloc((size_t)c->nslot, sizeof(int32_t));
     c->hist    = (uint32_t *)calloc(nkey, sizeof(uint32_t));
+    c->prev_idx = (int32_t *)malloc((size_t)cfg->n_layers * (K3_MAX_TOPK + 1) * sizeof(int32_t));
+    c->prefetch_cap = 0;   /* reset to per-run CLI value; 0 = no per-layer limit */
     if (!c->slot_of || !c->key_of || !c->used_at || !c->pinned || !c->pin_layer ||
-        !c->ref || !c->pad || !c->hist) {
+        !c->ref || !c->pad || !c->hist || !c->prev_idx) {
         k3_cache_free(c); return -1;
     }
     for (size_t i = 0; i < nkey; i++) c->slot_of[i] = -1;
     for (int i = 0; i < c->nslot; i++) c->key_of[i] = -1;
+    for (int l = 0; l < cfg->n_layers; l++) {
+        int32_t *row = c->prev_idx + (size_t)l * (K3_MAX_TOPK + 1);
+        row[0] = 0;
+        for (int i = 0; i < K3_MAX_TOPK; i++) row[1 + i] = -1;
+    }
+    c->pref_inited = 1;
+    pthread_mutex_init(&c->mu, NULL);
+    pthread_cond_init(&c->cv, NULL);
     return 0;
 }
 
 void k3_cache_free(K3Cache *c)
 {
+    if (c->pref_started) {
+        pthread_mutex_lock(&c->mu);
+        c->pref_stop = 1;
+        pthread_cond_broadcast(&c->cv);
+        pthread_mutex_unlock(&c->mu);
+        pthread_join(c->pref_thr, NULL);
+    }
+    if (c->pref_inited) {
+        pthread_mutex_destroy(&c->mu);
+        pthread_cond_destroy(&c->cv);
+    }
     k3_aligned_free(c->arena); free(c->slot_of); free(c->key_of);
     free(c->used_at); free(c->pinned); free(c->pin_layer);
     free(c->ref); free(c->pad); free(c->hist);
+    free(c->prev_idx);
     free(c->trace);
     memset(c, 0, sizeof *c);
 }
@@ -523,6 +692,7 @@ void k3_cache_reset_stats(K3Cache *c)
      * per-window numerator against a since-startup subtrahend, which drives the result
      * negative and clamps it to zero at every cache size. */
     c->prefetch_reads = 0;
+    c->prefetch_issued = c->prefetch_late = c->prefetch_kept = c->prefetch_cands = 0;
 }
 
 void k3_cache_report(const K3Cache *c, const char *label)
@@ -554,6 +724,14 @@ void k3_cache_report(const K3Cache *c, const char *label)
     printf("  phase2 i/o    : %.2f GB in %.2f s (%.0f MB/s)  [pure parallel disk read]\n",
            (double)c->phase2_bytes / 1e9, c->phase2_seconds,
            c->phase2_seconds > 0 ? (double)c->phase2_bytes / 1e6 / c->phase2_seconds : 0.0);
+    if (c->prefetch_depth > 0 && c->prefetch_cands) {
+        printf("  prefetch      : issued %llu  LATE %llu  survival %.1f%% (%llu/%llu prev-token routed experts still resident)\n",
+               (unsigned long long)c->prefetch_issued,
+               (unsigned long long)c->prefetch_late,
+               100.0 * c->prefetch_kept / c->prefetch_cands,
+               (unsigned long long)c->prefetch_kept,
+               (unsigned long long)c->prefetch_cands);
+    }
 }
 
 int k3_cache_dump_hist(const K3Cache *c, const char *path)

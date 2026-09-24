@@ -1,0 +1,7 @@
+shape probe on /mnt/nvme/experts.l2 (1800 chunks of 16 MiB) cold page cache
+  16thr-rand       1800 chunks     30.20 GB    48.18 s     627 MB/s
+  1thr-sorted      1800 chunks     30.20 GB   152.18 s     198 MB/s
+  seq              1792 chunks     30.06 GB   130.64 s     230 MB/s
+  16thr-rand     ->    627 MB/s   +1.00x vs 16thr-rand
+  1thr-sorted    ->    198 MB/s   +0.32x vs 16thr-rand
+  seq            ->    230 MB/s   +0.37x vs 16thr-rand

@@ -497,6 +497,16 @@ static void usage(FILE *f)
 "                        evicts least recently touched. heat survives a per-token\n"
 "                        working set larger than the arena; lru cannot (measured\n"
 "                        TRUE hit 0.00%% lru vs 3.46%% heat at 8 GB on K3)\n"
+"  --prefetch-depth N    EXPERIMENT: async expert prefetch lookahead, N layers ahead\n"
+"                        of the current one (0 = off, the default). A reader thread\n"
+"                        pulls the PREVIOUS token's routing of layer L+N from the L2\n"
+"                        while the main thread reads layer L, overlapping on the SSD.\n"
+"                        Sets the lookahead depth to sweep; memory cost (N+1)*18*17.55MB.\n"
+"                        Measured: only depth 1 survived (2/4 kept nothing extra and\n"
+"                        added eviction traffic); use --prefetch-cap to limit volume.\n"
+"  --prefetch-cap N      EXPERIMENT: per-layer max routed experts each hint submits to\n"
+"                        the reader (0 = no limit / all 18). Caps the added SSD traffic\n"
+"                        and the arena turnover the reader causes. Sweep 0/4/8/18.\n"
 "\n"
 "generation:\n"
 "  --gen N               tokens to generate (default 8)\n"
@@ -717,6 +727,11 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
              * the exact model keeps true routing. This is what makes a draft step cheap. */
             w->lay[L].moe.cache_only = w->draft_mode;
         }
+        /* Async expert prefetch hint: submit the PREVIOUS token's routing of layer
+         * L+prefetch_depth to the reader mailbox before this layer's phase-2 disk reads,
+         * so the reader overlaps on the same drive. Depth 0: no thread, no-op. */
+        if (cache->prefetch_depth > 0)
+            k3_cache_prefetch_ahead(cache, L);
         if (w->kvc && w->mla_slot[L] >= 0) {
             const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
             const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
@@ -826,6 +841,8 @@ int main(int argc, char **argv)
     int loop_serial = 0;     /* EXPERIMENT: block-serial trunk I/O grouping; 0 = OFF */
     int loop_block = 4;      /* EXPERIMENT: layers per serial block */
     int layer_bundle = 0;    /* unified layer-bundle cache: resident layers keyed by layer */
+    int prefetch_depth = 0;  /* async expert-prefetch lookahead: layers ahead of L (0=off) */
+    int prefetch_cap = 0;    /* per-layer routed experts per hint; 0 = no limit */
     int dry_run = 0;         /* print the plan's per-token byte/time forecast, then exit */
     int stop_id[8]; int n_stop = 0, hit_stop = 0, stopped_at = -1;
     int tf_check = 0;
@@ -858,6 +875,8 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--loop-serial") && i + 1 < argc) loop_serial = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--loop-block") && i + 1 < argc) loop_block = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--layer-bundle")) layer_bundle = 1;
+        else if (!strcmp(argv[i], "--prefetch-depth") && i + 1 < argc) prefetch_depth = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--prefetch-cap") && i + 1 < argc) { prefetch_cap = atoi(argv[++i]); if (prefetch_cap < 0) prefetch_cap = 0; if (prefetch_cap > K3_MAX_TOPK) prefetch_cap = K3_MAX_TOPK; }
         else if (!strcmp(argv[i], "--dry-run")) dry_run = 1;
         else if (!strcmp(argv[i], "--stop-id") && i + 1 < argc) {
             if (n_stop >= (int)(sizeof stop_id / sizeof stop_id[0])) {
@@ -1528,7 +1547,12 @@ int main(int argc, char **argv)
     if (k3_cache_init(&cache, &st, &c, (int64_t)(cache_gb * 1e9)) != 0) return 1;
     cache.phase2_hold = NULL;
     cache.phase2_ctx = (void *)&trunk;
+    cache.prefetch_depth = prefetch_depth;
+    cache.prefetch_cap = prefetch_cap;
     printf("expert L1 eviction policy: %s\n", l1_policy ? "heat" : "lru");
+    if (cache.prefetch_depth > 0)
+        printf("async expert prefetch: lookahead depth %d layer(s)%s\n", cache.prefetch_depth,
+               cache.prefetch_cap > 0 ? ", per-layer cap (top-N routed experts only)" : "");
     if (bundle_pin_n > 0) {
         for (int i = 0; i < bundle_pin_n; i++) k3_cache_pin_layer(&cache, bundle_pin[i], 1);
         printf("expert arena: resident-layer first-touch pins armed for %d layers\n",

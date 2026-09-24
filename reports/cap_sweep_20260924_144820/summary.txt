@@ -1,0 +1,24 @@
+--- cap sweep (b leg, depth fixed 1)
+=== ctrl ===
+8 tokens in 662.9 s, 82.86 s/token average
+                  this token; TRUE resident hit rate 18.61%
+I/O share of wall clock: 137.7%  (trunk 469.4 s + experts 443.2 s of 662.9 s)
+  experts, whole run: 183.72 GB read | 2083 of 11776 requests retained in RAM (17.69%) | 9693 evictions
+  pinned 1/93 layers, ring 2 slots
+TIME_ELAPSED=694.58
+=== cp4 ===
+8 tokens in 715.9 s, 89.49 s/token average
+                  this token; TRUE resident hit rate 12.77%
+  prefetch      : issued 186  LATE 0  survival 25.4% (374/1472 prev-token routed experts still resident)
+I/O share of wall clock: 165.7%  (trunk 550.3 s + experts 636.0 s of 715.9 s)
+  experts, whole run: 198.13 GB read | 1269 of 11776 requests retained in RAM (10.78%) | 10507 evictions
+  pinned 1/93 layers, ring 2 slots
+TIME_ELAPSED=768.35
+=== cp8 ===
+8 tokens in 762.3 s, 95.29 s/token average
+                  this token; TRUE resident hit rate 1.56%
+  prefetch      : issued 453  LATE 0  survival 32.3% (476/1472 prev-token routed experts still resident)
+I/O share of wall clock: 181.6%  (trunk 597.1 s + experts 787.4 s of 762.3 s)
+  experts, whole run: 220.97 GB read | 0 of 11776 requests retained in RAM (0.00%) | 11809 evictions
+  pinned 1/93 layers, ring 2 slots
+TIME_ELAPSED=813.36

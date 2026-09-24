@@ -1,0 +1,228 @@
+Exception in thread Thread-1 (worker):
+Exception in thread Thread-2 (worker):
+Exception in thread Thread-3 (worker):
+Exception in thread Thread-4 (worker):
+Exception in thread Thread-5 (worker):
+Exception in thread Thread-6 (worker):
+Exception in thread Thread-7 (worker):
+Exception in thread Thread-8 (worker):
+Exception in thread Thread-9 (worker):
+Exception in thread Thread-10 (worker):
+Exception in thread Thread-11 (worker):
+Exception in thread Thread-12 (worker):
+Exception in thread Thread-13 (worker):
+Exception in thread Thread-14 (worker):
+Exception in thread Thread-15 (worker):
+Exception in thread Thread-16 (worker):
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+TypeError: 'memoryview' object cannot be interpreted as an integer
+TypeError: 'memoryview' object cannot be interpreted as an integer
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+TypeError: 'memoryview' object cannot be interpreted as an integer
+TypeError: 'memoryview' object cannot be interpreted as an integer
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+Exception in thread Thread-17 (worker):
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+Exception in thread Thread-18 (worker):
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 17, in worker
+    os.pread(fd, mv, offs[i] * CH)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'memoryview' object cannot be interpreted as an integer
+shape probe on /mnt/nvme/experts.l2 (1800 chunks of 16 MiB) cold page cache
+  16thr-rand          0 chunks      0.00 GB     0.46 s       0 MB/s
+  1thr-sorted         0 chunks      0.00 GB     0.42 s       0 MB/s
+  seq                 0 chunks      0.00 GB     0.40 s       0 MB/s
+Traceback (most recent call last):
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 58, in <module>
+    main()
+    ~~~~^^
+  File "/mnt/f/kimi-k3-in-c/reports/probe_readshape.py", line 55, in main
+    print("  %-14s -> %6.0f MB/s   %+.2fx vs 16thr-rand" % (k, r * 1000, r / base))
+                                                                         ~~^~~~~~
+ZeroDivisionError: division by zero

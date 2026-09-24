@@ -1,0 +1,6 @@
+shape probe on /mnt/nvme/experts.l2 + /mnt/nvme/trunk_layers_out (trunk 56.6 GB, expert lane 12.9 GB, both O_DIRECT, buffers warmed)
+warming buffers ... done
+  trunk-lane alone           56.60 GB    62.62 s        1 MB/s
+  expert-lane alone (16thr)   12.91 GB     4.98 s        3 MB/s
+  concurrent trunk+expert    69.52 GB    56.80 s        1 MB/s
+done

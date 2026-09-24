@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/mnt/f/kimi-k3-in-c/reports/probe_cold2.py", line 52, in <module>
+    mvb_e = memoryview(aligned(BS))
+                       ^^^^^^^
+NameError: name 'aligned' is not defined
