@@ -85,7 +85,7 @@ static void human(double b, char *o, size_t n)
 #define K3_BUNDLE_EXP_PER_LAYER 18  /* top-16 routed + 2 shared, conservative */
 /* Estimated fp32 widen area per trunk slot. k3_trunk_open sizes it exactly from the
  * layer's mxfp8 tensors; this only reserves budget, and being low merely shrinks RING. */
-#define K3_BUNDLE_WIDEN_EST 300000000LL
+#define K3_BUNDLE_WIDEN_EST 700000000LL
 
 /* Per-layer expert reservation for a resident layer, bounded by the run horizon: a
  * layer routes K3_BUNDLE_ROUTE distinct experts per token, so an expected run of
@@ -481,15 +481,15 @@ static void usage(FILE *f)
 "  --trunk-ring N        number of ring slots to cycle layers through (default 2);\n"
 "                        larger keeps recently read layers resident across tokens\n"
 "  --cache-gb X          routed-expert cache budget\n"
-"  --l2 PATH             expert-granularity disk cache file on a fast volume (sdd7),\n"
+"  --l2 PATH[:GB]        expert-granularity disk cache file on a fast volume (sdd7),\n"
                         " holding hot experts so the slow checkpoint disk is not re-read;\n"
                         " a routed-expert RAS trace showed ~69 GB of distinct experts\n"
   "  --embed-dir DIR      alternate directory holding the embed+lm_head shard\n"
                         " (model-00094-of-000096). Put the 4.7 GB embed on sdd7 so the\n"
                         " slow checkpoint disk is not read for it, like --trunk/--l2\n"
-"  --l2-gb X             size of that file in GB, rounded down to whole slots; default\n"
-"                        auto (half the free space on the fast volume, up to the 192 GB\n"
-"                        capacity knee measured on the expert trace)\n"
+                        " An optional :GB suffix sizes the file (rounded down to whole\n"
+                        " slots); omitted it is sized auto from the fast volume's free\n"
+                        " space (256-300 GB knee measured on the expert trace)\n"
 "  --l2-policy POL       L2 eviction policy: heat (default, evict lowest cumulative\n"
 "                        count) or lru (evict least recently touched)\n"
 "  --l1-policy POL       L1 (memory) cache eviction policy: heat (default) or lru.\n"
@@ -887,9 +887,22 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--trunk-ring") && i + 1 < argc) trunk_ring = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--incremental")) incremental_default = 1;
         else if (!strcmp(argv[i], "--no-incremental")) incremental_default = 0;
-        else if (!strcmp(argv[i], "--l2") && i + 1 < argc) l2_path = argv[++i];
+        else if (!strcmp(argv[i], "--l2") && i + 1 < argc) {
+            const char *v = argv[++i];
+            const char *colon = strrchr(v, ':');
+            if (colon) {
+                size_t n = (size_t)(colon - v);
+                char *p = malloc(n + 1);
+                if (!p) { fprintf(stderr, "OOM parsing --l2\n"); return 2; }
+                memcpy(p, v, n); p[n] = '\0';
+                l2_path = p;
+                l2_gb = atof(colon + 1);
+                l2_gb_explicit = 1;
+            } else {
+                l2_path = v;
+            }
+        }
         else if (!strcmp(argv[i], "--embed-dir") && i + 1 < argc) embed_dir = argv[++i];
-        else if (!strcmp(argv[i], "--l2-gb") && i + 1 < argc) { l2_gb = atof(argv[++i]); l2_gb_explicit = 1; }
         else if (!strcmp(argv[i], "--l2-policy") && i + 1 < argc) {
             const char *v = argv[++i];
             if (!strcmp(v, "lru")) l2_policy = 1;
@@ -962,9 +975,10 @@ int main(int argc, char **argv)
 
     /* L2 expert cache is ON by default. Without it every decode step re-streams the
      * routed experts from the slow checkpoint volume (measured ~87% of wall time on the
-     * reference machine). Explicit --l2 / --l2-gb / --l2-policy still mean what they
-     * meant; the engine just opens the cache on the fast volume and, unless --l2-gb
-     * says otherwise, sizes it from the free space there: 256 GB floor to keep the
+     * reference machine). Explicit --l2 / --l2-policy still mean what they
+     * meant; the engine just opens the cache on the fast volume and, unless a
+     * :GB suffix on --l2 says otherwise, sizes it from the free space there:
+     * 256 GB floor to keep the
      * whole 92-layer hot set resident, 300 GB cap as the physical budget on this
      * box leaves room for the layer files, embedding and future fills. */
     if (!l2_path) {

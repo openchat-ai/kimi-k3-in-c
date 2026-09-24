@@ -1,0 +1,26 @@
+layer-bundle plan: resident 10/93 layers -> trunk 13.0 GB (incl ring) / expert arena 6.7 GB [L2-alive expert preload] (horizon 2 passes, alive-bounded)
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+k3_trunk: pin set needs 14.73 GB, trunk budget is 13.04 GB
+auto budget: 28.7 GB available, 9.0 GB reserved -> trunk 6.0 GB / expert cache 13.7 GB
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+  KV cache : 9.48 MB for 4 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 1 tokens, generating 2
+
+indexed 497220 tensors from 96 shards in 6.03 s
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 13.04 GB
+  embed + lm_head  4.70 GB
+  expert cache     6.67 GB
+  recurrent state  626.25 MB
+  buffers          4.01 MB
+  KV cache         9.46 MB
+  TOTAL            25.05 GB
+  available        28.60 GB
+
+k3_trunk: trunk.bin absent - using per-layer slices (layer_%03d.bin)
+Command exited with non-zero status 1
+TIME_ELAPSED=7.06
