@@ -85,7 +85,7 @@ bw() {
         END{
             if (w+0>0 && b+0>0){
                 e=b/w; r=(b>w*1.22)?b/1.22-w:0;
-                printf "    effective %.2f GB/s over %.1f s/tok (moving %.1f GB/token; drive peak 1.22) -> still-absorbable ~%.1f s/tok\n", e, w, b, r
+                printf "    effective %.2f GB/s over %.1f s/tok (NET-of-L1 %.1f GB/token; drive peak 1.22) -> still-absorbable ~%.1f s/tok\n", e, w, b, r
             }
         }
     ' "$log" 2>/dev/null || true
