@@ -51,7 +51,18 @@ echo "(note: --spec drafts on n-gram repetition; short/non-repetitive text shows
 t3=$(run "c-bundle-spec" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle --spec "$SPEC_N")
 echo "$t3"
 
-echo "== verdict =="
+echo "== 6b/6 compute-floor probe (min + low-decile layer walls = all-memory compute) =="
+compute_floor() {
+    local log="$1"
+    [ -f "$log" ] || return
+    awk '/DBG getmany L/{ for(i=1;i<=NF;i++) if($i ~ /^wall=/) {v=substr($i,6); sub(/s/,"",v); if(v>0.001) print v} }' "$log" \
+      | sort -n | head -20 \
+      | awk '{n++; s+=$1; if(n==1) m=$1} END{if(n) printf "    min %.3f s/layer | lowest-20 avg %.3f s/layer -> compute floor ~%.1f s/token\n", m, s/n, s/n*92}'
+}
+echo "$(compute_floor "$LOGDIR/a-baseline.log")"
+echo "$(compute_floor "$LOGDIR/b-bundle.log")"
+
+echo "== 7/7 verdict =="
 echo "$t1"; echo "$t2"; echo "$t3"
 awk -v b="$t2" -v c="$t3" 'BEGIN{
     if (c < 34)  print "PASS: (c) under 34 s/tok (spec active), record and stop";
