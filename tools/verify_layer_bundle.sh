@@ -42,14 +42,26 @@ echo "== 4/6 (a) baseline: no --layer-bundle, auto budget =="
 t1=$(run "a-baseline" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN")
 echo "$t1"
 
-echo "== 5/6 (b) layer-bundle, auto budget =="
-t2=$(run "b-bundle" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle)
+K3_LOOP_BLOCK="${K3_LOOP_BLOCK:-4}"
+echo "== 5/6 (b) layer-bundle, auto budget, block-serial prefetch blk=$K3_LOOP_BLOCK =="
+echo "(block-serial overlaps a whole block of trunk reads behind compute; a/b earlier ran with it OFF)"
+t2=$(run "b-bundle" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle \
+      --loop-serial 1 --loop-block "$K3_LOOP_BLOCK")
 echo "$t2"
 
-echo "== 6/6 (c) layer-bundle + spec $SPEC_N =="
+echo "== 6/6 (c) layer-bundle + spec $SPEC_N, block-serial prefetch blk=$K3_LOOP_BLOCK =="
 echo "(note: --spec drafts on n-gram repetition; short/non-repetitive text shows little gain)"
-t3=$(run "c-bundle-spec" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle --spec "$SPEC_N")
+t3=$(run "c-bundle-spec" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle \
+      --spec "$SPEC_N" --loop-serial 1 --loop-block "$K3_LOOP_BLOCK")
 echo "$t3"
+
+if [ "$K3_VERIFY_BLOCK_SWEEP" = "1" ]; then
+    K3_BLOCK_DEEP="${K3_BLOCK_DEEP:-8}"
+    echo "== 6d/6 block-depth sweep: bundle with blk=$K3_BLOCK_DEEP (deeper read-ahead fills drive idle dips) =="
+    t2d=$(run "d-bundle-blk$K3_BLOCK_DEEP" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle \
+          --loop-serial 1 --loop-block "$K3_BLOCK_DEEP")
+    echo "$t2d"
+fi
 
 echo "== 6b/6 compute-floor probe (min + low-decile layer walls = all-memory compute) =="
 compute_floor() {
@@ -61,6 +73,24 @@ compute_floor() {
 }
 echo "$(compute_floor "$LOGDIR/a-baseline.log")"
 echo "$(compute_floor "$LOGDIR/b-bundle.log")"
+
+# Effective whole-run bandwidth vs the 1.22 GB/s dual-stream drive ceiling: the gap is
+# the drive-idle window a deeper block read-ahead can still absorb (the user's "消化等待").
+bw() {
+    local log="$1"
+    [ -f "$log" ] || return
+    awk '
+        / s\/token average/ { for(i=1;i<=NF;i++) if($i=="average" && $(i-1)=="s/token") w=$1 }
+        /GB in/ { for(i=1;i<=NF;i++) if ($i ~ /^[0-9.]+$/ && $(i+1)=="GB" && $(i+2)=="in" && $(i+3) ~ /^[0-9.]+$/) b+=$i }
+        END{
+            if (w+0>0 && b+0>0){
+                e=b/w; r=(b>w*1.22)?b/1.22-w:0;
+                printf "    effective %.2f GB/s over %.1f s/tok (moving %.1f GB/token; drive peak 1.22) -> still-absorbable ~%.1f s/tok\n", e, w, b, r
+            }
+        }
+    ' "$log" 2>/dev/null || true
+}
+echo "$(bw "$LOGDIR/b-bundle.log")"
 
 echo "== 7/7 verdict =="
 echo "$t1"; echo "$t2"; echo "$t3"
