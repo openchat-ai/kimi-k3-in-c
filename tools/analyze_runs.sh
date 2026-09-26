@@ -2,8 +2,11 @@
 # Recompute the full per-run metrics from SAVED real-machine logs: no model re-run.
 # Derives: auto budget arena, TRUE resident hit rate, s/token, compute floor
 # (lowest-decile per-layer walls = all-memory compute), effective bandwidth and
-# the still-absorbable wait (vs the 1.22 GB/s dual-stream ceiling). Also folds in
-# the block-serial experiment TSVs if present. Usage:
+# the still-absorbable wait vs the REAL device ceilings from reports/probe_coldc*:
+# trunk-alone 1.509, expert-alone 3.264, concurrent 1.257, serial-then-expert 1.675
+# GB/s (probe 2026-09-24). The kio group time-slice (61cf381) serializes the two
+# streams exactly because interleaving them nets only 1.257. Non-kio builds still
+# interleave, so the old dual-stream 1.22 stays as the worst-case fallback figure. Usage:
 #   tools/analyze_runs.sh [file-or-dir...]      (defaults: reports dir)
 set -u
 
@@ -23,8 +26,9 @@ bw() {
     # Per-token bytes, dedup-correct: per-step lines (seconds 30-120) are per-token
     # snapshots of one step -> keep the LAST of each kind (expert "read from disk",
     # trunk "final trunk read"). Lines with seconds > 120 are run-cumulative (trunk
-    # totals across N tokens) -> divide by token count. Absorbable wait vs the
-    # 1.22 GB/s dual-stream ceiling.
+    # totals across N tokens) -> divide by token count. Absorbable wait vs the real
+    # device ceilings (1.675 serial-then-expert / 1.257 concurrent from probe_coldc;
+    # 1.22 legacy dual-stream fallback).
     awk '
         / s\/token average/ { for(i=1;i<=NF;i++) if($i=="average" && $(i-1)=="s/token") w=$(i-2) }
         / tokens in /       { if (match($0, /[0-9]+ tokens in/) > 0) n=substr($0, RSTART, RLENGTH)+0 }
@@ -35,8 +39,12 @@ bw() {
             if (t>=30 && t<=120) { if ($0 ~ /trunk/) trunk_l=$i; else exp_l=$i }
             else if ($i+0 > b2+0) b2=$i } }
         END{ if (w+0>0 && (exp_l+0 || trunk_l+0 || b2+0)) {
-            b = exp_l + trunk_l + (n>0 ? b2/n : b2); r = (w > b/1.22) ? w - b/1.22 : 0;
-            printf "one-token moved ~%.1f GB | eff BW %.2f GB/s (peak 1.22) -> absorbable %.0f s/tok", b, b/w, r } }
+            b = exp_l + trunk_l + (n>0 ? b2/n : b2);
+            rs = (w > b/1.675) ? w - b/1.675 : 0;  # serial-then-expert ceiling (group time-slice)
+            rm = (w > b/1.257) ? w - b/1.257 : 0;  # concurrent-mix floor (pre-61cf381)
+            rl = (w > b/1.22)  ? w - b/1.22  : 0;  # legacy dual-stream fallback
+            printf "one-token moved ~%.1f GB | eff BW %.2f GB/s (serial ceil 1.675, kio) -> absorbable %.0f s/tok; interleaved %.0f s/tok",
+                   b, b/w, rs, rm } }
     ' "$1"
 }
 
