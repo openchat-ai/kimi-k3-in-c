@@ -289,7 +289,8 @@ pc-run pc-spec: $(CLI_BIN)
 	@bash tools/rep_estimate.awk "$(IDS)"
 	@bash tools/verify_spec_amp.sh
 
-## pc-verify: layer-bundle 3-arm baseline (a baseline / b block-serial / c spec) + analyzer
+## pc-verify: layer-bundle 3-arm baseline (a baseline / b block-serial / c spec) + analyzer.
+## Set LAYERS=50 for the deterministic truncation lever (93 -> 50 layers, ~27-30 s/tok).
 pc-verify: $(CLI_BIN)
 	@test -n "$(MODEL)" || { echo "set MODEL=/path/to/model (config.json etc.)"; exit 2; }
 	@test -n "$(TRUNK)" || { echo "set TRUNK=/path/to/trunk (packed trunk dir)"; exit 2; }

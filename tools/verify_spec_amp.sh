@@ -15,6 +15,8 @@ RUN_GEN="${RUN_GEN:-16}"
 SPECS="${SPECS:-4 8 16}"
 LOGDIR="$(mktemp -d)"
 K3_LOOP_BLOCK="${K3_LOOP_BLOCK:-4}"
+LAYERS="${LAYERS:-}"                 # e.g. LAYERS=50: deterministic sub-34 lever alongside spec
+lw() { [ -n "$LAYERS" ] && printf -- "--layers %s " "$LAYERS"; }
 
 echo "== 1/5 pull branch =="
 git fetch origin
@@ -41,7 +43,7 @@ run() {
 }
 best=0
 for K in $SPECS; do
-    t=$(run "spec$K" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" \
+    t=$(run "spec$K" k3 "$MODEL" $(lw) --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" \
          --spec "$K" --incremental --layer-bundle \
          --loop-serial 1 --loop-block "$K3_LOOP_BLOCK")
     echo "$t"

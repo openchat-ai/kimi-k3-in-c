@@ -12,6 +12,8 @@ set -uo pipefail
 RUN_GEN="${RUN_GEN:-20}"
 SPEC_N="${SPEC_N:-4}"
 LOGDIR="$(mktemp -d)"
+LAYERS="${LAYERS:-}"                 # e.g. LAYERS=50: the deterministic sub-34 lever
+lw() { [ -n "$LAYERS" ] && printf -- "--layers %s " "$LAYERS"; }
 
 echo "== 1/6 pull branch =="
 git fetch origin
@@ -23,7 +25,7 @@ echo "== 2/6 build =="
 make all ARCH= CFLAGS="-O3 -std=gnu99 -Wall -Wextra -Wpointer-arith -Wshadow -Wvla -Wno-unused-parameter -Werror -fopenmp -pthread -ffp-contract=off" || { echo "BUILD FAILED"; exit 1; }
 
 echo "== 3/6 dry-run calibration (AUTO budget; watch the 'auto budget' + 'C =' lines) =="
-k3 "$MODEL" --trunk "$TRUNK" --layer-bundle --dry-run --ids "$IDS" --gen "$RUN_GEN" --spec "$SPEC_N" \
+k3 "$MODEL" $(lw) --trunk "$TRUNK" --layer-bundle --dry-run --ids "$IDS" --gen "$RUN_GEN" --spec "$SPEC_N" \
   | grep -E "auto budget|layer-bundle plan|C =|C_spec|resident "
 
 run() {
@@ -39,19 +41,19 @@ run() {
 }
 
 echo "== 4/6 (a) baseline: no --layer-bundle, auto budget =="
-t1=$(run "a-baseline" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN")
+t1=$(run "a-baseline" k3 "$MODEL" $(lw) --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN")
 echo "$t1"
 
 K3_LOOP_BLOCK="${K3_LOOP_BLOCK:-4}"
 echo "== 5/6 (b) layer-bundle, auto budget, block-serial prefetch blk=$K3_LOOP_BLOCK =="
 echo "(block-serial overlaps a whole block of trunk reads behind compute; a/b earlier ran with it OFF)"
-t2=$(run "b-bundle" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle \
+t2=$(run "b-bundle" k3 "$MODEL" $(lw) --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle \
       --loop-serial 1 --loop-block "$K3_LOOP_BLOCK")
 echo "$t2"
 
 echo "== 6/6 (c) layer-bundle + spec $SPEC_N, block-serial prefetch blk=$K3_LOOP_BLOCK =="
 echo "(note: --spec drafts on n-gram repetition; short/non-repetitive text shows little gain)"
-t3=$(run "c-bundle-spec" k3 "$MODEL" --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle \
+t3=$(run "c-bundle-spec" k3 "$MODEL" $(lw) --trunk "$TRUNK" --ids "$IDS" --gen "$RUN_GEN" --layer-bundle \
       --spec "$SPEC_N" --loop-serial 1 --loop-block "$K3_LOOP_BLOCK")
 echo "$t3"
 
