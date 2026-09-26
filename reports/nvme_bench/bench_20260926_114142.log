@@ -1,0 +1,49 @@
+== nvme bench v2 start Sat Sep 26 11:41:42 CST 2026 ==
+6.6.87.2-microsoft-standard-WSL2
+== mounts ==
+TARGET    SOURCE    FSTYPE OPTIONS
+/mnt/nvme /dev/sdd7 ext4   rw,noatime
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdd7       384G  169G  196G  47% /mnt/nvme
+NAME ROTA   SIZE MODEL            PHY-SEC TRAN
+sda     1 388.6M Virtual Disk         512 
+sdb     1   186M Virtual Disk         512 
+sdc     1     8G Virtual Disk        4096 
+sdd     1 476.9G SINKER SEV512THK    4096 
+sde     1   1.7T Virtual Disk        4096 
+== compile ==
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘seqmt_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:146:5: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  146 |     posix_memalign((void **)&buf, 4096, CHUNK);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘slot_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:91:5: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   91 |     posix_memalign((void **)&buf, 4096, g_slotlen);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘mix_slot_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:282:5: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  282 |     posix_memalign((void **)&buf, 4096, g_slotlen);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘mix_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:250:9: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  250 |         posix_memalign((void **)&buf, 4096, CHUNK);
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+== S2MT: expert seq O_DIRECT QD8 (16GiB, 8x2GiB ranges) ==
+RESULT seqmt direct=1 nthr=8 bytes=17179869184 dt=8.39s mbps=1952.0
+== S3D: expert rndslot O_DIRECT 16thr 2048x17.5MB ==
+RESULT rndslot direct=1 slots=2048 nthr=16 bytes=35936796672 dt=9.10s mbps=3764.5
+== S5D: MIX seq1(O_DIRECT 12GiB) + rnd16(O_DIRECT 1536) ==
+RESULT mix seq_bytes=12884901888 rnd_bytes=26952597504 dt=24.92s seq_mbps=493.2 rnd_mbps=1031.6 agg_mbps=1524.8
+== S4: expert rnd4k O_DIRECT 16thr 262144 reads ==
+RESULT rnd4k reads=262144 nthr=16 bytes=1073741824 dt=4.03s iops=65017 mbps=254.0
+== S3B: expert rndslot BUFFERED 16thr 2048x17.5MB (page-cache thrash) ==
+               total        used        free      shared  buff/cache   available
+Mem:           28064         652       27548           3         118       27411
+Swap:           8192           0        8192
+RESULT rndslot direct=0 slots=2048 nthr=16 bytes=35936796672 dt=58.20s mbps=588.9
+== S5B: MIX seq1(BUFFERED 12GiB) + rnd16(BUFFERED 1536) ==
+               total        used        free      shared  buff/cache   available
+Mem:           28064         650       27551           3         116       27413
+Swap:           8192           0        8192
+RESULT mix seq_bytes=12884901888 rnd_bytes=26952597504 dt=182.82s seq_mbps=67.2 rnd_mbps=140.6 agg_mbps=207.8
+== done Sat Sep 26 11:46:51 CST 2026 ==

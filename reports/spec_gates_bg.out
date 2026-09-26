@@ -1,0 +1,9 @@
+[bg] LOGDIR=/mnt/f/kimi-k3-in-c/reports/spec_gates_20260926_095734
+[bg] gates.ids tokens=1024 (truncated from full)
+[bg] spec K=4 run start 09:57:41
+[bg] spec K=4 EXIT=137
+[bg] spec K=8 run start 10:05:53
+[bg] spec K=8 EXIT=137
+--- spec-amp gates probe (real prompt, cold cache each run)
+[K=4] TIME_ELAPSED=487.80
+[bg] end 10:06:05

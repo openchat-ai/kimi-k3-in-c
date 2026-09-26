@@ -1,0 +1,15 @@
+--- v1_nokio (mode=nokio extra: )
+auto budget: 28.8 GB available, 9.0 GB reserved -> trunk 6.0 GB / expert cache 13.8 GB
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 6.00 GB
+  expert cache     13.78 GB
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 2 x 1.30 GB
+expert cache: 784 slots x 17.56 MB = 13.76 GB (0.95% of the 1.45 TB expert pool)
+8 tokens in 816.3 s, 102.04 s/token average
+  phase2 i/o    : 21.03 GB in 18.97 s (1109 MB/s)  [pure parallel disk read]
+I/O share of wall clock: 91.5%  (trunk 596.1 s + experts 151.1 s of 816.3 s)
+  experts, whole run: 183.61 GB read | 2096 of 11776 requests retained in RAM (17.80%) | 9680 evictions
+  pinned 1/93 layers, ring 2 slots
+  read 436.45 GB in 470.58 s (927 MB/s pread) + 125.49 s parked on the expert gate
+TIME_ELAPSED=943.09
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":22879010816,"wall_seconds":816.3383,"seconds_per_token":102.0423,"expert_bytes_read":183614570496,"trunk_bytes_read":436450107392,"stopped_at":-1,"generated_text":null}

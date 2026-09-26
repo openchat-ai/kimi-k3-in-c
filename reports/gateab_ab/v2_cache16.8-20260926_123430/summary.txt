@@ -1,0 +1,5 @@
+--- v2_cache16.8 (extra: --trunk-gb 5.5 --cache-gb 16.8)
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 5.50 GB
+  expert cache     16.80 GB
+TIME_ELAPSED=5.69

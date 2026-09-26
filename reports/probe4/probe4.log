@@ -1,0 +1,46 @@
+L2 auto: 209 GB free on /mnt/nvme -> L2 at 256 GB
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+layer-bundle plan: resident 1/93 layers -> trunk 7.4 GB (incl ring) / expert arena 5.6 GB [L2-alive expert preload] (horizon 8 passes, alive-bounded)
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+  KV cache : 2.45 GB for 1033 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 1024 tokens, generating 8
+
+indexed 497220 tensors from 96 shards in 4.09 s
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 7.43 GB
+  embed + lm_head  4.70 GB
+  expert cache     5.57 GB
+  recurrent state  626.25 MB
+  buffers          691.42 MB
+  KV cache         2.44 GB
+  TOTAL            21.46 GB
+  available        28.62 GB
+
+k3_trunk: trunk.bin absent - using per-layer slices (layer_%03d.bin)
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (1.30 GB), ring 2 x 3.00 GB
+              reads use buffered I/O
+              ring holds 2 slots: layers repeat over ~2 tokens, so recent ones are reused instead of re-read
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+embedding, final norm and lm_head: 4.70 GB in 11.6 s
+
+expert L1 eviction policy: heat
+expert arena: resident-layer first-touch pins armed for 1 layers
+expert L2 cache enabled: 14589 slots x 17.55 MB = 256.00 GB on /mnt/nvme/experts.l2
+expert L2 eviction policy: heat
+peak RSS after loading weights: 4.79 GB  (the plan above is a forecast, this is measured)
+expert cache: 317 slots x 17.56 MB = 5.57 GB (0.38% of the 1.45 TB expert pool)
+
+recurrent state for 93 layers: 626.25 MB
+
+incremental decode: KV cache 2.44 GB for 24 MLA layers at 1033 positions
+
+speculative decode: up to 4 drafted tokens per sweep, n-gram lookup, verified batched
+
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+DBG fwd prefill g=0 T=1024 base=0 nT0=1024 cached=0
+DBG fwd_inner loop_serial=1 T=1024

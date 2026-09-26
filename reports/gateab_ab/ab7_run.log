@@ -1,0 +1,21 @@
+[ab7] start 16:26:49 load=1.11 0.25 0.08 nproc=16
+[ab7] /mnt/f/kimi-k3-in-c/reports/gateab_ab/v4pf-20260926_162650 mode=all-native + prefetch-depth 1
+EXIT=0 load=8.89 9.47 6.77
+--- v4pf (all-native + prefetch-depth 1)
+  trunk (STREAMED) 6.00 GB
+  expert cache     13.67 GB
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 2 x 1.30 GB
+async expert prefetch: lookahead depth 1 layer(s)
+expert cache: 778 slots x 17.56 MB = 13.66 GB (0.94% of the 1.45 TB expert pool)
+8 tokens in 1029.5 s, 128.69 s/token average
+  of those hits : 1898 came from the batch prefetch, i.e. read from disk
+  phase2 i/o    : 33.32 GB in 97.40 s (342 MB/s)  [pure parallel disk read]
+  prefetch      : issued 1047  LATE 0  survival 41.3% (608/1472 prev-token routed experts still resident)
+I/O share of wall clock: 129.5%  (trunk 565.9 s + experts 767.7 s of 1029.5 s)
+  experts, whole run: 281.41 GB read | 0 of 11776 requests retained in RAM (0.00%) | 15259 evictions
+     experts the prefetcher had just read from disk, so it is not a
+  pinned 1/93 layers, ring 2 slots
+  read 436.45 GB in 565.90 s (771 MB/s pread)
+TIME_ELAPSED=1070.86
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":22773833728,"wall_seconds":1029.4992,"seconds_per_token":128.6874,"expert_bytes_read":281405472768,"trunk_bytes_read":436450107392,"stopped_at":-1,"generated_text":null}
+[ab7] end 16:44:49

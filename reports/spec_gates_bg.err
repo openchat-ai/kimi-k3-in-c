@@ -1,0 +1,3 @@
+wsl: Failed to start the systemd user session for 'root'. See journalctl for more details.
+[TOK] 163584 ranks (max id 163583) + 16 added tokens | kimi=1 rankbpe=1
+/mnt/f/kimi-k3-in-c/reports/spec_amp_gates.sh: line 35:   795 Killed                     /usr/bin/time -f "TIME_ELAPSED=%e" ./bin/k3 /model --trunk /mnt/nvme/trunk_layers_out --embed-dir /mnt/nvme/embed --ids "$(cat "$LOG/gates.ids")" --gen 8 --spec "$K" --incremental --layer-bundle --trunk-gb 9 --cache-gb 4 --loop-serial 1 --loop-block 4 --out "$LOG/spec$K.json" > "$LOG/spec$K.log" 2>&1

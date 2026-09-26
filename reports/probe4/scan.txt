@@ -1,0 +1,6 @@
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (1.30 GB), ring 2 x 3.00 GB
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+embedding, final norm and lm_head: 4.70 GB in 11.6 s
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+DBG fwd prefill g=0 T=1024 base=0 nT0=1024 cached=0
+DBG fwd_inner loop_serial=1 T=1024

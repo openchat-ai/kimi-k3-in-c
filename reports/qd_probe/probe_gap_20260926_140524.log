@@ -1,0 +1,39 @@
+waiting for ab2 to complete ...
+ab2 done (stable), settling 10s
+== engwave probe start Sat Sep 26 14:05:46 CST 2026 ==
+6.6.87.2-microsoft-standard-WSL2
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘seqmt_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:146:5: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  146 |     posix_memalign((void **)&buf, 4096, CHUNK);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘slot_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:91:5: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   91 |     posix_memalign((void **)&buf, 4096, g_slotlen);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘mix_slot_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:282:5: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  282 |     posix_memalign((void **)&buf, 4096, g_slotlen);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c: In function ‘mix_worker’:
+/mnt/f/kimi-k3-in-c/reports/nvme_bench/bench.c:250:9: warning: ignoring return value of ‘posix_memalign’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  250 |         posix_memalign((void **)&buf, 4096, CHUNK);
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+== engwave gap=0ms nthr=16 spw=16 nwaves=93 ==
+RESULT engwave nthr=16 spw=16 gap_ms=0 nwaves=93 bytes=26110328832 dt=12.50s mbps_wall=1992.7 mbps_read=1992.7
+== engwave gap=25ms nthr=16 spw=16 nwaves=93 ==
+RESULT engwave nthr=16 spw=16 gap_ms=25 nwaves=93 bytes=26110328832 dt=11.29s mbps_wall=2204.6 mbps_read=2785.0
+== engwave gap=50ms nthr=16 spw=16 nwaves=93 ==
+RESULT engwave nthr=16 spw=16 gap_ms=50 nwaves=93 bytes=26110328832 dt=13.54s mbps_wall=1839.3 mbps_read=2799.1
+== engwave gap=100ms nthr=16 spw=16 nwaves=93 ==
+RESULT engwave nthr=16 spw=16 gap_ms=100 nwaves=93 bytes=26110328832 dt=17.89s mbps_wall=1392.1 mbps_read=2876.2
+== engwave gap=250ms nthr=16 spw=16 nwaves=93 ==
+RESULT engwave nthr=16 spw=16 gap_ms=250 nwaves=93 bytes=26110328832 dt=31.63s mbps_wall=787.2 mbps_read=2901.7
+== engwave gap=500ms nthr=16 spw=16 nwaves=93 ==
+RESULT engwave nthr=16 spw=16 gap_ms=500 nwaves=93 bytes=26110328832 dt=54.67s mbps_wall=455.5 mbps_read=2895.8
+== engwave gap=100ms nthr=16 spw=8 nwaves=93 ==
+RESULT engwave nthr=16 spw=8 gap_ms=100 nwaves=93 bytes=13055164416 dt=13.92s mbps_wall=894.6 mbps_read=2674.1
+== engwave gap=100ms nthr=16 spw=32 nwaves=93 ==
+RESULT engwave nthr=16 spw=32 gap_ms=100 nwaves=93 bytes=52220657664 dt=26.01s mbps_wall=1914.8 mbps_read=2972.9
+== engwave gap=100ms nthr=16 spw=64 nwaves=93 ==
+RESULT engwave nthr=16 spw=64 gap_ms=100 nwaves=93 bytes=104441315328 dt=44.41s mbps_wall=2243.0 mbps_read=2833.7
+== done Sat Sep 26 14:09:39 CST 2026 ==

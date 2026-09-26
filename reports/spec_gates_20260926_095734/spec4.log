@@ -1,0 +1,5 @@
+L2 auto: 209 GB free on /mnt/nvme -> L2 at 256 GB
+layer-bundle plan: resident 1/93 layers -> trunk 7.4 GB (incl ring) / expert arena 5.6 GB [L2-alive expert preload] (horizon 8 passes, alive-bounded)
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+Command terminated by signal 9
+TIME_ELAPSED=487.80

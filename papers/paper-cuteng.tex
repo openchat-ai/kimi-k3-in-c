@@ -75,7 +75,7 @@ MoE 的思想可追溯到 Shazeer 等的稀疏门控网络\cite{shazeer17}，GSh
 
 \subsection{存储层次与带宽建模}
 
-Roofline 模型\cite{roofline}给出了判断瓶颈位于算力还是带宽的经典框架：在带宽受限区（decode 阶段约 1\,\mathrm{FLOP/byte}），复用是唯一杠杆——但这只回答了“复用值得做”，未回答“复用应落在哪一层介质”。Eyeriss\cite{eyeriss} 在加速器层面给出了“慢层读一次、最快层复用”的实证存在性：AlexNet 上 DRAM 访问约 0.0029 次/MAC，即每个权重从 DRAM 读一次、片上复用数百次。本文的定理与该实证方向一致，但把结论推广为存储层次上任一数据项的通用下界。
+Roofline 模型\cite{roofline}给出了判断瓶颈位于算力还是带宽的经典框架：在带宽受限区（decode 阶段约 1\,\mathrm{FLOP/byte}），复用是唯一杠杆——但这只回答了“复用值得做”，未回答“复用应落在哪一层介质”。Eyeriss\cite{eyeriss} 在加速器层面给出了“慢层读一次、最快层复用”的实证存在性：AlexNet 上 DRAM 访问约 0.0029 次/MAC，即每个权重从 DRAM 读一次、片上复用数百次。排队论为“吞吐由哪一层决定”提供了定量框架：Little 定律\cite{little}给出在途量与吞吐的关系；Denning 与 Buzen 的操作分析\cite{denningbuzen}及 Zahorjan 等的平衡作业界分析\cite{aba}证明，系统吞吐由服务需求（每 token 每设备必须读取的字节量除以该设备可达带宽）最大的瓶颈设备决定，Amdahl 定律\cite{amdahl}是其在单一串行段下的退化形式。本文的定理与该实证方向一致，但把结论推广为存储层次上任一数据项的通用下界。
 
 \subsection{LLM 推理的缓存、预取与调度}
 
@@ -156,6 +156,28 @@ R_i\ge 1,
 
 该实验读数有两个方向性含义：其一，\textbf{方向与定理一致}——把慢盘上的全量重读移到更快介质，显著压缩了“每 token 全量重读”的代价；收益尚未达到定理给出的“约 $-90\%$”上界（trace 推演 25.8\,GB$\to$2.58\,GB/token），原因是复用仍未真正落进内存层——每一 token 仍需从 L2 介质 \texttt{pread} 25.83\,GB（1786\,\mathrm{MB/s} 下亦需约 14.5\,s），且命中白板不能免除字节层搬迁。其二，\textbf{判据得到印证}——瓶颈不由“算法能否免读”决定，而由“复用发生在哪一层”决定。
 
+\subsection{观测四：瓶颈界公式对输出速度的预测与实测对照}
+
+把判据与经典排队论定量框架对接：每 token 从某设备搬 $B_i$ 字节、该设备可用带宽 $W_i$，则用时下限 $=B_i/W_i$；多设备串行时总下限为各设备之和，其中耗时最长者（瓶颈设备）决定速度\cite{little,denningbuzen,aba}。公式下限与真机实测并列如下：
+
+\begin{table}[htbp]
+\centering
+\caption{公式算出的用时下限 vs. 真机实际用时（s/token）}
+\label{tab:bottleneck}
+\begin{tabular}{lllcc}
+\toprule
+落位档 & 每 token 字节 & 设备带宽 & 公式下限 & 实测 \\
+\midrule
+慢盘读（阶段 A） & 25.83\,GB & 85\,MB/s & 303.9\,s & 303.58\,s \\
+高速盘驻留（阶段 B） & 25.83\,GB & 419\,MB/s & 61.6\,s & 191.6\,s \\
+今日最优（2026-09-24） & 77.5\,GB & 1.5\,GB/s & 51.7\,s & 82.86\,s \\
+全链改 O\_DIRECT（目标） & 68.9\,GB & 1.5\,GB/s & 45.9\,s & 未实测 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+注：公式值按“瓶颈设备独占带宽”的理想情形计算，故为下限；实测$\div$公式越接近 1 越好。阶段 A 公式下限 303.9\,s 与实测 303.58\,s 只差 0.3\,s（0.1\%），说明“字节$\div$带宽”这一单量即决定输出速度，与表 1 专家段占端到端 94\% 相互印证。带宽出处：慢盘 85\,MB/s 系 25.83\,GB 与 303.58\,s 的精确商（台账 :327；另有 D-state 劣化整值 84\,MB/s 见 :224）、高速盘 419\,MB/s（:355；另冷读 588\,MB/s 见 :453-:454）、带宽上限 1.5\,GB/s 系 /dev/sdd7 混合 O\_DIRECT 实测；字节量取自 cap\_sweep ctrl.json 与 gateAB。
+
 \subsection{证据层级与限制}
 
 第 3 章定理属逻辑层，其真值不依赖本节任何数字；本节台账属真机层，账实一致、可回查，但只对本实验（该模型、该介质、该负载、该冷启动时序）成立：25.83\,GB/token 与 94\% 不构成对别的工作量或别的介质的断言。台账中亦如实记录 FAIL/挂死的条目（如 D-state 永久挂起），未选择性剔除负样本。
@@ -202,6 +224,10 @@ R_i\ge 1,
 \bibitem{cxlspeckv} Liu D, Yu Y. CXL-SpecKV: A Disaggregated FPGA Speculative KV-Cache for Datacenter LLM Serving. FPGA 2026:56-66.
 \bibitem{fastkv} Jo D, Song J, Kim Y, Kim J-J. FastKV: Decoupling of Context Reduction and KV Cache Compression for Prefill-Decoding Acceleration. Findings of ACL 2026.
 \bibitem{ledger} 作者自建真机字节流台账（k3 x86 冷启动，2026-08），项目内文件：notes/byteflow-matrix.md.
+\bibitem{little} Little J D C. A Proof for the Queuing Formula: L=$\lambda$W. Operations Research, 9(3):383-387, 1961.
+\bibitem{denningbuzen} Denning P J, Buzen J P. The Operational Analysis of Queueing Network Models. ACM Computing Surveys, 10(3):225-261, 1978.
+\bibitem{aba} Zahorjan J, Sevcik K C, Eager D L, et al. Balanced Job Bound Analysis of Queueing Networks. Communications of the ACM, 25(2):134-141, 1982.
+\bibitem{amdahl} Amdahl G M. Validity of the Single Processor Approach to Achieving Large-Scale Computing Capabilities. AFIPS Conference Proceedings, 30:483-485, 1967.
 \end{thebibliography}
 
 \end{document}

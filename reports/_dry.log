@@ -1,0 +1,20 @@
+L2 auto: 209 GB free on /mnt/nvme -> L2 at 256 GB
+layer-bundle plan: resident 1/93 layers -> trunk 7.4 GB (incl ring) / expert arena 5.6 GB [L2-alive expert preload] (horizon 8 passes, alive-bounded)
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+
+dry-run forecast (t = C / B; C = bytes re-read from disk per token)
+  expert preload   : per-layer L2-alive set from <l2>.meta (adaptive, bounded by horizon)
+  resident 1/93 layers pinned:
+    layer   6: trunk    0.65 GB +  100 alive experts   1.75 GB pinned
+  trunk /mnt/nvme/trunk_layers_out: 56.6 GB total, 0.6 GB resident -> re-read 56.0 GB/token
+  routed experts     : 25.8 GB/token, 0.3 GB resident-covered
+  C = 81.5 GB/token  (4-bit trunk, risky ~12% err: 53.5 GB/token)
+
+  tier bandwidth B             t = C/B      t = C_4b/B  
+  modest                  (1300 MB/s)  62.7      s 41.2      s   30.4      s  spec 4
+  sdd7-ish (your L2 meas.) (1786 MB/s)  45.6      s 30.0      s   22.1      s  spec 4
+  sequential spec         (2400 MB/s)  34.0      s 22.3      s   16.5      s  spec 4
+  --spec 4: trunk read / 4 -> C_spec = 39.5 GB/token -> ~22.0 s/tok at 1800 MB/s (replay loss not modelled; n-gram draft 0.91x on code)
+
+  1.0 s/tok needs C <= 1.8 GB at 1800 MB/s; forecast C = 82 GB -> ~45 s/tok, 45x from the 1 s line
+DRY_EXIT=True

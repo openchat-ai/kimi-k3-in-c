@@ -1,0 +1,15 @@
+--- v4_native (mode=all-native l2+st)
+auto budget: 28.6 GB available, 9.0 GB reserved -> trunk 6.0 GB / expert cache 13.6 GB
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 6.00 GB
+  expert cache     13.64 GB
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 2 x 1.30 GB
+expert cache: 777 slots x 17.56 MB = 13.64 GB (0.94% of the 1.45 TB expert pool)
+8 tokens in 997.4 s, 124.68 s/token average
+  phase2 i/o    : 21.03 GB in 43.71 s (481 MB/s)  [pure parallel disk read]
+I/O share of wall clock: 81.1%  (trunk 458.5 s + experts 350.4 s of 997.4 s)
+  experts, whole run: 183.72 GB read | 2083 of 11776 requests retained in RAM (17.69%) | 9693 evictions
+  pinned 1/93 layers, ring 2 slots
+  read 436.45 GB in 458.51 s (952 MB/s pread)
+TIME_ELAPSED=1031.10
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":22756147200,"wall_seconds":997.4347,"seconds_per_token":124.6793,"expert_bytes_read":183719854080,"trunk_bytes_read":436450107392,"stopped_at":-1,"generated_text":null}

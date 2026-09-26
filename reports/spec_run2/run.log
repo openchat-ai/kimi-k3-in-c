@@ -1,0 +1,4 @@
+[bg] LOGDIR=/mnt/f/kimi-k3-in-c/reports/spec_gates_20260926_103116
+[TOK] 163584 ranks (max id 163583) + 16 added tokens | kimi=1 rankbpe=1
+[bg] gates.ids tokens=1024 (truncated from full)
+[bg] spec K=4 run start 10:31:21

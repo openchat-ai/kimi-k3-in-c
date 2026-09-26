@@ -1,0 +1,27 @@
+L2 auto: 209 GB free on /mnt/nvme -> L2 at 256 GB
+layer-bundle plan: resident 4/93 layers -> trunk 9.8 GB (incl ring) / expert arena 10.0 GB [L2-alive expert preload] (horizon 8 passes, alive-bounded)
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+
+REFUSING TO START: this needs 28.23 GB and the machine has 28.63 GB available, a shortfall of -397539496.96 B.
+Options: a larger box, a smaller --cache-gb, or fewer --layers.
+auto budget: 28.7 GB available, 9.0 GB reserved -> trunk 6.0 GB / expert cache 13.8 GB
+config: /model/config.json (nested shape) | hidden=7168 layers=93 vocab=163840 | 24 MLA + 69 KDA | experts 896 top16 shared2 | latent=3584
+  KV cache : 2.45 GB for 1033 positions (2.37 MB/position)
+Kimi K3, pure C, released checkpoint
+  model    : /model
+  prompt   : 1024 tokens, generating 8
+
+indexed 497220 tensors from 96 shards in 8.49 s
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+
+memory plan
+  trunk (STREAMED) 9.77 GB
+  embed + lm_head  4.70 GB
+  expert cache     10.00 GB
+  recurrent state  626.25 MB
+  buffers          691.42 MB
+  KV cache         2.44 GB
+  TOTAL            28.23 GB
+  available        28.63 GB
+Command exited with non-zero status 1
+TIME_ELAPSED=12.91

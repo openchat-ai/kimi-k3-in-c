@@ -1,0 +1,1840 @@
+=== round 1 10:25:00 ===
+    PID     TID S %CPU WCHAN                COMMAND
+    654     654 R 49.0 -                    k3
+    654     658 S  0.0 futex_wait_queue     k3
+    654     659 S  0.0 futex_wait_queue     k3
+    654     660 S  0.0 futex_wait_queue     k3
+    654     661 S  0.0 futex_wait_queue     k3
+    654     662 S  0.0 futex_wait_queue     k3
+    654     663 S  0.0 futex_wait_queue     k3
+    654     664 S  0.0 futex_wait_queue     k3
+    654     665 S  0.0 futex_wait_queue     k3
+    654     666 S  0.0 futex_wait_queue     k3
+    654     667 S  0.0 futex_wait_queue     k3
+    654     668 S  0.0 futex_wait_queue     k3
+    654     669 S  0.0 futex_wait_queue     k3
+    654     670 S  0.0 futex_wait_queue     k3
+    654     671 S  0.0 futex_wait_queue     k3
+    654     672 S  0.0 futex_wait_queue     k3
+    654     673 S  0.0 futex_wait_queue     k3
+    654     674 S  0.0 futex_wait_queue     k3
+    654     675 S  0.0 futex_wait_queue     k3
+    654     676 S  0.0 futex_wait_queue     k3
+    654     677 S  0.0 futex_wait_queue     k3
+    654     678 S  0.0 futex_wait_queue     k3
+    654     679 S  0.0 futex_wait_queue     k3
+    654     680 S  0.0 futex_wait_queue     k3
+    654     681 S  0.0 futex_wait_queue     k3
+    654     682 S  0.0 futex_wait_queue     k3
+syscr: 14864
+syscw: 22
+read_bytes: 2757533696
+--- task 654 stack ---
+--- task 658 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 659 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 660 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 661 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 662 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 663 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 664 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 665 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 666 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 667 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 668 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 669 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 670 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 671 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 672 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 673 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 674 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 675 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 676 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 677 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 678 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 679 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 680 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 681 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 682 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- probe log tail ---
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (1.30 GB), ring 2 x 3.00 GB
+              reads use buffered I/O
+              ring holds 2 slots: layers repeat over ~2 tokens, so recent ones are reused instead of re-read
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+=== round 2 10:25:15 ===
+    PID     TID S %CPU WCHAN                COMMAND
+    654     654 R 62.2 -                    k3
+    654     658 S  0.0 futex_wait_queue     k3
+    654     659 S  0.0 futex_wait_queue     k3
+    654     660 S  0.0 futex_wait_queue     k3
+    654     661 S  0.0 futex_wait_queue     k3
+    654     662 S  0.0 futex_wait_queue     k3
+    654     663 S  0.0 futex_wait_queue     k3
+    654     664 S  0.0 futex_wait_queue     k3
+    654     665 S  0.0 futex_wait_queue     k3
+    654     666 S  0.0 futex_wait_queue     k3
+    654     667 S  0.0 futex_wait_queue     k3
+    654     668 S  0.0 futex_wait_queue     k3
+    654     669 S  0.0 futex_wait_queue     k3
+    654     670 S  0.0 futex_wait_queue     k3
+    654     671 S  0.0 futex_wait_queue     k3
+    654     672 S  0.0 futex_wait_queue     k3
+    654     673 S  0.0 futex_wait_queue     k3
+    654     674 S  2.9 futex_wait_queue     k3
+    654     675 S  0.0 futex_wait_queue     k3
+    654     676 S  9.5 futex_wait_queue     k3
+    654     677 S  0.0 futex_wait_queue     k3
+    654     678 S  0.0 futex_wait_queue     k3
+    654     679 S  0.0 futex_wait_queue     k3
+    654     680 S  0.0 futex_wait_queue     k3
+    654     681 S  0.0 futex_wait_queue     k3
+    654     682 S  0.0 futex_wait_queue     k3
+    654     745 R 78.6 -                    k3
+    654     746 R 79.7 -                    k3
+    654     747 S 80.2 futex_wait_queue     k3
+    654     748 S 86.6 futex_wait_queue     k3
+    654     749 S 85.7 futex_wait_queue     k3
+    654     750 S 86.7 futex_wait_queue     k3
+    654     751 S 86.5 futex_wait_queue     k3
+    654     752 S 84.6 futex_wait_queue     k3
+    654     753 S 84.9 futex_wait_queue     k3
+    654     754 S 86.5 futex_wait_queue     k3
+    654     755 S 83.7 futex_wait_queue     k3
+    654     756 S 82.7 futex_wait_queue     k3
+    654     757 R 81.4 -                    k3
+    654     758 S 84.8 futex_wait_queue     k3
+    654     759 S 78.7 futex_wait_queue     k3
+syscr: 29459
+syscw: 36
+read_bytes: 7854575616
+--- task 654 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 658 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 659 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 660 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 661 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 662 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 663 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 664 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 665 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 666 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 667 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 668 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 669 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 670 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 671 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 672 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 673 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 674 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 675 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 676 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 677 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 678 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 679 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 680 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 681 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 682 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 745 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+[<0>] raise_softirq+0x22/0x70
+[<0>] update_curr+0x2b/0x1e0
+--- task 746 stack ---
+--- task 747 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 748 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 749 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 750 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 751 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 752 stack ---
+[<0>] exit_to_user_mode_prepare+0x71/0x140
+[<0>] irqentry_exit_to_user_mode+0xd/0x20
+[<0>] irqentry_exit+0x3f/0x50
+[<0>] sysvec_call_function_single+0x6a/0xd0
+[<0>] asm_sysvec_call_function_single+0x1f/0x30
+--- task 753 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 754 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 755 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 756 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 757 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 758 stack ---
+--- task 759 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- probe log tail ---
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+DBG fwd prefill g=0 T=1024 base=0 nT0=1024 cached=0
+DBG fwd_inner loop_serial=1 T=1024
+=== round 3 10:25:31 ===
+    PID     TID S %CPU WCHAN                COMMAND
+    654     654 S 69.4 futex_wait_queue     k3
+    654     658 S  0.0 futex_wait_queue     k3
+    654     659 S  0.0 futex_wait_queue     k3
+    654     660 S  0.0 futex_wait_queue     k3
+    654     661 S  0.0 futex_wait_queue     k3
+    654     662 S  0.0 futex_wait_queue     k3
+    654     663 S  0.0 futex_wait_queue     k3
+    654     664 S  0.0 futex_wait_queue     k3
+    654     665 S  0.0 futex_wait_queue     k3
+    654     666 S  0.0 futex_wait_queue     k3
+    654     667 S  0.0 futex_wait_queue     k3
+    654     668 S  0.0 futex_wait_queue     k3
+    654     669 S  0.0 futex_wait_queue     k3
+    654     670 S  0.0 futex_wait_queue     k3
+    654     671 S  0.0 futex_wait_queue     k3
+    654     672 S  0.0 futex_wait_queue     k3
+    654     673 S  0.0 futex_wait_queue     k3
+    654     674 S  1.6 futex_wait_queue     k3
+    654     675 S  0.0 futex_wait_queue     k3
+    654     676 S  5.4 futex_wait_queue     k3
+    654     677 S  0.0 futex_wait_queue     k3
+    654     678 S  0.0 futex_wait_queue     k3
+    654     679 S  0.0 futex_wait_queue     k3
+    654     680 S  0.0 futex_wait_queue     k3
+    654     681 S  0.0 futex_wait_queue     k3
+    654     682 S  0.0 futex_wait_queue     k3
+    654     745 S 81.8 futex_wait_queue     k3
+    654     746 S 80.9 futex_wait_queue     k3
+    654     747 S 80.6 futex_wait_queue     k3
+    654     748 R 87.5 -                    k3
+    654     749 R 86.6 -                    k3
+    654     750 R 87.0 -                    k3
+    654     751 R 87.1 -                    k3
+    654     752 S 83.4 futex_wait_queue     k3
+    654     753 S 83.6 futex_wait_queue     k3
+    654     754 S 84.5 futex_wait_queue     k3
+    654     755 S 83.8 futex_wait_queue     k3
+    654     756 S 83.3 futex_wait_queue     k3
+    654     757 S 81.6 futex_wait_queue     k3
+    654     758 S 83.4 futex_wait_queue     k3
+    654     759 S 80.4 futex_wait_queue     k3
+syscr: 29459
+syscw: 36
+read_bytes: 7854575616
+--- task 654 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 658 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 659 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 660 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 661 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 662 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 663 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 664 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 665 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 666 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 667 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 668 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 669 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 670 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 671 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 672 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 673 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 674 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 675 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 676 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 677 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 678 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 679 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 680 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 681 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 682 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 745 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 746 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 747 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 748 stack ---
+[<0>] __rmqueue_pcplist+0xfc/0x720
+--- task 749 stack ---
+--- task 750 stack ---
+--- task 751 stack ---
+--- task 752 stack ---
+--- task 753 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 754 stack ---
+[<0>] clockevents_program_event+0x9c/0x100
+[<0>] tick_program_event+0x51/0xa0
+[<0>] hrtimer_interrupt+0x13f/0x240
+--- task 755 stack ---
+--- task 756 stack ---
+[<0>] clockevents_program_event+0x9c/0x100
+[<0>] tick_program_event+0x51/0xa0
+[<0>] hrtimer_interrupt+0x13f/0x240
+--- task 757 stack ---
+--- task 758 stack ---
+[<0>] exit_to_user_mode_prepare+0x71/0x140
+[<0>] irqentry_exit_to_user_mode+0xd/0x20
+[<0>] irqentry_exit+0x3f/0x50
+[<0>] sysvec_hyperv_stimer0+0x6a/0xd0
+[<0>] asm_sysvec_hyperv_stimer0+0x1f/0x30
+--- task 759 stack ---
+--- probe log tail ---
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+DBG fwd prefill g=0 T=1024 base=0 nT0=1024 cached=0
+DBG fwd_inner loop_serial=1 T=1024
+=== round 4 10:25:47 ===
+    PID     TID S %CPU WCHAN                COMMAND
+    654     654 R 73.2 -                    k3
+    654     658 S  0.0 futex_wait_queue     k3
+    654     659 S  0.0 futex_wait_queue     k3
+    654     660 S  0.0 futex_wait_queue     k3
+    654     661 S  0.0 futex_wait_queue     k3
+    654     662 S  0.0 futex_wait_queue     k3
+    654     663 S  0.0 futex_wait_queue     k3
+    654     664 S  0.0 futex_wait_queue     k3
+    654     665 S  0.0 futex_wait_queue     k3
+    654     666 S  0.0 futex_wait_queue     k3
+    654     667 S  0.0 futex_wait_queue     k3
+    654     668 S  0.0 futex_wait_queue     k3
+    654     669 S  0.0 futex_wait_queue     k3
+    654     670 S  0.0 futex_wait_queue     k3
+    654     671 S  0.0 futex_wait_queue     k3
+    654     672 S  0.0 futex_wait_queue     k3
+    654     673 S  0.0 futex_wait_queue     k3
+    654     674 S  1.1 futex_wait_queue     k3
+    654     675 S  0.0 futex_wait_queue     k3
+    654     676 S  3.8 futex_wait_queue     k3
+    654     677 S  0.0 futex_wait_queue     k3
+    654     678 S  0.0 futex_wait_queue     k3
+    654     679 S  0.0 futex_wait_queue     k3
+    654     680 S  0.0 futex_wait_queue     k3
+    654     681 S  0.0 futex_wait_queue     k3
+    654     682 S  0.0 futex_wait_queue     k3
+    654     745 S 83.3 futex_wait_queue     k3
+    654     746 S 81.9 futex_wait_queue     k3
+    654     747 R 81.7 -                    k3
+    654     748 S 88.3 futex_wait_queue     k3
+    654     749 S 87.7 futex_wait_queue     k3
+    654     750 S 87.7 futex_wait_queue     k3
+    654     751 S 87.9 futex_wait_queue     k3
+    654     752 S 84.4 futex_wait_queue     k3
+    654     753 S 84.5 futex_wait_queue     k3
+    654     754 S 85.2 futex_wait_queue     k3
+    654     755 S 84.2 futex_wait_queue     k3
+    654     756 S 83.7 futex_wait_queue     k3
+    654     757 S 82.2 futex_wait_queue     k3
+    654     758 S 84.4 futex_wait_queue     k3
+    654     759 S 81.7 futex_wait_queue     k3
+syscr: 29459
+syscw: 36
+read_bytes: 7854575616
+--- task 654 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 658 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 659 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 660 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 661 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 662 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 663 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 664 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 665 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 666 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 667 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 668 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 669 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 670 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 671 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 672 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 673 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 674 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 675 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 676 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 677 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 678 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 679 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 680 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 681 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 682 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 745 stack ---
+--- task 746 stack ---
+--- task 747 stack ---
+--- task 748 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 749 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 750 stack ---
+--- task 751 stack ---
+--- task 752 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 753 stack ---
+[<0>] clockevents_program_event+0x9c/0x100
+[<0>] tick_program_event+0x51/0xa0
+[<0>] hrtimer_interrupt+0x13f/0x240
+--- task 754 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 755 stack ---
+[<0>] clockevents_program_event+0x9c/0x100
+[<0>] tick_program_event+0x51/0xa0
+[<0>] hrtimer_interrupt+0x13f/0x240
+--- task 756 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 757 stack ---
+--- task 758 stack ---
+--- task 759 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- probe log tail ---
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+DBG fwd prefill g=0 T=1024 base=0 nT0=1024 cached=0
+DBG fwd_inner loop_serial=1 T=1024
+=== round 5 10:26:04 ===
+    PID     TID S %CPU WCHAN                COMMAND
+    654     654 S 75.2 futex_wait_queue     k3
+    654     658 S  0.0 futex_wait_queue     k3
+    654     659 S  0.0 futex_wait_queue     k3
+    654     660 S  0.0 futex_wait_queue     k3
+    654     661 S  0.0 futex_wait_queue     k3
+    654     662 S  0.0 futex_wait_queue     k3
+    654     663 S  0.0 futex_wait_queue     k3
+    654     664 S  0.0 futex_wait_queue     k3
+    654     665 S  0.0 futex_wait_queue     k3
+    654     666 S  0.0 futex_wait_queue     k3
+    654     667 S  0.0 futex_wait_queue     k3
+    654     668 S  0.0 futex_wait_queue     k3
+    654     669 S  0.0 futex_wait_queue     k3
+    654     670 S  0.0 futex_wait_queue     k3
+    654     671 S  0.0 futex_wait_queue     k3
+    654     672 S  0.0 futex_wait_queue     k3
+    654     673 S  0.0 futex_wait_queue     k3
+    654     674 S  0.9 futex_wait_queue     k3
+    654     675 S  0.0 futex_wait_queue     k3
+    654     676 S  2.9 futex_wait_queue     k3
+    654     677 S  0.0 futex_wait_queue     k3
+    654     678 S  0.0 futex_wait_queue     k3
+    654     679 S  0.0 futex_wait_queue     k3
+    654     680 S  0.0 futex_wait_queue     k3
+    654     681 S  0.0 futex_wait_queue     k3
+    654     682 S  0.0 futex_wait_queue     k3
+    654     745 S 83.2 futex_wait_queue     k3
+    654     746 S 82.3 futex_wait_queue     k3
+    654     747 S 82.0 futex_wait_queue     k3
+    654     748 S 88.1 futex_wait_queue     k3
+    654     749 S 87.9 -                    k3
+    654     750 R 88.0 -                    k3
+    654     751 R 88.0 -                    k3
+    654     752 R 84.9 -                    k3
+    654     753 R 85.0 -                    k3
+    654     754 R 85.4 -                    k3
+    654     755 R 83.9 -                    k3
+    654     756 R 83.6 -                    k3
+    654     757 R 82.2 -                    k3
+    654     758 R 84.7 -                    k3
+    654     759 R 81.8 -                    k3
+syscr: 29459
+syscw: 36
+read_bytes: 7854575616
+--- task 654 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 658 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 659 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 660 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 661 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 662 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 663 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 664 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 665 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 666 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 667 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 668 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 669 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 670 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 671 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 672 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 673 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 674 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 675 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 676 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 677 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 678 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 679 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 680 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 681 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 682 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 745 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 746 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 747 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 748 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 749 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 750 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 751 stack ---
+--- task 752 stack ---
+--- task 753 stack ---
+--- task 754 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 755 stack ---
+--- task 756 stack ---
+[<0>] clockevents_program_event+0x9c/0x100
+[<0>] tick_program_event+0x51/0xa0
+[<0>] hrtimer_interrupt+0x13f/0x240
+--- task 757 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 758 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 759 stack ---
+--- probe log tail ---
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+DBG fwd prefill g=0 T=1024 base=0 nT0=1024 cached=0
+DBG fwd_inner loop_serial=1 T=1024
+=== round 6 10:26:20 ===
+    PID     TID S %CPU WCHAN                COMMAND
+    654     654 S 76.1 futex_wait_queue     k3
+    654     658 S  0.0 futex_wait_queue     k3
+    654     659 S  0.0 futex_wait_queue     k3
+    654     660 S  0.0 futex_wait_queue     k3
+    654     661 S  0.0 futex_wait_queue     k3
+    654     662 S  0.0 futex_wait_queue     k3
+    654     663 S  0.0 futex_wait_queue     k3
+    654     664 S  0.0 futex_wait_queue     k3
+    654     665 S  0.0 futex_wait_queue     k3
+    654     666 S  0.0 futex_wait_queue     k3
+    654     667 S  0.0 futex_wait_queue     k3
+    654     668 S  0.0 futex_wait_queue     k3
+    654     669 S  0.0 futex_wait_queue     k3
+    654     670 S  0.0 futex_wait_queue     k3
+    654     671 S  0.0 futex_wait_queue     k3
+    654     672 S  0.0 futex_wait_queue     k3
+    654     673 S  0.0 futex_wait_queue     k3
+    654     674 S  0.7 futex_wait_queue     k3
+    654     675 S  0.0 futex_wait_queue     k3
+    654     676 S  2.3 futex_wait_queue     k3
+    654     677 S  0.0 futex_wait_queue     k3
+    654     678 S  0.0 futex_wait_queue     k3
+    654     679 S  0.0 futex_wait_queue     k3
+    654     680 S  0.0 futex_wait_queue     k3
+    654     681 S  0.0 futex_wait_queue     k3
+    654     682 S  0.0 futex_wait_queue     k3
+    654     745 R 82.8 -                    k3
+    654     746 R 81.8 -                    k3
+    654     747 S 81.5 futex_wait_queue     k3
+    654     748 S 87.7 futex_wait_queue     k3
+    654     749 S 87.5 futex_wait_queue     k3
+    654     750 R 87.6 -                    k3
+    654     751 S 87.7 -                    k3
+    654     752 S 84.5 -                    k3
+    654     753 R 84.9 -                    k3
+    654     754 R 84.9 -                    k3
+    654     755 R 83.3 -                    k3
+    654     756 R 83.3 -                    k3
+    654     757 R 82.0 -                    k3
+    654     758 R 84.5 -                    k3
+    654     759 R 81.6 -                    k3
+syscr: 29459
+syscw: 36
+read_bytes: 7854575616
+--- task 654 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 658 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 659 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 660 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 661 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 662 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 663 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 664 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 665 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 666 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 667 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 668 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 669 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 670 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 671 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 672 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 673 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 674 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 675 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 676 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 677 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 678 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 679 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 680 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 681 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 682 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 745 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 746 stack ---
+--- task 747 stack ---
+[<0>] clockevents_program_event+0x9c/0x100
+[<0>] tick_program_event+0x51/0xa0
+[<0>] hrtimer_interrupt+0x13f/0x240
+--- task 748 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 749 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 750 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 751 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x155/0x260
+[<0>] do_futex+0x13c/0x1e0
+[<0>] __x64_sys_futex+0x7c/0x1e0
+[<0>] x64_sys_call+0x19b6/0x2020
+[<0>] do_syscall_64+0x5a/0xb0
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0xe2
+--- task 752 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- task 753 stack ---
+--- task 754 stack ---
+--- task 755 stack ---
+[<0>] exit_to_user_mode_prepare+0x71/0x140
+[<0>] irqentry_exit_to_user_mode+0xd/0x20
+[<0>] irqentry_exit+0x3f/0x50
+[<0>] sysvec_hyperv_stimer0+0x6a/0xd0
+[<0>] asm_sysvec_hyperv_stimer0+0x1f/0x30
+--- task 756 stack ---
+[<0>] clockevents_program_event+0x9c/0x100
+[<0>] tick_program_event+0x51/0xa0
+[<0>] hrtimer_interrupt+0x13f/0x240
+--- task 757 stack ---
+--- task 758 stack ---
+[<0>] get_page_from_freelist+0x106d/0x1240
+[<0>] __this_cpu_preempt_check+0x17/0x20
+[<0>] __mod_memcg_lruvec_state+0x8a/0xf0
+[<0>] __mod_lruvec_state+0x3b/0x50
+[<0>] __mod_lruvec_page_state+0xa4/0x150
+[<0>] folio_add_lru+0x74/0xb0
+[<0>] do_anonymous_page+0x2c2/0x420
+[<0>] __handle_mm_fault+0x818/0x840
+--- task 759 stack ---
+[<0>] futex_wait_queue+0x6a/0xa0
+[<0>] futex_wait+0x161/0x260
+--- probe log tail ---
+STEP   TOKEN      SECONDS      CACHE HIT  READ GB    TOK/S
+--------------------------------------------------------------------
+DBG fwd prefill g=0 T=1024 base=0 nT0=1024 cached=0
+DBG fwd_inner loop_serial=1 T=1024

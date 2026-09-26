@@ -1421,7 +1421,7 @@ int main(int argc, char **argv)
         k3_io_init(&g_io, 2, nw);
         g_io_once = 1;
     }
-    st.kio = getenv("K3_NOKIO") ? NULL : &g_io;
+    st.kio = (getenv("K3_NOKIO") || getenv("K3_L2_NATIVE")) ? NULL : &g_io;
     st.tier = (int *)calloc((size_t)st.nshard, sizeof(int));
     if (!st.tier) return 1;
     /* embed/lm_head shard lives on sdd7 (NVMe tier 0); routed experts stay on the
@@ -1570,7 +1570,7 @@ int main(int argc, char **argv)
      * --l2-policy handling right below. */
     setenv("K3_L1_POLICY", l1_policy ? "heat" : "lru", 1);
     if (k3_cache_init(&cache, &st, &c, (int64_t)(cache_gb * 1e9)) != 0) return 1;
-    cache.phase2_hold = w.trunk ? trunk_phase2_hold : NULL;
+    cache.phase2_hold = (w.trunk && !trunk.kio) ? trunk_phase2_hold : NULL;
     cache.phase2_ctx = (void *)&trunk;
     cache.prefetch_depth = prefetch_depth;
     cache.prefetch_cap = prefetch_cap;
@@ -1593,7 +1593,7 @@ int main(int argc, char **argv)
         const int64_t l2_slot = cache.slot_bytes - 2 * K3_ST_ALIGN;
         if (k3_l2_init(&l2, l2_path, (int64_t)(l2_gb * 1e9),
                        c.n_layers, c.n_experts, l2_slot) == 0) {
-            l2.kio = getenv("K3_NOKIO") ? NULL : &g_io;
+            l2.kio = (getenv("K3_NOKIO") || getenv("K3_L2_NATIVE")) ? NULL : &g_io;
             cache.l2 = (struct K3L2 *)&l2;
             l2.policy = l2_policy;
             have_l2 = 1;

@@ -1,0 +1,2 @@
+--- spec-amp gates probe (real prompt, cold cache each run)
+[K=4] TIME_ELAPSED=487.80

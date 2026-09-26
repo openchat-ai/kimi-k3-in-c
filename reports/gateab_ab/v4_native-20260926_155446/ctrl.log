@@ -1,0 +1,9 @@
+L2 auto: 209 GB free on /mnt/nvme -> L2 at 256 GB
+k3 chip: 4 workers, 4 TFLOPS, 200 GB/s simulated wall
+DBG getmany L1 nw=16 wall=0.299s thr(out)1 thr(in)16 conc_peak=16 pread=3.182s
+DBG getmany L2 nw=16 wall=0.262s thr(out)1 thr(in)16 conc_peak=16 pread=3.123s
+DBG getmany L3 nw=16 wall=0.748s thr(out)1 thr(in)16 conc_peak=16 pread=8.663s
+DBG getmany L4 nw=16 wall=0.217s thr(out)1 thr(in)16 conc_peak=16 pread=2.572s
+DBG getmany L5 nw=16 wall=0.397s thr(out)1 thr(in)16 conc_peak=16 pread=3.603s
+DBG getmany L6 nw=16 wall=0.197s thr(out)1 thr(in)16 conc_peak=16 pread=2.129s
+DBG getmany L7 nw=16 wall=0.345s thr(out)1 thr(in)16 conc_peak=16 pread=4.668s
