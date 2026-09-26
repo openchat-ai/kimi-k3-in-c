@@ -178,11 +178,18 @@ K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
     pthread_cond_init(&r->cv, NULL);
 
     pthread_mutex_lock(&io->mu);
-    if (io->qtail[tier][0]) io->qtail[tier][0]->next = r;
-    else                    io->q[tier][0] = r;
-    io->qtail[tier][0] = r;
+    /* Route the write to the CURRENT active group, not a hardcoded 0. Phase-2
+     * hold parks the trunk group (active_group[0]=1): an L2-miss refill write
+     * staying in group 0 would queue behind the parked trunk and never be
+     * drained, deadlocking the pool (gateAB_085122). Inside the window the write
+     * joins group 1 (drained by the L2 burst); outside it falls back to group 0. */
+    const int g = io->active_group[tier];
+    r->group = g;
+    if (io->qtail[tier][g]) io->qtail[tier][g]->next = r;
+    else                    io->q[tier][g] = r;
+    io->qtail[tier][g] = r;
     if (getenv("K3_IO_DBG"))
-        fprintf(stderr, "DBG io submit_w tier=%d nbytes=%zu qhead=%p\n", tier, nbytes, (void*)io->q[tier][0]);
+        fprintf(stderr, "DBG io submit_w tier=%d g=%d nbytes=%zu qhead=%p\n", tier, g, nbytes, (void*)io->q[tier][g]);
     pthread_cond_broadcast(&io->cv[tier]);
     pthread_mutex_unlock(&io->mu);
     return r;

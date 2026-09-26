@@ -811,8 +811,21 @@ static void trunk_phase2_hold(void *ctx, int hold)
     K3Trunk *tr = (K3Trunk *)ctx;
     if (tr->kio) {
         /* kio: park the trunk group while the expert phase-2 burst owns the device
-         * (group toggling); trunk's group-0 requests queue until hold lifts. */
-        k3_io_set_active(tr->kio, 0, hold ? 1 : 0);
+         * (group toggling); trunk's group-0 requests queue until hold lifts.
+         *
+         * Depth-counted: cache_getmany_inner can run on BOTH the forward main thread
+         * and the prefetch reader thread, so a naive set_active would let one thread's
+         * hold(0) release the trunk while the other is still mid-burst. Only the first
+         * hold(1) may switch to group 1 and only the last hold(0) may switch back. */
+        static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+        static int depth = 0;
+        pthread_mutex_lock(&m);
+        if (hold) {
+            if (depth++ == 0) k3_io_set_active(tr->kio, 0, 1);
+        } else {
+            if (--depth == 0) k3_io_set_active(tr->kio, 0, 0);
+        }
+        pthread_mutex_unlock(&m);
     } else {
         k3_trunk_expert_hold(tr, hold);
     }
