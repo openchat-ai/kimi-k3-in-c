@@ -806,6 +806,18 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
     return 0;
 }
 
+static void trunk_phase2_hold(void *ctx, int hold)
+{
+    K3Trunk *tr = (K3Trunk *)ctx;
+    if (tr->kio) {
+        /* kio: park the trunk group while the expert phase-2 burst owns the device
+         * (group toggling); trunk's group-0 requests queue until hold lifts. */
+        k3_io_set_active(tr->kio, 0, hold ? 1 : 0);
+    } else {
+        k3_trunk_expert_hold(tr, hold);
+    }
+}
+
 int main(int argc, char **argv)
 {
     /* Informational flags are answered before anything else, because they must work
@@ -1545,7 +1557,7 @@ int main(int argc, char **argv)
      * --l2-policy handling right below. */
     setenv("K3_L1_POLICY", l1_policy ? "heat" : "lru", 1);
     if (k3_cache_init(&cache, &st, &c, (int64_t)(cache_gb * 1e9)) != 0) return 1;
-    cache.phase2_hold = NULL;
+    cache.phase2_hold = w.trunk ? trunk_phase2_hold : NULL;
     cache.phase2_ctx = (void *)&trunk;
     cache.prefetch_depth = prefetch_depth;
     cache.prefetch_cap = prefetch_cap;

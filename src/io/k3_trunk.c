@@ -612,7 +612,11 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
          * one whole 600 MB layer. Without this, trunk stream (~995 MB/s) and expert
          * scattered reads (~640 MB/s) run simultaneously and share the ~1.6 GB/s the
          * drive can actually do: each gets ~0.5x of its single-stream rate, and decode
-         * expert reads take 40 s instead of 14 s. */
+         * expert reads take 40 s instead of 14 s.
+         *
+         * kio path: the gate below is skipped -- the expert phase-2 burst parks the
+         * trunk GROUP by toggling the scheduler's active_group (k3_io_set_active), so
+         * our group-0 requests queue while group-1 (L2 hits) owns the device. */
         if (io && !tr->kio) {
             pthread_mutex_lock(&io->mu);
             const double w0 = now_s();

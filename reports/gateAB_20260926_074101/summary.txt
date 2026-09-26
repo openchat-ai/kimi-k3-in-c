@@ -1,0 +1,9 @@
+--- gate A/B (kio respects gate + L2-hit gated)
+8 tokens in 650.2 s, 81.28 s/token average
+                  this token; TRUE resident hit rate 18.61%
+  phase2 i/o    : 21.03 GB in 56.20 s (374 MB/s)  [pure parallel disk read]
+I/O share of wall clock: 144.1%  (trunk 490.0 s + experts 447.1 s of 650.2 s)
+  experts, whole run: 183.65 GB read | 2093 of 11776 requests retained in RAM (17.77%) | 9683 evictions
+  pinned 1/93 layers, ring 2 slots
+  read 436.45 GB in 489.97 s (891 MB/s pread) + 0.00 s parked on the expert gate
+TIME_ELAPSED=677.75

@@ -262,23 +262,13 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
     }
 
     /* ---- phase 2: read, concurrently ---- */
-    /* Gate only when this batch actually touches the SLOW checkpoint disk. A fully
-     * L2-hit batch reads sdd7 -- the SAME NVMe the trunk streams from -- and sharing
-     * the drive's 1.6 GB/s between the two sequential streams costs far less than
-     * parking the trunk reader for the whole burst. Measured (93L gen8, cache-gb 8):
-     * the trunk parked 1174 s on the gate while the expert phase-2 reads took only
-     * 144 s -- an 8x over-yield that doubled wall time. Misses (sdd7 miss, slow
-     * /model) are the case the gate exists for: there the expert read is slow and
-     * concurrent trunk traffic genuinely slows it. slot_of[key] < 0 is the miss test
-     * (key -> L2 slot, -1 when not resident, O(1) via direct indexing). */
-    int gate_needed = 0;
-    if (c->phase2_hold && c->l2) {
-        for (int i = 0; i < nw && !gate_needed; i++) {
-            const int32_t key = w[i].r.layer * c->l2->n_experts + w[i].r.expert;
-            if (c->l2->slot_of[key] < 0) gate_needed = 1;
-        }
-    }
-    if (c->phase2_hold && gate_needed) c->phase2_hold(c->phase2_ctx, 1);
+    /* Gate for L2-hit AND miss bursts: probe_coldc showed concurrent trunk+expert on
+     * the same NVMe aggregates to only 1257 MB/s while trunk alone does 1509 and the
+     * serial trunk-then-expert does 1675 MB/s. Interleaving the two streams on one
+     * drive is a NET LOSS even when both hit fast NVMe, so yield the whole burst to
+     * the experts. The old miss-only test (L2 slot_of<0) was falsified by that probe. */
+    const int gate_needed = (c->phase2_hold != NULL) && (c->l2 != NULL);
+    if (gate_needed) c->phase2_hold(c->phase2_ctx, 1);
     const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
     const double ms0 = c->l2 ? c->l2->miss_seconds : 0;
     const double t0 = now_s();

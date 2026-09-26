@@ -114,6 +114,49 @@ static void test_clamp(void)
     k3_io_free(&io);
 }
 
+/* 5. group scheduling: with group 1 active, group-0 requests queue; toggling back
+ *    drains them. Each group's requests land in distinct FIFOs, so the L2 burst
+ *    (group 1) can own the device while the trunk stream (group 0) parks. */
+static void test_groups(int *fd, unsigned char *data)
+{
+    K3IO io;
+    const int workers[2] = { 2, 1 };
+    k3_io_init(&io, 2, workers);
+
+    unsigned char buf0[1024], buf1[1024];
+    memset(buf0, 0, sizeof buf0);
+    memset(buf1, 0, sizeof buf1);
+
+    /* park trunk: switch to group 1 first, then submit a group-0 request that must
+     * wait until we switch back */
+    k3_io_set_active(&io, 0, 1);
+    K3IOReq *q0 = k3_io_submit_g(&io, 0, 0, fd[0], 0, 1024, 0, buf0);
+    check(q0 != NULL, "submit group0 while group1 active");
+
+    /* let the worker drain its tail briefly, then prove q0 did NOT complete yet */
+    struct timespec ts = { 0, 30 * 1000 * 1000 };
+    nanosleep(&ts, NULL);
+    pthread_mutex_lock(&q0->mu);
+    int done0 = q0->done;
+    pthread_mutex_unlock(&q0->mu);
+    check(done0 == 0, "group0 request queued while group1 active");
+
+    /* group1 request completes while group0 waits */
+    K3IOReq *q1 = k3_io_submit_g(&io, 0, 1, fd[0], 0, 1024, 0, buf1);
+    check(q1 != NULL, "submit group1");
+    ssize_t r1 = k3_io_wait(q1);
+    check(r1 == 1024, "group1 read length");
+    check(memcmp(buf1, data, 1024) == 0, "group1 bytes");
+
+    /* switch back to group 0: now q0 drains and completes */
+    k3_io_set_active(&io, 0, 0);
+    ssize_t r0 = k3_io_wait(q0);
+    check(r0 == 1024, "group0 read after switch-back");
+    check(memcmp(buf0, data, 1024) == 0, "group0 bytes");
+
+    k3_io_free(&io);
+}
+
 int main(void)
 {
     const char *p = "/tmp/k3io_test.bin";
@@ -132,11 +175,12 @@ int main(void)
     test_write();
     test_concurrent(fds, data);
     test_clamp();
+    test_groups(fds, data);
 
     close(fd);
     unlink(p);
     free(data);
     if (nfail) { fprintf(stderr, "%d FAILURES\n", nfail); return 1; }
-    printf("k3_io: basic+write+concurrent+clamp OK\n");
+    printf("k3_io: basic+write+concurrent+clamp+groups OK\n");
     return 0;
 }

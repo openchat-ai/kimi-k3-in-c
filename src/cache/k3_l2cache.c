@@ -259,9 +259,9 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
         const double t0 = now_s();
         ssize_t n;
         if (l2->kio) {
-            K3IOReq *q = k3_io_submit(l2->kio, 0 /* NVMe */, rfd,
-                                      (off_t)s * l2->slot_bytes,
-                                      (size_t)want, 0, buf);
+            K3IOReq *q = k3_io_submit_g(l2->kio, 0 /* NVMe tier */, 1 /* L2 group */,
+                                        rfd, (off_t)s * l2->slot_bytes,
+                                        (size_t)want, 0, buf);
             if (!q) return -1;
             n = k3_io_wait(q);
         } else {
