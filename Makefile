@@ -279,6 +279,23 @@ install: $(CLI_BIN)
 clean:
 	rm -rf $(BUILD) $(BIN)
 
+## pc-run: the ONE task for the PC (packed-disk deployment). Estimate repetition
+## zero-cost, then run the spec-amplification sweep and the layer-bundle 3-arm
+## baseline, and print the verdict vs the 34 s/tok gate. Needs MODEL/TRUNK/IDS.
+pc-run pc-spec: $(CLI_BIN)
+	@test -n "$(MODEL)" || { echo "set MODEL=/path/to/model (config.json etc.)"; exit 2; }
+	@test -n "$(TRUNK)" || { echo "set TRUNK=/path/to/trunk (packed trunk dir)"; exit 2; }
+	@test -n "$(IDS)"  || { echo "set IDS=/path/to/prompt.ids"; exit 2; }
+	@bash tools/rep_estimate.awk "$(IDS)"
+	@bash tools/verify_spec_amp.sh
+
+## pc-verify: layer-bundle 3-arm baseline (a baseline / b block-serial / c spec) + analyzer
+pc-verify: $(CLI_BIN)
+	@test -n "$(MODEL)" || { echo "set MODEL=/path/to/model (config.json etc.)"; exit 2; }
+	@test -n "$(TRUNK)" || { echo "set TRUNK=/path/to/trunk (packed trunk dir)"; exit 2; }
+	@test -n "$(IDS)"  || { echo "set IDS=/path/to/prompt.ids"; exit 2; }
+	@bash tools/verify_layer_bundle.sh
+
 ## help: list targets
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
