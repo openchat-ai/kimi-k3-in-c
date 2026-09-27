@@ -1,0 +1,5 @@
+--- v11_res30c21 (kio group 0, no hold, trunk 30GB resident / cache 21GB)
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 30.00 GB
+  expert cache     21.00 GB
+TIME_ELAPSED=13.08

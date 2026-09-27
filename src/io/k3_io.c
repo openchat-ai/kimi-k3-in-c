@@ -20,11 +20,40 @@ static void *k3_io_tier_main(void *arg)
     free(arg);
     for (;;) {
         pthread_mutex_lock(&io->mu);
-        /* Drain only the ACTIVE group's FIFO. Requests in parked groups wait until
-         * k3_io_set_active switches to them, so the L2 burst owns the device while
-         * the trunk stream queues (and vice versa) instead of both sharing it. */
-        int g = io->active_group[tier];
-        K3IOReq *r = io->q[tier][g];
+        /* Take a request from ANY group that has work, scanning round-robin.
+         *
+         * The old rule drained io->q[tier][active_group[tier]] and ignored every other
+         * group until k3_io_set_active switched over. Two consequences, both measured:
+         *
+         *  - Deadlock. With the phase2 hold unmounted, active_group is pinned at 0
+         *    forever, so requests submitted to group 1 waited for a group nobody ever
+         *    selected: 41/41 threads in futex_wait_queue, zero IO, log frozen at
+         *    104 bytes (v5_l2g1, and again in v6_l2g1rw).
+         *  - No overlap. A single group-0 FIFO is served by all 16 workers, so the
+         *    trunk stream and the L2 burst took turns instead of flying at the NVMe
+         *    together. The 2026-09-26 morning runs reported I/O share 144.1% at
+         *    81.28 s/tok, which is only possible with more than one stream in flight;
+         *    the park/hold variants measured 82.7-95.2% and 92-137 s/tok.
+         *
+         * Preference alone does not parallelise: the trunk stream keeps group 0
+         * permanently non-empty, so "active group first, fall back when empty" never
+         * reaches the fallback (v12/v13: share 86.6% and 95.2%). Rotating the scan start
+         * spreads workers across whichever queues have work, so trunk and L2 run
+         * concurrently. k3_io_set_active is kept for compatibility but no longer gates
+         * the drain. */
+        int g = -1;
+        K3IOReq *r = NULL;
+        {
+            /* Round-robin the start point, then take the first non-empty queue. Two
+             * workers waking together therefore tend to land in DIFFERENT groups,
+             * which is what parallelises the two streams; a fixed scan from group 0
+             * would hand every one of them to the trunk FIFO. */
+            const int start = io->rr[tier]++ % K3_IO_MAX_GROUPS;
+            for (int i = 0; i < K3_IO_MAX_GROUPS; i++) {
+                const int k = (start + i) % K3_IO_MAX_GROUPS;
+                if (io->q[tier][k]) { g = k; r = io->q[tier][k]; break; }
+            }
+        }
         if (r) {
             io->q[tier][g] = r->next;
             if (!io->q[tier][g]) io->qtail[tier][g] = NULL;
@@ -182,7 +211,12 @@ K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
      * hold parks the trunk group (active_group[0]=1): an L2-miss refill write
      * staying in group 0 would queue behind the parked trunk and never be
      * drained, deadlocking the pool (gateAB_085122). Inside the window the write
-     * joins group 1 (drained by the L2 burst); outside it falls back to group 0. */
+     * joins group 1 (drained by the L2 burst); outside it falls back to group 0.
+     *
+     * Pinned hard to group 1 (tried as v6_l2g1rw): the L2 hit reads live in group 0,
+     * so a write parked in group 1 waits on a group nothing drains and the pool wedges
+     * at startup. active_group is the correct target -- with the hold unmounted it is
+     * always 0, i.e. the same group the hit reads use. */
     const int g = io->active_group[tier];
     r->group = g;
     if (io->qtail[tier][g]) io->qtail[tier][g]->next = r;

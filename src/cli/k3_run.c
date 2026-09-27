@@ -1570,6 +1570,15 @@ int main(int argc, char **argv)
      * --l2-policy handling right below. */
     setenv("K3_L1_POLICY", l1_policy ? "heat" : "lru", 1);
     if (k3_cache_init(&cache, &st, &c, (int64_t)(cache_gb * 1e9)) != 0) return 1;
+    /* Leave the hold UNMOUNTED on the kio path. The 2026-09-26 morning runs that hit
+     * 81-85 s/tok reported 0.00 s parked on the expert gate (gateAB_074101, 075554)
+     * together with I/O share 144-148%: the trunk stream was never parked, so trunk
+     * (group 0) and the L2 burst (group 1) flew at the NVMe together. Mounting the hold
+     * parks trunk for the whole burst and pins the share near 90% -- measured 96.23
+     * (v9), 92.39 (v10), 100.77 and 101.21 (v11, v12) at 26-29 GB trunk resident.
+     * Unmounting it used to deadlock (v5_l2g1, v6_l2g1rw: the worker drained only
+     * active_group, pinned at 0, so nothing served group 1); the fallback in
+     * k3_io_tier_main removed that hazard, so both streams now get served. */
     cache.phase2_hold = (w.trunk && !trunk.kio) ? trunk_phase2_hold : NULL;
     cache.phase2_ctx = (void *)&trunk;
     cache.prefetch_depth = prefetch_depth;

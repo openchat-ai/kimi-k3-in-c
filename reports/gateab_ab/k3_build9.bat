@@ -1,0 +1,1 @@
+wsl.exe -d k3 -u root -e bash -c "/root/build9.sh > /mnt/f/kimi-k3-in-c/reports/gateab_ab/build9.log 2>&1"

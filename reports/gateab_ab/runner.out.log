@@ -1,24 +1,2 @@
-[ab] start 12:14:56
-[ab] v0_base -> /mnt/f/kimi-k3-in-c/reports/gateab_ab/v0_base-20260926_grep: /mnt/f/kimi-k3-in-c/reports/gateab_ab/v2_cache16.8-20260926_123430/ctrl.json: No such file or directory
-GB / expert cache 13.7 GB
-trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
-  trunk (STREAMED) 6.00 GB
-  expert cache     13.68 GB
-trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 2 x 1.30 GB
-expert cache: 779 slots x 17.56 MB = 13.68 GB (0.95% of the 1.45 TB expert pool)
-8 tokens in 1132.5 s, 141.56 s/token average
-  phase2 i/o    : 21.03 GB in 37.76 s (557 MB/s)  [pure parallel disk read]
-I/O share of wall clock: 75.7%  (trunk 402.5 s + experts 454.4 s of 1132.5 s)
-  experts, whole run: 183.67 GB read | 2088 of 11776 requests retained in RAM (17.73%) | 9688 evictions
-  pinned 1/93 layers, ring 2 slots
-  read 436.45 GB in 402.50 s (1084 MB/s pread)
-TIME_ELAPSED=1167.25
-{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":22792814592,"wall_seconds":1132.5109,"seconds_per_token":141.5639,"expert_bytes_read":183667212288,"trunk_bytes_read":436450107392,"stopped_at":-1,"generated_text":null}
-[ab] v2_cache16.8 -> /mnt/f/kimi-k3-in-c/reports/gateab_ab/v2_cache16.8-20260926_123430
-EXIT=1 NAME=v2_cache16.8
---- v2_cache16.8 (extra: --trunk-gb 5.5 --cache-gb 16.8)
-trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
-  trunk (STREAMED) 5.50 GB
-  expert cache     16.80 GB
-TIME_ELAPSED=5.69
-[ab] end 12:34:46
+[ab] start 23:59:28
+[ab] FATAL: nvme unavailable

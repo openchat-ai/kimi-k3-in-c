@@ -1,0 +1,13 @@
+cc -O3 -std=gnu99 -Wall -Wextra -Wpointer-arith -Wshadow -Wvla -Wno-unused-parameter -march=native -fopenmp -pthread -ffp-contract=off -Iinclude -Iinclude/k3 -Ithird_party -Isrc/core -Isrc/io -Isrc/cache -Isrc/model -Isrc/tokenizer -Isrc/chip -c src/io/k3_io.c -o build/src/io/k3_io.o
+cc -O3 -std=gnu99 -Wall -Wextra -Wpointer-arith -Wshadow -Wvla -Wno-unused-parameter -march=native -fopenmp -pthread -ffp-contract=off -Iinclude -Iinclude/k3 -Ithird_party -Isrc/core -Isrc/io -Isrc/cache -Isrc/model -Isrc/tokenizer -Isrc/chip src/cli/k3_run.c build/src/core/k3_ops.o build/src/io/k3_st.o build/src/io/k3_load.o build/src/io/k3_trunk.o build/src/io/k3_io.o build/src/cache/k3_cache.o build/src/cache/k3_l2cache.o build/src/model/k3_bind.o build/src/chip/k3_chip.o -o bin/k3 -lm -fopenmp -pthread
+-rwxrwxrwx 1 root root 307856 17:35:51 bin/k3
+--- strings check:
+1
+--- objdump: L2 hit submit must carry group 1 (mov $0x1 into the group slot):
+   323fb:	mov    $0x1,%edi
+   3244e:	mov    $0x1,%edx
+   32453:	call   2e030 <k3_io_submit_g>
+   3248d:	mov    $0x1,%edi
+   32560:	mov    $0x1,%edi
+   32703:	call   2e360 <k3_io_submit_write>
+BUILD_OK=17:35:51

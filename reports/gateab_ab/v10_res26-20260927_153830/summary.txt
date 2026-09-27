@@ -1,0 +1,5 @@
+--- v10_res26 (kio group 0, no hold, trunk 26GB resident / cache 25GB)
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 26.00 GB
+  expert cache     25.00 GB
+TIME_ELAPSED=13.05

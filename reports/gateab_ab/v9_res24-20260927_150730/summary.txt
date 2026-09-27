@@ -1,0 +1,16 @@
+--- v9_res24 (kio group 0, no hold, trunk 24GB resident / cache 24GB)
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 24.00 GB
+  expert cache     24.00 GB
+trunk stream: 56.60 GB packed, 15/93 layers PINNED (20.61 GB), ring 2 x 1.30 GB
+expert cache: 1367 slots x 17.56 MB = 24.00 GB (1.66% of the 1.45 TB expert pool)
+8 tokens in 769.8 s, 96.23 s/token average
+                  this token; TRUE resident hit rate 30.10%
+  phase2 i/o    : 18.06 GB in 29.90 s (604 MB/s)  [pure parallel disk read]
+I/O share of wall clock: 87.1%  (trunk 362.3 s + experts 308.2 s of 769.8 s)
+  experts, whole run: 167.24 GB read | 3612 of 11776 requests retained in RAM (30.67%) | 8164 evictions
+  pinned 15/93 layers, ring 2 slots
+  read 377.67 GB in 362.34 s (1042 MB/s pread)
+  bind wall 13.73 s over 744 binds; read 362.34 + widen 2.87 = 365.21 s of device work,
+TIME_ELAPSED=789.77
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":41889640448,"wall_seconds":769.8008,"seconds_per_token":96.2251,"expert_bytes_read":167242973184,"trunk_bytes_read":377672105984,"stopped_at":-1,"generated_text":null}

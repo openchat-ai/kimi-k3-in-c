@@ -65,6 +65,13 @@ typedef struct K3IO {
     K3IOReq    *q[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
     K3IOReq    *qtail[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
     int         active_group[K3_IO_MAX_TIERS];
+    /* Round-robin cursor over the groups, bumped under mu. Workers start their scan
+     * here instead of always at group 0: the trunk stream keeps group 0 permanently
+     * non-empty, so an "active group first, fall back when empty" rule never reaches
+     * the fallback and both streams end up served in turns. Rotating the start point
+     * spreads workers across whichever queues have work, which is what lets the
+     * trunk stream (group 0) and the L2 burst (group 1) be in flight together. */
+    int         rr[K3_IO_MAX_TIERS];
     int         nworkers[K3_IO_MAX_TIERS]; /* workers per tier */
     int         ntiers;
 } K3IO;

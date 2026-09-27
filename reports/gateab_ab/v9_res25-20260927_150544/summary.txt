@@ -1,0 +1,5 @@
+--- v9_res25 (kio group 0, no hold, trunk 25GB resident / cache 26GB)
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 25.00 GB
+  expert cache     26.00 GB
+TIME_ELAPSED=4.15

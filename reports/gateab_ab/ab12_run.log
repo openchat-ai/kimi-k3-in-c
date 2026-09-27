@@ -1,0 +1,20 @@
+[ab12] start 14:01:37 load=1.59 0.40 0.13 nproc=16
+[ab12] /mnt/f/kimi-k3-in-c/reports/gateab_ab/v8_full3-20260927_140137 mode=kio-unified (L2 hits in group 1, st via g_io, no hold mounted)
+EXIT=0 load=5.79 7.17 5.95
+--- v8_full3 (kio unified, L2 hits group 1, no phase2 hold)
+auto budget: 32.8 GB available, 9.1 GB reserved -> trunk 6.0 GB / expert cache 17.7 GB
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 6.00 GB
+  expert cache     17.74 GB
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 2 x 1.30 GB
+expert cache: 1010 slots x 17.56 MB = 17.73 GB (1.23% of the 1.45 TB expert pool)
+8 tokens in 1093.5 s, 136.69 s/token average
+                  this token; TRUE resident hit rate 28.87%
+  phase2 i/o    : 18.38 GB in 57.56 s (319 MB/s)  [pure parallel disk read]
+I/O share of wall clock: 85.7%  (trunk 432.1 s + experts 504.8 s of 1093.5 s)
+  experts, whole run: 173.05 GB read | 2924 of 11776 requests retained in RAM (24.83%) | 8852 evictions
+  pinned 1/93 layers, ring 2 slots
+  read 436.45 GB in 432.08 s (1010 MB/s pread)
+TIME_ELAPSED=1125.72
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":26844688384,"wall_seconds":1093.5142,"seconds_per_token":136.6893,"expert_bytes_read":173051117568,"trunk_bytes_read":436450107392,"stopped_at":-1,"generated_text":null}
+[ab12] end 14:20:26

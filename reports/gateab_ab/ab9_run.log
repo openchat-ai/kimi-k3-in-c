@@ -1,0 +1,7 @@
+[ab9] start 07:56:55 load=1.20 1.28 0.74 nproc=16
+[ab9] /mnt/f/kimi-k3-in-c/reports/gateab_ab/v5_l2g1-20260927_075655 mode=kio-unified (L2 hits in group 1, st via g_io, no hold mounted)
+/root/ab9.sh: line 29:   719 Killed                     /usr/bin/time -f "TIME_ELAPSED=%e" ./bin/k3 /model --trunk /mnt/nvme/trunk_layers_out --embed-dir /mnt/nvme/embed --ids 1008 --gen 8 --out "$LOG/ctrl.json" > "$LOG/ctrl.log" 2>&1
+EXIT=137 load=0.00 0.00 0.10
+grep: /mnt/f/kimi-k3-in-c/reports/gateab_ab/v5_l2g1-20260927_075655/ctrl.json: No such file or directory
+--- v5_l2g1 (kio unified, L2 hits group 1, no phase2 hold)
+[ab9] end 08:25:23
