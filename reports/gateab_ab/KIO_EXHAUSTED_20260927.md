@@ -1,50 +1,50 @@
-# kio 调度层穷尽报告（2026-09-27）
+# 2026-09-27 全天实验结账（20 次 A/B）
 
-## 结论：kio 调度层没有可挖的空间
+## 最重要的一条：stale .o 让 matmul 从 AVX2 退化成 SSE
 
-15 次实验，5 种调度形态，**I/O share 始终 < 96%**，而 2026-09-26 上午的 4 次是 126-148%。worker 加倍（16→32）零影响。
-
-| 臂 | kio 形态 | share | pread | s/tok |
+| 二进制 | ymm | xmm | e8m7 内核指令数 | s/tok |
 |---|---|---|---|---|
-| 081 上午 ×4 | group 1 + hold 空转 | **126-148%** | 877-908 | **81.28-85.00** |
-| v5_l2g1 | group 1 + hold 不挂 | — | — | **死锁** |
-| v6_l2g1rw | group 1 读写都固定 + 无 hold | — | — | **死锁** |
-| v8_full3 | group 1 + hold 生效 | 85.7% | 1010 | 136.69 |
-| v9_res24 | 同上 + trunk 24G/cache 24G | 87.1% | 1042 | 96.23 |
-| v10_res26c23 | 同上 + trunk 26G/cache 23G | 82.7% | **1089** | **92.39** |
-| v11_res29c20 | 同上 + trunk 29G/cache 20G | 89.7% | 919 | 101.21 |
-| v12_fallback | 同上 + worker fallback | 86.6% | 964 | 100.77 |
-| v13_nohold_g1 | group 1 + hold 不挂 + fallback | 95.2% | 832 | 110.68 |
-| v14_rr | group 1 + 轮转 drain 全部组 | 92.5% | 873 | 109.13 |
-| v15_nw32 | 同上 + 32 workers | 93.6% | 858 | 109.91 |
+| 09-26 08:59 旧二进制（快） | 1405 | 5322 | 288 | 78.37 |
+| **今天 12:16-19:00 我跑的 8 次** | **323** | 8087 | **1323** | 92-137 |
+| 18:32 全量 `make clean` 后 | 1425 | 5491 | 288 | 80.93 |
 
-## 关键机制（三条都有实测支撑）
+源码、gcc 15.2.0、`-march=native` 全部相同，Makefile 只加了 pc-run 目标 —— 唯一的解释是**增量构建的 stale .o**（`build/*.o` 在 08:59 pull 时被整体删除，此前已处于不一致状态）。**依赖追踪漏了某个头文件，k3_ops.o 长期没重编。**
 
-1. **盘不能有效承载双流**。probe_coldc（09-24 提交）：并发聚合 1257 MB/s < 单流 1509 < 串行 1675。今天复现：打开并发后 pread 立刻 1089 → 832-873 MB/s。
-2. **share 是盘带宽的镜像，不是调度的功劳**。share = 读秒和/墙 ≈ 聚合带宽/墙，所以它只反映盘给多少，不反映队列怎么排。
-3. **内存才是有效杠杆，但效应小于噪声**。trunk 常驻 6→26GB 让字节/token 76.2→67.3（-12%），墙 112.69→92.39（-18%）；但同配置重跑一次是 100.77（pread 964 vs 1089），**9% 的环境漂移就淹没了这个效应**。
+代价：v8-v15 共 8 次实验的结论全部作废，我在这上面又叠了 group 1 / hold / fallback / 轮转 / 32 worker 五轮测试。
 
-## 081 复现失败，且给出物理解释
+流程修正：每次 A/B 前 `make clean`，或至少校验 matmul 的 ymm 计数。
 
-- 逐 token 字节在所有 run 里完全一致（25.83/25.83、24.85/24.85…），**工作量从未变过**
-- 081 的 pread 是 891 MB/s，**比今天任何一次都慢**（今天 858-1089）
-- 081 的墙却最短（81.28）→ 它是"读得更慢、被算术吸收得更多"
-- share 144% 需要"读秒和 > 墙"，在单流 891 MB/s 下唯一可能是**统计重复计入**（`load_seconds` 含已重叠时间），而非真双流
+## 有效结论（均在干净二进制上）
 
-## 死锁根因（已修，代码注释留存）
+**最佳配置：trunk 6GB / cache 40GB = 80.93 s/tok**（retained 53.04%，share 157.2%）
 
-`k3_io_tier_main` 只 drain `io->q[tier][active_group[tier]]`。phase2_hold 不挂载时 `active_group` 恒为 0 → group 1 的请求无人服务 → 41/41 线程 futex、I/O 与 CPU 双零、日志冻结在 104 B。
-修法：轮转起点扫全部组（`io->rr[]` 游标，k3_io.h 新增）。`k3_io_set_active` 保留但不再门控 drain。
+| 臂 | pinned | trunk/cache | 专家读 | retained | s/tok |
+|---|---|---|---|---|---|
+| v16 旧二进制 | 1 (3.0G) | 6 / 13.6 | 183.8G | 17.7% | **78.37** |
+| **v18** | 1 (3.0G) | **6 / 40** | **137.0G** | **53.0%** | **80.93** |
+| v20 | 10 (14.3G) | 17 / 30 | 151.3G | 41.3% | 81.77 |
+| v17 | 17 (23.0G) | 26 / 23 | 168.6G | 29.6% | 88.45 |
+| v19 | 1 (3.0G) | 5 / 44 | — | — | ring 降到 1 槽，预读失效 |
 
-## 教训
+1. **轮转 drain 修好了"读打架"**：I/O share 从 82-95% 升到 **148-157%**（081 区间）。原代码只 drain `active_group` 一个组，trunk 流让 group 0 永不为空。
+2. **cache 是唯一有效内存杠杆**：arena 13.6→40GB 使 retained 17.7%→53.0%，专家读 −25%。
+3. **trunk 常驻是负收益**：1→10 层无差别，17 层差 7.5s —— bind wall 从 10.1s 涨到 30.1s（常驻权重每 token 仍 memcpy 184GB）。
+4. **"12 层最佳"是 cache 只有 2GB 时代的结论**（`pin20_103044`，81.28 s/tok）。今天 1 层与 10 层差 0.84s，落在环境漂移内。
+5. **ring 下限是 5.6GB，不是代码写的 2.5GB**（`k3_run.c:1078` 的 `slot_min=2.5`）。低于此 planner 静默降到 1 槽，而 `k3_trunk.c` 注释明写 "1 ring slot is NOT enough: reads stop overlapping compute"。这是待修的 bug。
+6. **trunk+cache 实用上限 46-47GB**，49GB 会把 56GB 机器榨到 `MemFree=0` 触发换页（v19 那个 351s 的 token）。
 
-- **噪声大于效应**：今天盘速率在 858-1089 MB/s 间漂移（±12%），任何小于 15% 的改动无法检出。先量噪声，再谈改进。
-- **A/B 必须单变量**：v4 一次改两处，v5/v6 各两处，白烧 50 分钟。
-- **先查时间线与 reflog**：`git reflog` 立刻显示 61cf381 提交于 09:22 而 4 次快 run 在 07:41-08:33；`stash@{0}`（09-26 08:59）里存着当年的 `bin/k3`，objdump 一比就知含不含 group 1。
-- **注释会骗人**：`/* ask for transparent hugepages */` 旁边 `madvise(..., "advisory: failure is not an error")` —— 实测 AnonHugePages 只有 RSS 的 40%。
+## 两次死锁（kio 层，已修）
 
-## 现状
+只 drain `active_group` → hold 不挂载时该组恒为 0 → group 1 无人服务 → 41/41 线程 `futex_wait_queue`、I/O 与 CPU 双零、日志冻结在 104B（`v5_l2g1`、`v6_l2g1rw`，各烧 25 分钟）。把写也钉到 group 1 仍死。修法：`io->rr[]` 轮转游标扫全部组（`k3_io.h` 新增字段），`k3_io_set_active` 保留但不再门控。
 
-- 内存上限 49GB（56.5 − 5.4 固定开销，51GB 启动失败）
-- 最佳 92.39 s/tok（v10），但与环境不可区分
-- 距 34 s/tok 的缺口：需净读 37GB/token（现在 67.3），单盘 1.09 GB/s 是硬墙
+## 环境漂移大于所有被测效应
+
+v10 与 v12 配置、字节完全相同（trunk 370.13GB / 专家 168.56GB），仅 pread 964 vs 1089 MB/s → 100.77 vs 92.39 s/tok。**任何小于 15% 的改动在这台机器上不可检出。**
+
+## 距 34 s/tok
+
+trunk 读 54.6GB/token 占净读 82%，cache 已尽力（专家剩 17GB），trunk 常驻被 bind memcpy 抵消。可选路径（按可信度）：
+1. `--spec` 投机解码 —— 仓库有 `verify_spec_amp.sh` + `rep_estimate.awk`，输出质量不变
+2. 零拷贝 bind —— 消掉 184GB memcpy，让 trunk 常驻转正
+3. THP 只生效 40%（`AnonHugePages` 12.7G / RSS 31.4G），`defrag=madvise` + `alloc_sleep=60s` 静默失败
+4. ~~`--layers 50`~~ —— 是 "bind only the first N layers" 的截断 hack，`27-30 s/tok` 是估算，不算真实加速

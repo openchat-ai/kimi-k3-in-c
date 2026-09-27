@@ -1,0 +1,7 @@
+--- v19_c44 (kio group 0, no hold, trunk 5GB resident / cache 44GB + CLEAN rebuild (full make), round-robin drain, 16 workers)
+trunk on disk : 110.00 GB total (STREAMED from /mnt/nvme/trunk_layers_out, not held in RAM)
+  trunk (STREAMED) 5.00 GB
+  expert cache     44.00 GB
+trunk stream: 56.60 GB packed, 1/93 layers PINNED (3.00 GB), ring 1 x 1.30 GB
+              ring held at 1 slot: 2 slots need 2.61 GB and the trunk budget is 5.00 GB,
+expert cache: 2506 slots x 17.56 MB = 43.99 GB (3.04% of the 1.45 TB expert pool)
