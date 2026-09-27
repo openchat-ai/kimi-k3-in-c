@@ -927,6 +927,23 @@ int main(int argc, char **argv)
             budget_explicit = 1;
             if (!strcmp(v, "auto")) budget_auto = 1;
             else { trunk_gb = atof(v); budget_auto = 0; }
+            /* Clamp to the two-ring-slot floor. k3_trunk_open spends the budget on 2 ring
+             * slots (2 x 1.30 GB) plus at least one pinned layer (~1.4 GB), and below that
+             * it silently drops to ONE ring slot rather than failing: passing
+             * --trunk-gb 5 got "ring 1 x 1.30 GB / 2 slots need 2.61 GB and the trunk
+             * budget is 5.00 GB" (v19), and per k3_trunk_open's own note one slot stops
+             * reads from overlapping compute -- that run's token 1 took 351 s against a
+             * 69 s neighbour. The auto path already lands on 6.0 GB via
+             * trunk_floor = slot_min*2 + 1, so this only catches explicit undershoot. */
+            const double ring2_floor = 5.6;   /* 2 x 1.30 ring + 1 pinned layer + slack */
+            if (trunk_gb > 0.0 && trunk_gb < ring2_floor) {
+                fprintf(stderr, "--trunk-gb %.2f GB is below the %.1f GB floor (two ring "
+                                "slots + one pinned layer); raising to %.1f GB -- a smaller "
+                                "value would silently drop the trunk to ONE ring slot and "
+                                "stop its reads from overlapping compute.\n",
+                        trunk_gb, ring2_floor, ring2_floor);
+                trunk_gb = ring2_floor;
+            }
         }
         else if (!strcmp(argv[i], "--trunk-ring") && i + 1 < argc) trunk_ring = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--incremental")) incremental_default = 1;
