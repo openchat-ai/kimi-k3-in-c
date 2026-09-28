@@ -56,15 +56,15 @@ typedef struct K3IO {
     pthread_cond_t  cv[K3_IO_MAX_TIERS];     /* one condvar PER TIER so a submit
                                                 wakes only that tier's workers */
     int         stop;
-    /* Per-group FIFO per tier, so a burst on one group (the L2 expert reads) can
-     * OWN the device for a phase while another group (the trunk stream) parks.
-     * The two streams sharing one NVMe at full concurrency measured 1.3 GB/s, but
-     * each ALONE reaches ~2 GB/s, so time-slicing the device between groups beats
-     * sharing it. active_group[tier] is the group workers currently drain; groups
-     * are toggled with k3_io_set_active. */
+    /* Per-group FIFO per tier, so a burst on one group (the L2 expert reads) can be
+     * queued separately from the other (the trunk stream). Groups are NOT time-sliced:
+     * every worker drains all non-empty groups round-robin (see rr[] below), so both
+     * streams are in flight at once. An earlier active_group[] plus k3_io_set_active()
+     * did time-slice them, on the theory that 1.3 GB/s shared beats each stream at half
+     * speed -- measured worth 0-3 s per run, and it deadlocked whenever group 1 was
+     * used with it unmounted. Removed; the round-robin drain is what replaced it. */
     K3IOReq    *q[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
     K3IOReq    *qtail[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
-    int         active_group[K3_IO_MAX_TIERS];
     /* Round-robin cursor over the groups, bumped under mu. Workers start their scan
      * here instead of always at group 0: the trunk stream keeps group 0 permanently
      * non-empty, so an "active group first, fall back when empty" rule never reaches
@@ -89,12 +89,10 @@ K3IOReq *k3_io_submit_g(K3IO *io, int tier, int group, int fd, off_t off,
                         size_t nbytes, size_t chunk, void *dst);
 K3IOReq *k3_io_submit(K3IO *io, int tier, int fd, off_t off,
                       size_t nbytes, size_t chunk, void *dst); /* group 0 */
-/* Submit one write (pwrite of nbytes from src to fd at off); single completion. */
+/* Submit one write (pwrite of nbytes from src to fd at off); single completion.
+ * Writes join group 0, where the L2 refill writes and the trunk stream already are. */
 K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
-                            size_t nbytes, const void *src); /* group 0 */
-/* Toggle which group a tier's workers drain. Requests in other groups queue until
- * their group is active again (set_active broadcasts the tier condvar). */
-void  k3_io_set_active(K3IO *io, int tier, int group);
+                            size_t nbytes, const void *src);
 /* Block until the request completes. Returns the pread/pwrite result (bytes
  * transferred, or <0). */
 ssize_t k3_io_wait(K3IOReq *req);

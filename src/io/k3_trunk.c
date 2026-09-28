@@ -49,12 +49,13 @@ typedef struct {
      * makes every later hint vanish and the following binds fall back to synchronous
      * reads on the main thread, stalling it for the whole expert burst. */
     int pending;    /* layer to read next, -1 none */
-    /* NVMe gate: while gate==1 the async reader waits between chunks, so the expert
-     * cache's phase-2 scattered burst gets the device to itself. Without it, the trunk
-     * reader's sequential stream and the experts' scattered reads run beside each other
-     * and share one drive: 995 MB/s + 639 MB/s ≈ 1.6 GB/s is the drive's ceiling, so
-     * each stream runs at half its single-stream speed and the decode step pays both. */
-    int gate;
+    /* NOTE: there used to be an `int gate` here. The expert phase-2 burst set it to
+     * park this reader between chunks, on the theory that time-slicing one NVMe beats
+     * sharing it (995 + 639 MB/s against a ~1.6 GB/s ceiling). Measured, the park was
+     * worth 0-3 s per run -- inside this box's 3.4% reproducibility band -- so the flag
+     * had no effect worth keeping and was removed with k3_trunk_expert_hold(). The
+     * kio pool now serves the trunk stream and the expert burst in flight together by
+     * round-robin drain (k3_io.h: rr[]), which needs no gate. */
 } K3TrunkIO;
 
 static void *trunk_io_main(void *arg);
@@ -591,7 +592,6 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
     int64_t got = 0;
     int fd = tr->fd;
     off_t off = (off_t)lay->file_off;
-    K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
     if (tr->layer_fd) {
         /* Sliced mode: one file per layer, read from offset 0. Open lazily now. */
         if (tr->layer_fd[L] < 0) {
@@ -608,25 +608,14 @@ static int load_run(K3Trunk *tr, int L, unsigned char *dst)
         off = 0;
     }
     while (got < lay->nbytes) {
-        /* Gate check: while the expert cache's phase-2 burst owns the drive, hold off.
-         * Read in ~8 MB chunks so this breaks out within a few IO ops instead of after
-         * one whole 600 MB layer. Without this, trunk stream (~995 MB/s) and expert
-         * scattered reads (~640 MB/s) run simultaneously and share the ~1.6 GB/s the
-         * drive can actually do: each gets ~0.5x of its single-stream rate, and decode
-         * expert reads take 40 s instead of 14 s.
+        /* Read in ~8 MB chunks so the reader can be re-prioritised and the pending-layer
+         * hint can be serviced between chunks rather than after one whole 600 MB layer.
          *
-         * kio path: the gate below is skipped -- the expert phase-2 burst parks the
-         * trunk GROUP by toggling the scheduler's active_group (k3_io_set_active), so
-         * our group-0 requests queue while group-1 (L2 hits) owns the device. */
-        if (io && !tr->kio) {
-            pthread_mutex_lock(&io->mu);
-            const double w0 = now_s();
-            while (io->gate && !io->stop) pthread_cond_wait(&io->cv, &io->mu);
-            tr->wait_seconds += now_s() - w0;
-            const int stop = io->stop;
-            pthread_mutex_unlock(&io->mu);
-            if (stop) break;
-        }
+         * There is no expert-gate check here any more. The gate existed to make the
+         * trunk stream and the expert phase-2 burst take the NVMe in turns; measured, the
+         * park was 0-3 s (inside the 3.4% noise band), and the kio path never even took
+         * this branch -- the pool's round-robin drain already serves both groups at once
+         * (K3IO.rr[]), which is strictly better than time-slicing them. */
         const int64_t rem = lay->nbytes - got;
         size_t want = (size_t)(rem < (int64_t)TRUNK_READ_CHUNK ? rem : (int64_t)TRUNK_READ_CHUNK);
         ssize_t r;
@@ -715,16 +704,6 @@ void k3_trunk_release(K3Trunk *tr, int L)
         }
         tr->slot_of[L] = -1;
     }
-    pthread_mutex_unlock(&io->mu);
-}
-
-void k3_trunk_expert_hold(K3Trunk *tr, int hold)
-{
-    K3TrunkIO *io = (K3TrunkIO *)tr->io_state;
-    if (!io) return;
-    pthread_mutex_lock(&io->mu);
-    io->gate = hold ? 1 : 0;
-    if (!hold) pthread_cond_broadcast(&io->cv);
     pthread_mutex_unlock(&io->mu);
 }
 

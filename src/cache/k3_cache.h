@@ -86,14 +86,10 @@ typedef struct {
                                    * non-zero only on the O_DIRECT path, where the
                                    * read is widened to aligned bounds             */
 
-    /* Optional NVMe contention gate. The trunk reader and the expert phase-2 burst
-     * share one drive; if both run at once they halve each other (995+640 MB/s against
-     * a ~1.6 GB/s ceiling). When phase2_hold is non-NULL the cache calls it with
-     * hold=1 just before the phase-2 read loop and hold=0 right after, so the trunk
-     * reader can pause at its next chunk boundary and let the experts own the drive.
-     * Wire this in k3_run.c; NULL disables the gate. */
-    void (*phase2_hold)(void *ctx, int hold);
-    void *phase2_ctx;
+    /* NOTE: `void (*phase2_hold)(void *ctx, int hold); void *phase2_ctx;` used to live
+     * here -- an optional NVMe contention gate the cache raised around the phase-2 read
+     * loop to pause the trunk reader. Removed: the park measured 0-3 s per run (inside
+     * this box's 3.4% noise band) and k3_io's round-robin drain made it unnecessary. */
 
     uint64_t     clock;
     /* stats */

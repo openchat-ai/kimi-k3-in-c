@@ -39,8 +39,9 @@ static void *k3_io_tier_main(void *arg)
          * permanently non-empty, so "active group first, fall back when empty" never
          * reaches the fallback (v12/v13: share 86.6% and 95.2%). Rotating the scan start
          * spreads workers across whichever queues have work, so trunk and L2 run
-         * concurrently. k3_io_set_active is kept for compatibility but no longer gates
-         * the drain. */
+         * concurrently. k3_io_set_active() and active_group[] have since been removed
+         * outright: nothing needed them, and leaving a "kept for compatibility" toggle
+         * next to a drain it no longer controls is how the next reader wires it back in. */
         int g = -1;
         K3IOReq *r = NULL;
         {
@@ -181,16 +182,6 @@ K3IOReq *k3_io_submit(K3IO *io, int tier, int fd, off_t off,
     return k3_io_submit_g(io, tier, 0, fd, off, nbytes, chunk, dst);
 }
 
-void k3_io_set_active(K3IO *io, int tier, int group)
-{
-    if (group < 0) group = 0;
-    if (group >= K3_IO_MAX_GROUPS) group = K3_IO_MAX_GROUPS - 1;
-    pthread_mutex_lock(&io->mu);
-    io->active_group[tier] = group;
-    pthread_cond_broadcast(&io->cv[tier]);
-    pthread_mutex_unlock(&io->mu);
-}
-
 K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
                             size_t nbytes, const void *src)
 {
@@ -207,17 +198,14 @@ K3IOReq *k3_io_submit_write(K3IO *io, int tier, int fd, off_t off,
     pthread_cond_init(&r->cv, NULL);
 
     pthread_mutex_lock(&io->mu);
-    /* Route the write to the CURRENT active group, not a hardcoded 0. Phase-2
-     * hold parks the trunk group (active_group[0]=1): an L2-miss refill write
-     * staying in group 0 would queue behind the parked trunk and never be
-     * drained, deadlocking the pool (gateAB_085122). Inside the window the write
-     * joins group 1 (drained by the L2 burst); outside it falls back to group 0.
-     *
-     * Pinned hard to group 1 (tried as v6_l2g1rw): the L2 hit reads live in group 0,
-     * so a write parked in group 1 waits on a group nothing drains and the pool wedges
-     * at startup. active_group is the correct target -- with the hold unmounted it is
-     * always 0, i.e. the same group the hit reads use. */
-    const int g = io->active_group[tier];
+    /* Writes join group 0. This used to follow io->active_group[tier], because the
+     * phase-2 hold parked the trunk in group 1 and a refill write left in group 0
+     * would queue behind it (gateAB_085122). Two later changes made that moot: the
+     * hold is gone, and workers now drain every non-empty group round-robin, so group
+     * choice no longer decides who gets served. Hard-pinning to group 1 instead was
+     * also tried (v6_l2g1rw) and wedged: the L2 hit reads live in group 0, so a write
+     * parked in group 1 waited on a queue nothing drained. */
+    const int g = 0;
     r->group = g;
     if (io->qtail[tier][g]) io->qtail[tier][g]->next = r;
     else                    io->q[tier][g] = r;

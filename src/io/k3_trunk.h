@@ -162,12 +162,10 @@ void k3_trunk_prefetch(K3Trunk *tr, int L);
  * never released. */
 void k3_trunk_release(K3Trunk *tr, int L);
 
-/* NVMe contended-stream gate. While the expert cache is running its phase-2 scattered
- * burst it dominates the drive; letting the trunk reader co-stream at the same time
- * halves both. hold != 0 pauses the async reader (at the next TRUNK_READ_CHUNK
- * boundary), hold == 0 resumes it. Safe to call with any io_state, including NULL
- * (single-slot ring, no reader). */
-void k3_trunk_expert_hold(K3Trunk *tr, int hold);
+/* k3_trunk_expert_hold() used to live here: it paused the async reader at the next
+ * TRUNK_READ_CHUNK boundary while the expert phase-2 burst owned the NVMe. Removed --
+ * the park measured 0-3 s per run (inside this box's 3.4% noise band), the kio path
+ * never took it, and k3_io's round-robin drain now serves both streams concurrently. */
 
 void k3_trunk_report(const K3Trunk *tr, const char *label);
 

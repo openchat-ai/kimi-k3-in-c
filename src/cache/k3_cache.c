@@ -263,13 +263,13 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
     }
 
     /* ---- phase 2: read, concurrently ---- */
-    /* Gate for L2-hit AND miss bursts: probe_coldc showed concurrent trunk+expert on
-     * the same NVMe aggregates to only 1257 MB/s while trunk alone does 1509 and the
-     * serial trunk-then-expert does 1675 MB/s. Interleaving the two streams on one
-     * drive is a NET LOSS even when both hit fast NVMe, so yield the whole burst to
-     * the experts. The old miss-only test (L2 slot_of<0) was falsified by that probe. */
-    const int gate_needed = (c->phase2_hold != NULL) && (c->l2 != NULL);
-    if (gate_needed) c->phase2_hold(c->phase2_ctx, 1);
+    /* NOTE: the trunk stream and this phase-2 burst share one NVMe. There used to be a
+     * gate here that parked the trunk reader for the whole burst (probe_coldc measured
+     * concurrent trunk+expert aggregating to 1257 MB/s against 1509 trunk-alone and
+     * 1675 serial). The gate's own effect measured 0-3 s -- inside this box's 3.4%
+     * reproducibility band -- and on the kio path it never ran at all, the pool's
+     * round-robin drain serving both groups in flight instead. Removed; the probe
+     * result stands as a device fact, the mechanism built on it did not pay. */
     const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
     const double ms0 = c->l2 ? c->l2->miss_seconds : 0;
     const uint64_t hs0_l2 = c->l2 ? c->l2->hits : 0;   /* for the K3_TRACE row below */
@@ -301,7 +301,6 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
         w[i].got = got;
         w[i].pad = pad;
     }
-    if (c->phase2_hold && gate_needed) c->phase2_hold(c->phase2_ctx, 0);
     const double t2 = now_s() - t0;
     c->phase2_seconds += t2;
     c->phase2_bytes += (uint64_t)nw * (uint64_t)c->slot_bytes;

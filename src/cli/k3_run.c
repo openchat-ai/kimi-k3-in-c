@@ -811,30 +811,12 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
     return 0;
 }
 
-static void trunk_phase2_hold(void *ctx, int hold)
-{
-    K3Trunk *tr = (K3Trunk *)ctx;
-    if (tr->kio) {
-        /* kio: park the trunk group while the expert phase-2 burst owns the device
-         * (group toggling); trunk's group-0 requests queue until hold lifts.
-         *
-         * Depth-counted: cache_getmany_inner can run on BOTH the forward main thread
-         * and the prefetch reader thread, so a naive set_active would let one thread's
-         * hold(0) release the trunk while the other is still mid-burst. Only the first
-         * hold(1) may switch to group 1 and only the last hold(0) may switch back. */
-        static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
-        static int depth = 0;
-        pthread_mutex_lock(&m);
-        if (hold) {
-            if (depth++ == 0) k3_io_set_active(tr->kio, 0, 1);
-        } else {
-            if (--depth == 0) k3_io_set_active(tr->kio, 0, 0);
-        }
-        pthread_mutex_unlock(&m);
-    } else {
-        k3_trunk_expert_hold(tr, hold);
-    }
-}
+/* trunk_phase2_hold() used to live here: k3_io_set_active(0,1) around the expert
+ * phase-2 burst, with a depth counter because cache_getmany_inner runs on both the
+ * main thread and the prefetch reader. Removed -- the park was worth 0-3 s per run
+ * (inside this box's 3.4% reproducibility band), and k3_io's round-robin drain now
+ * serves the trunk stream and the expert burst in flight together, which is what the
+ * gate was reaching for. */
 
 int main(int argc, char **argv)
 {
@@ -1446,7 +1428,7 @@ int main(int argc, char **argv)
         k3_io_init(&g_io, 2, nw);
         g_io_once = 1;
     }
-    st.kio = (getenv("K3_NOKIO") || getenv("K3_L2_NATIVE")) ? NULL : &g_io;
+    st.kio = getenv("K3_NOKIO") ? NULL : &g_io;
     st.tier = (int *)calloc((size_t)st.nshard, sizeof(int));
     if (!st.tier) return 1;
     /* embed/lm_head shard lives on sdd7 (NVMe tier 0); routed experts stay on the
@@ -1595,17 +1577,19 @@ int main(int argc, char **argv)
      * --l2-policy handling right below. */
     setenv("K3_L1_POLICY", l1_policy ? "heat" : "lru", 1);
     if (k3_cache_init(&cache, &st, &c, (int64_t)(cache_gb * 1e9)) != 0) return 1;
-    /* Leave the hold UNMOUNTED on the kio path. The 2026-09-26 morning runs that hit
-     * 81-85 s/tok reported 0.00 s parked on the expert gate (gateAB_074101, 075554)
-     * together with I/O share 144-148%: the trunk stream was never parked, so trunk
-     * (group 0) and the L2 burst (group 1) flew at the NVMe together. Mounting the hold
-     * parks trunk for the whole burst and pins the share near 90% -- measured 96.23
-     * (v9), 92.39 (v10), 100.77 and 101.21 (v11, v12) at 26-29 GB trunk resident.
-     * Unmounting it used to deadlock (v5_l2g1, v6_l2g1rw: the worker drained only
-     * active_group, pinned at 0, so nothing served group 1); the fallback in
-     * k3_io_tier_main removed that hazard, so both streams now get served. */
-    cache.phase2_hold = (w.trunk && !trunk.kio) ? trunk_phase2_hold : NULL;
-    cache.phase2_ctx = (void *)&trunk;
+    /* The expert-gate hold that used to be mounted here is gone, along with
+     * cache.phase2_hold itself. The reasoning it was built on, for the record:
+     *
+     *   - It was left UNMOUNTED on the kio path. Runs hitting 81-85 s/tok reported
+     *     0.00 s parked on the expert gate together with I/O share 144-148%: trunk
+     *     (group 0) and the L2 burst (group 1) were already flying at the NVMe
+     *     together. Mounting it pinned the share near 90% and measured 96.23 (v9),
+     *     92.39 (v10), 100.77 and 101.21 (v11, v12) at 26-29 GB trunk resident.
+     *   - The non-kio fallback existed only because unmounting it used to deadlock
+     *     (v5_l2g1, v6_l2g1rw: workers drained just active_group, pinned at 0, so
+     *     nothing serviced group 1). k3_io_tier_main's round-robin fallback removed
+     *     that hazard, which is also why the L2 burst's group-1 comment in
+     *     k3_l2cache.c no longer claims a dependency on this hold. */
     cache.prefetch_depth = prefetch_depth;
     cache.prefetch_cap = prefetch_cap;
     printf("expert L1 eviction policy: %s\n", l1_policy ? "heat" : "lru");
@@ -1627,7 +1611,7 @@ int main(int argc, char **argv)
         const int64_t l2_slot = cache.slot_bytes - 2 * K3_ST_ALIGN;
         if (k3_l2_init(&l2, l2_path, (int64_t)(l2_gb * 1e9),
                        c.n_layers, c.n_experts, l2_slot) == 0) {
-            l2.kio = (getenv("K3_NOKIO") || getenv("K3_L2_NATIVE")) ? NULL : &g_io;
+            l2.kio = getenv("K3_NOKIO") ? NULL : &g_io;
             cache.l2 = (struct K3L2 *)&l2;
             l2.policy = l2_policy;
             have_l2 = 1;

@@ -259,13 +259,15 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
         const double t0 = now_s();
         ssize_t n;
         if (l2->kio) {
-            /* Group 1, the L2 group. This is only safe together with the phase2_hold
-             * shim (k3_run.c trunk_phase2_hold) mounted UNCONDITIONALLY: the hold flips
-             * k3_io_set_active(0, 1) for the whole phase-2 burst, so group 1 is the group
-             * being drained. Unmount the hold while reads still go here and nothing
-             * services the queue -- v5_l2g1 and v6_l2g1rw both wedged that way (41/41
-             * threads in futex_wait_queue, zero IO, log frozen at 104 bytes).
-             * Refill writes follow active_group (2e220d9), so they join the same group. */
+            /* Group 1, the L2 group. This comment used to say the hold shim
+             * (k3_run.c trunk_phase2_hold) had to be mounted UNCONDITIONALLY, because
+             * workers drained only active_group: pinned at 0, nothing serviced group 1,
+             * and v5_l2g1 / v6_l2g1rw both wedged that way (41/41 threads in
+             * futex_wait_queue, zero IO, log frozen at 104 bytes). That dependency is
+             * gone -- k3_io_tier_main now round-robins over every non-empty group, so
+             * group 1 is serviced whether or not anything parks the trunk, and the
+             * hold itself has been removed as measurably worthless. Refill writes go to
+             * group 0 alongside these reads. */
             K3IOReq *q = k3_io_submit_g(l2->kio, 0 /* NVMe tier */, 1 /* L2 group */,
                                         rfd, (off_t)s * l2->slot_bytes,
                                         (size_t)want, 0, buf);
