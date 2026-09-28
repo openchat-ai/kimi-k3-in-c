@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "k3_trace.h"
 #include <unistd.h>
 #include <sys/mman.h>
 #include <pthread.h>
@@ -758,6 +759,7 @@ int k3_trunk_bind(K3Trunk *tr, const K3Cfg *c, int L, K3LayerBind *b)
 {
     if (L < 0 || L >= tr->n_layers) return -1;
     const double t_bind0 = now_s();
+    const long   miss0 = tr->misses;
     k3_trunk_binds++;
     unsigned char *base;
 
@@ -806,6 +808,13 @@ int k3_trunk_bind(K3Trunk *tr, const K3Cfg *c, int L, K3LayerBind *b)
     const double tnow = now_s();
     k3_trunk_widen_wall += tnow - tw;
     k3_trunk_bind_wall  += tnow - t_bind0;
+    /* One row per bind: how long the main thread waited for this layer's bytes, how many
+     * it moved, and whether they came off the disk (a miss) or out of a pinned/ring slot
+     * (a hit). The only prior visibility was a single "98% overlapped" total, which
+     * cannot say which layer blocked or whether a slow layer was device or compute. */
+    k3_trace_ev(K3_PHASE_TRUNK, L, t_bind0, tnow,
+                (tr->misses > miss0) ? (uint64_t)tr->lay[L].nbytes : 0,
+                (int)(tr->hits - miss0), (int)(tr->misses - miss0), 0, 0);
     return rc;
 }
 

@@ -1,0 +1,14 @@
+--- v22_pf1 (clean build, trunk 6GB / cache 40GB, prefetch-depth 1)
+async expert prefetch: lookahead depth 1 layer(s)
+8 tokens in 662.7 s, 82.84 s/token average
+  requests     : 1472  hits 1472 (100.00%)  misses 0  evictions 1139
+                  this token; TRUE resident hit rate 22.62%
+  phase2 i/o    : 20.00 GB in 84.73 s (236 MB/s)  [pure parallel disk read]
+  prefetch      : issued 387  LATE 0  survival 48.9% (720/1472 prev-token routed experts still resident)
+  requests     : 8610  hits 8610 (100.00%)  misses 0
+I/O share of wall clock: 159.8%  (trunk 473.1 s + experts 586.0 s of 662.7 s)
+  experts, whole run: 151.12 GB read | 5442 of 11776 requests retained in RAM (46.21%) | 6334 evictions
+  read 436.45 GB in 473.15 s (922 MB/s pread)
+  bind wall 14.42 s over 744 binds; read 473.15 + widen 2.64 = 475.79 s of device work,
+TIME_ELAPSED=693.40
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":49092579328,"wall_seconds":662.7213,"seconds_per_token":82.8402,"expert_bytes_read":151117037568,"trunk_bytes_read":436450107392,"stopped_at":-1,"generated_text":null}

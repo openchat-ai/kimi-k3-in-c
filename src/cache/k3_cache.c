@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 #ifdef _OPENMP
 #include <omp.h>
+#include "k3_trace.h"
 #endif
 
 #include "k3_portable_io.h"
@@ -271,6 +272,8 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
     if (gate_needed) c->phase2_hold(c->phase2_ctx, 1);
     const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
     const double ms0 = c->l2 ? c->l2->miss_seconds : 0;
+    const uint64_t hs0_l2 = c->l2 ? c->l2->hits : 0;   /* for the K3_TRACE row below */
+    const uint64_t ms0_l2 = c->l2 ? c->l2->misses : 0;
     const double t0 = now_s();
     int omp_inr_nt = 0, inr_in = 0, inr_peak = 0;   /* region diagnostics */
 #ifdef _OPENMP
@@ -313,6 +316,18 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
             c->l2->hit_wall += t2 * (dt_h / tot);
             c->l2->miss_wall += t2 * (dt_m / tot);
         }
+    }
+    /* One row per expert batch: the wall this layer's expert reads cost the caller, and
+     * how the batch split between RAM-resident slots, L2-resident slots and the NVMe
+     * pool. bytes is what actually came off the disk (a RAM hit moves nothing), so the
+     * trace separates "this layer was slow" from "this layer read a lot". */
+    if (k3_trace_on()) {
+        const int l2h = c->l2 ? (int)(c->l2->hits - hs0_l2) : 0;
+        const int l2m = c->l2 ? (int)(c->l2->misses - ms0_l2) : 0;
+        const int res = nw - l2h - l2m;
+        const uint64_t from_disk = (uint64_t)(l2h + l2m) * (uint64_t)c->slot_bytes;
+        k3_trace_ev(K3_PHASE_EXPERT, layer, t0, t0 + t2, from_disk,
+                    res, 0, l2h, l2m);
     }
     if (t2 > 0.05) {
         int nth = 0;

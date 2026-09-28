@@ -58,6 +58,7 @@
 #include "k3_cache.h"
 #include "k3_l2cache.h"
 #include "k3_io.h"
+#include "k3_trace.h"
 #include "k3_trunk.h"
 #include "k3_tok.h"   /* text in/out; the --ids path never touches it */
 #include "k3_cfg.h"   /* read the checkpoint's own config rather than assuming it */
@@ -736,15 +737,19 @@ static int forward(Weights *w, const K3Cfg *c, K3Cache *cache, const int *ids, i
             const size_t kvper = (size_t)w->kv_cap * c->n_heads * (c->qk_nope + c->v_head);
             const size_t rpper = (size_t)w->kv_cap * c->qk_rope;
             const int mi = w->mla_slot[L];
+            const double tc0 = k3_trace_now();
             k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
                                  kstate + kper * (size_t)L, scratch,
                                  w->kvc + kvper * (size_t)mi,
                                  w->ropec + rpper * (size_t)mi,
                                  w->cached, w->kv_cap);
+            k3_trace_ev(K3_PHASE_COMPUTE, L, tc0, k3_trace_now(), 0, 0, 0, 0, 0);
         } else {
+            const double tc0 = k3_trace_now();
             k3_decoder_layer_inc(h, br, &nb, &w->lay[L].lay, c, L, T,
                                  kstate + kper * (size_t)L, scratch,
                                  NULL, NULL, 0, 0);
+            k3_trace_ev(K3_PHASE_COMPUTE, L, tc0, k3_trace_now(), 0, 0, 0, 0, 0);
         }
         /* L is done computing; its slot may now be recycled for the layer after next.
          * Prefetch already claimed a different free slot for L+1 before compute began,
@@ -833,6 +838,9 @@ static void trunk_phase2_hold(void *ctx, int hold)
 
 int main(int argc, char **argv)
 {
+    /* Arm the per-phase timeline before anything can emit into it. Off unless
+     * K3_TRACE names a file, in which case every call site is one branch. */
+    k3_trace_init(getenv("K3_TRACE"));
     /* Informational flags are answered before anything else, because they must work
      * without a model directory, `k3 --help` on a machine with no checkpoint is the
      * first thing most people type. */
@@ -2150,6 +2158,7 @@ int main(int argc, char **argv)
         free(dw.lay); free(dks); free(dsnap); free(dw.kvc); free(dw.ropec);
     }
     free(spec_snap);
+    k3_trace_dump();          /* no-op unless K3_TRACE named a file */
     if (sp_rounds > 0)
         printf("--spec: %ld rounds, mean accepted run %.2f (A)\n",
                sp_rounds, (double)sp_accepted / sp_rounds);

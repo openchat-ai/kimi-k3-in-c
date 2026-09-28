@@ -94,10 +94,11 @@ INCLUDES := -Iinclude -Iinclude/k3 -Ithird_party \
 
 # ----------------------------------------------------------------------------- files --
 ENGINE_SRC := src/core/k3_ops.c \
-              src/io/k3_st.c src/io/k3_load.c src/io/k3_trunk.c src/io/k3_io.c \
-              src/cache/k3_cache.c src/cache/k3_l2cache.c \
-              src/model/k3_bind.c \
-              src/chip/k3_chip.c
+   src/core/k3_trace.c \
+   src/io/k3_st.c src/io/k3_load.c src/io/k3_trunk.c src/io/k3_io.c \
+   src/cache/k3_cache.c src/cache/k3_l2cache.c \
+   src/model/k3_bind.c \
+   src/chip/k3_chip.c
 ENGINE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(ENGINE_SRC))
 
 CLI_SRC    := src/cli/k3_run.c

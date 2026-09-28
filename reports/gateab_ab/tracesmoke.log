@@ -1,0 +1,5 @@
+EXIT=0  trace=/mnt/f/kimi-k3-in-c/reports/gateab_ab/trace_smoke-20260928_081131/trace.csv
+token,layer,phase,t0,t1,dur_s,bytes,l1_hit,l1_miss,l2_hit,l2_miss
+0,0,trunk,573.549205,575.996556,2.447351,2341216256,0,1,0,0
+0,0,compute,575.996589,576.281422,0.284832,0,0,0,0,0
+rows: 557
