@@ -1,50 +1,70 @@
-# 2026-09-27 全天实验结账（20 次 A/B）
+# 2026-09-27/28 结账：kio、内存与瓶颈的真实分布
 
-## 最重要的一条：stale .o 让 matmul 从 AVX2 退化成 SSE
+## 现状
 
-| 二进制 | ymm | xmm | e8m7 内核指令数 | s/tok |
-|---|---|---|---|---|
-| 09-26 08:59 旧二进制（快） | 1405 | 5322 | 288 | 78.37 |
-| **今天 12:16-19:00 我跑的 8 次** | **323** | 8087 | **1323** | 92-137 |
-| 18:32 全量 `make clean` 后 | 1425 | 5491 | 288 | 80.93 |
+**最佳实测 69.33 s/tok**（93 层，trunk 32GB / cache 15GB，干净编译）
+—— 起点 80.93 s/tok（同形态，trunk 6 / cache 40），**改善 14.4%，纯配置参数，零代码改动。**
 
-源码、gcc 15.2.0、`-march=native` 全部相同，Makefile 只加了 pc-run 目标 —— 唯一的解释是**增量构建的 stale .o**（`build/*.o` 在 08:59 pull 时被整体删除，此前已处于不一致状态）。**依赖追踪漏了某个头文件，k3_ops.o 长期没重编。**
+| 臂 | trunk/cache | pinned | trunk 读 | 专家读 | NVMe/token | L1 命中 | s/tok |
+|---|---|---|---|---|---|---|---|
+| v18 | 6 / 40 | 1 (3.0G) | 436.5G | 137.0G | 71.7G | 30.1% | 80.93 |
+| v17 | 26 / 23 | 17 (23.0G) | 370.1G | 168.6G | 67.4G | 29.6% | 88.45 |
+| **v23** | **32 / 15** | **22 (29.3G)** | **349.0G** | 180.1G | **66.1G** | 18.6% | **69.33** |
+| v24 | 40 / 7 | 28 (36.7G) | 324.9G | 195.3G | 65.0G | 12.2% | 70.59 |
 
-代价：v8-v15 共 8 次实验的结论全部作废，我在这上面又叠了 group 1 / hold / fallback / 轮转 / 32 worker 五轮测试。
+**32/15 是"已测点里最好"，不是"已证明的最优"**：v23 与 v24 差 1.8%，而同配置重跑实测差 9%（v10 92.39 vs v12 100.77，字节完全相同、仅 pread 964 vs 1089 MB/s）。峰只能确定落在 32-40GB 区间（19-22 层常驻）。v17 的 88.45 破坏单调性，归因于当天盘最慢（pread 728 MB/s，全天最低）加上净读只降 6%，属推测。
 
-流程修正：每次 A/B 前 `make clean`，或至少校验 matmul 的 ymm 计数。
+## 瓶颈的真实分布（K3_TRACE，两 token 实测）
 
-## 有效结论（均在干净二进制上）
+```
+跨度                245.1 s
+├─ 专家读 (phase-2, 读 experts.l2)  202.1 s   82%   ← 真瓶颈
+├─ 纯算术                             38.3 s   16%
+└─ trunk 读 (93 层合计)                4.6 s    2%   ← 曾被调了一整天
+```
 
-**最佳配置：trunk 6GB / cache 40GB = 80.93 s/tok**（retained 53.04%，share 157.2%）
+`expert` 是 `cache_getmany_inner` 的 phase2，嵌在 `compute`（`k3_decoder_layer_inc`）内部，trace 里 L3 的 expert 区间完整落在 compute 区间内 —— 专家读 100% 被算术掩盖。三档配置的**有效 NVMe 带宽 886 / 953 / 921 MB/s** 都贴着实测 pread（822-875），说明**没有任何一档是算术受限**，墙 = NVMe 读量 ÷ 盘速率。
 
-| 臂 | pinned | trunk/cache | 专家读 | retained | s/tok |
-|---|---|---|---|---|---|
-| v16 旧二进制 | 1 (3.0G) | 6 / 13.6 | 183.8G | 17.7% | **78.37** |
-| **v18** | 1 (3.0G) | **6 / 40** | **137.0G** | **53.0%** | **80.93** |
-| v20 | 10 (14.3G) | 17 / 30 | 151.3G | 41.3% | 81.77 |
-| v17 | 17 (23.0G) | 26 / 23 | 168.6G | 29.6% | 88.45 |
-| v19 | 1 (3.0G) | 5 / 44 | — | — | ring 降到 1 槽，预读失效 |
+## 读必须分介质
 
-1. **轮转 drain 修好了"读打架"**：I/O share 从 82-95% 升到 **148-157%**（081 区间）。原代码只 drain `active_group` 一个组，trunk 流让 group 0 永不为空。
-2. **cache 是唯一有效内存杠杆**：arena 13.6→40GB 使 retained 17.7%→53.0%，专家读 −25%。
-3. **trunk 常驻是负收益**：1→10 层无差别，17 层差 7.5s —— bind wall 从 10.1s 涨到 30.1s（常驻权重每 token 仍 memcpy 184GB）。
-4. **"12 层最佳"是 cache 只有 2GB 时代的结论**（`pin20_103044`，81.28 s/tok）。今天 1 层与 10 层差 0.84s，落在环境漂移内。
-5. **ring 下限是 5.6GB，不是代码写的 2.5GB**（`k3_run.c:1078` 的 `slot_min=2.5`）。低于此 planner 静默降到 1 槽，而 `k3_trunk.c` 注释明写 "1 ring slot is NOT enough: reads stop overlapping compute"。这是待修的 bug。
-6. **trunk+cache 实用上限 46-47GB**，49GB 会把 56GB 机器榨到 `MemFree=0` 触发换页（v19 那个 351s 的 token）。
+RAM 里的字节不产生墙：v23 的 trunk 有 31.9GB 常驻（22 层 pinned + ring 2 槽），每 token 零读盘；L1 命中的 18.6% 同理。`experts.l2` 是 NVMe 上的 256GB 磁盘缓存文件，**L2 命中 100% 在介质上没省任何东西**，只是把 1.45TB 池换成 256GB 池（`l2_miss=0`，一条都没落到原始池）。
 
-## 两次死锁（kio 层，已修）
+**两个内存杠杆的换算率不同，这是 32/15 为峰的原因：**
+- RAM 给 trunk +1GB → trunk NVMe 读 **−0.66 GB/token**
+- RAM 从 cache 抽走 1GB → 专家 NVMe 读 **+1.2 GB/token**
 
-只 drain `active_group` → hold 不挂载时该组恒为 0 → group 1 无人服务 → 41/41 线程 `futex_wait_queue`、I/O 与 CPU 双零、日志冻结在 104B（`v5_l2g1`、`v6_l2g1rw`，各烧 25 分钟）。把写也钉到 group 1 仍死。修法：`io->rr[]` 轮转游标扫全部组（`k3_io.h` 新增字段），`k3_io_set_active` 保留但不再门控。
+cache 那条更差，所以在 46-47GB 预算下，峰必然落在"cache 缩到够用、余下全给 trunk"。v24（40/7）验证了越界即负收益：trunk 读降到 324.9GB，但 L1 命中崩到 12.2%，专家读 +15GB 把收益吃掉。
 
-## 环境漂移大于所有被测效应
+## L1 命中率的自证陷阱
 
-v10 与 v12 配置、字节完全相同（trunk 370.13GB / 专家 168.56GB），仅 pread 964 vs 1089 MB/s → 100.77 vs 92.39 s/tok。**任何小于 15% 的改动在这台机器上不可检出。**
+summary 的 `requests: 1472 hits 1472 (100.00%) misses 0` **不能读作命中率**：MoE 先 `getmany`（从 L2 读盘填 arena）再 `get`（必然命中），而 `c->misses` 只在 `admit_unlocked` 累加，批路径的 miss 不计。真实跨 token 复用看 `TRUE resident hit rate`（v18 30.10%）。稳态单 token 约 40%，token 0 冷启动拉低整轮均值。
 
-## 距 34 s/tok
+2278 slot 装不下两个 token 的工作集（需 2706 slots = 47.5 GB），429 evictions/token 是算术结果，不是替换策略问题（heat 已在用，LRU 早被证伪为 0.00%）。
 
-trunk 读 54.6GB/token 占净读 82%，cache 已尽力（专家剩 17GB），trunk 常驻被 bind memcpy 抵消。可选路径（按可信度）：
-1. `--spec` 投机解码 —— 仓库有 `verify_spec_amp.sh` + `rep_estimate.awk`，输出质量不变
-2. 零拷贝 bind —— 消掉 184GB memcpy，让 trunk 常驻转正
-3. THP 只生效 40%（`AnonHugePages` 12.7G / RSS 31.4G），`defrag=madvise` + `alloc_sleep=60s` 静默失败
-4. ~~`--layers 50`~~ —— 是 "bind only the first N layers" 的截断 hack，`27-30 s/tok` 是估算，不算真实加速
+## stale .o：作废 8 次实验的根因
+
+| 二进制 | ymm | e8m7 内核指令数 | s/tok |
+|---|---|---|---|
+| 09-26 08:59 旧二进制 | 1405 | 288 | 78.37 |
+| **12:16-19:00 我跑的 v8-v15** | **323** | **1323** | 92-137 |
+| 18:32 `make clean` 后 | 1425 | 288 | 80.93 |
+
+源码、gcc 15.2.0、`-march=native` 全部相同，Makefile 只加了 pc-run 目标。增量构建的 `.o` 长期未重编，matmul 从 AVX2 退化成 128-bit SSE。**每个 A/B 之前必须 `make clean`。**
+
+## 已判负的三条
+
+1. **kio 单组 drain** —— 已修（`io->rr` 轮转游标），share 82-95% → 148-160%，顺带消除两次死锁（41/41 线程 futex、I/O 与 CPU 双零、日志冻结 104B）
+2. **prefetch 超前**（干净二进制 v22）—— 82.84 vs 80.93。确实把读藏进 compute（share 157→160%），但 survival 只有 48.9%，读 151.1GB vs 137.0GB，evictions 429→6334
+3. **`--trunk-gb` 静默降级** —— 已修（5.6GB 下限钳制），v19 的 351s 单 token 就是 ring 降到 1 槽
+
+## 剩余唯一通路：加内存
+
+trunk 全常驻需 56.6 + 4.7 + 0.6 = **62GB 预算，即 72GB 物理内存**（现 56GB，差一条 16GB）。
+→ trunk NVMe 读归零，净读 = 专家 ~22GB/token，**墙有望 25-30 s/tok**。
+不需改代码、不需第二块盘。单盘 1.09 GB/s 是硬墙，量化已到 mxfp8 不可再压。
+
+## 待办
+
+- `make clean` 写进 A/B 脚本（今天 8 次实验作废于此）
+- 32-40GB 区间的峰需每配置 3 次取中位数才能定（2 小时，收益 1.8% < 噪声 9%）
+- `--layers 50` 是 "bind only the first N layers" 截断 hack，Makefile 里的 27-30 s/tok 是估算，不计入
