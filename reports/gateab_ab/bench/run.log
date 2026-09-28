@@ -1,0 +1,47 @@
+== interleaved: one (arm,lanes) per pass, pass 0 discarded as warm-up ==
+  warm-up  consecutive  L=1      1177.5 MB/s (discarded)
+  warm-up  consecutive  L=4      3401.3 MB/s (discarded)
+  warm-up  consecutive  L=16     6132.7 MB/s (discarded)
+  warm-up  spread       L=1      1136.4 MB/s (discarded)
+  warm-up  spread       L=4      3159.4 MB/s (discarded)
+  warm-up  spread       L=16     8916.3 MB/s (discarded)
+  pass 1    consecutive  L=1       830.8 MB/s
+  pass 1    consecutive  L=4      1814.1 MB/s
+  pass 1    consecutive  L=16     2024.2 MB/s
+  pass 1    spread       L=1       877.1 MB/s
+  pass 1    spread       L=4      2802.2 MB/s
+  pass 1    spread       L=16     3356.8 MB/s
+  pass 2    consecutive  L=1      1098.2 MB/s
+  pass 2    consecutive  L=4      3118.7 MB/s
+  pass 2    consecutive  L=16     6981.9 MB/s
+  pass 2    spread       L=1      1059.4 MB/s
+  pass 2    spread       L=4      3406.0 MB/s
+  pass 2    spread       L=16     7189.7 MB/s
+  pass 3    consecutive  L=1       717.2 MB/s
+  pass 3    consecutive  L=4      1565.2 MB/s
+  pass 3    consecutive  L=16     1993.9 MB/s
+  pass 3    spread       L=1       688.4 MB/s
+  pass 3    spread       L=4      1708.5 MB/s
+  pass 3    spread       L=16     1929.4 MB/s
+  pass 4    consecutive  L=1       631.2 MB/s
+  pass 4    consecutive  L=4      1395.6 MB/s
+  pass 4    consecutive  L=16     1694.4 MB/s
+  pass 4    spread       L=1       615.6 MB/s
+  pass 4    spread       L=4      1452.1 MB/s
+  pass 4    spread       L=16     1847.6 MB/s
+  pass 5    consecutive  L=1       691.8 MB/s
+  pass 5    consecutive  L=4      1684.9 MB/s
+  pass 5    consecutive  L=16     2017.9 MB/s
+  pass 5    spread       L=1       705.1 MB/s
+  pass 5    spread       L=4      1812.9 MB/s
+  pass 5    spread       L=16     1945.2 MB/s
+
+arm          lanes    median      iqr       min..max    iqr/med  verdict
+consecutive      1     717.2    303.0    631..1098        0.422  NOISY (>0.15), ratio claims not allowed
+consecutive      4    1684.9    986.0   1396..3119        0.585  NOISY (>0.15), ratio claims not allowed
+consecutive     16    2017.9   2658.9   1694..6982        1.318  NOISY (>0.15), ratio claims not allowed
+spread           1     705.1    316.3    616..1059        0.449  NOISY (>0.15), ratio claims not allowed
+spread           4    1812.9   1523.8   1452..3406        0.841  NOISY (>0.15), ratio claims not allowed
+spread          16    1945.2   3384.7   1848..7190        1.740  NOISY (>0.15), ratio claims not allowed
+
+wrote /mnt/f/kimi-k3-in-c/reports/gateab_ab/bench/bench-20260928.json

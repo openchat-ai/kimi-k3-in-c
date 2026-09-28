@@ -1,0 +1,13 @@
+--- v27_l2native (trunk 32GB / cache 15GB, K3_L2_NATIVE=1, trace on)
+trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+8 tokens in 562.6 s, 70.33 s/token average
+  requests     : 1472  hits 1472 (100.00%)  misses 0  evictions 1198
+                  this token; TRUE resident hit rate 18.61%
+  phase2 i/o    : 21.03 GB in 51.56 s (408 MB/s)  [pure parallel disk read]
+  requests     : 10243  hits 10243 (100.00%)  misses 0
+I/O share of wall clock: 146.7%  (trunk 401.5 s + experts 423.7 s of 562.6 s)
+  experts, whole run: 180.11 GB read | 2366 of 11776 requests retained in RAM (20.09%) | 9410 evictions
+  read 349.03 GB in 401.49 s (869 MB/s pread)
+  bind wall 19.73 s over 744 binds; read 401.49 + widen 3.08 = 404.56 s of device work,
+TIME_ELAPSED=596.97
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":37172801536,"wall_seconds":562.6177,"seconds_per_token":70.3272,"expert_bytes_read":180105117696,"trunk_bytes_read":349030957056,"stopped_at":-1,"generated_text":null}

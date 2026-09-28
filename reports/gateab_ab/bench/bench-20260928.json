@@ -1,0 +1,106 @@
+{
+  "path": "/mnt/nvme/experts.l2",
+  "protocol": "v1",
+  "unit_bytes": 17600000,
+  "alignment": 4096,
+  "total_gb_per_sample": 2.0,
+  "seed": 20260928,
+  "arms": {
+    "consecutive/L1": {
+      "n": 5,
+      "median": 717.2,
+      "iqr": 303.0,
+      "min": 631.2,
+      "max": 1098.2,
+      "iqr_over_median": 0.422,
+      "noisy": true,
+      "samples": [
+        631.2,
+        691.8,
+        717.2,
+        830.8,
+        1098.2
+      ]
+    },
+    "consecutive/L4": {
+      "n": 5,
+      "median": 1684.9,
+      "iqr": 986.0,
+      "min": 1395.6,
+      "max": 3118.7,
+      "iqr_over_median": 0.585,
+      "noisy": true,
+      "samples": [
+        1395.6,
+        1565.2,
+        1684.9,
+        1814.1,
+        3118.7
+      ]
+    },
+    "consecutive/L16": {
+      "n": 5,
+      "median": 2017.9,
+      "iqr": 2658.9,
+      "min": 1694.4,
+      "max": 6981.9,
+      "iqr_over_median": 1.318,
+      "noisy": true,
+      "samples": [
+        1694.4,
+        1993.9,
+        2017.9,
+        2024.2,
+        6981.9
+      ]
+    },
+    "spread/L1": {
+      "n": 5,
+      "median": 705.1,
+      "iqr": 316.3,
+      "min": 615.6,
+      "max": 1059.4,
+      "iqr_over_median": 0.449,
+      "noisy": true,
+      "samples": [
+        615.6,
+        688.4,
+        705.1,
+        877.1,
+        1059.4
+      ]
+    },
+    "spread/L4": {
+      "n": 5,
+      "median": 1812.9,
+      "iqr": 1523.8,
+      "min": 1452.1,
+      "max": 3406.0,
+      "iqr_over_median": 0.841,
+      "noisy": true,
+      "samples": [
+        1452.1,
+        1708.5,
+        1812.9,
+        2802.2,
+        3406.0
+      ]
+    },
+    "spread/L16": {
+      "n": 5,
+      "median": 1945.2,
+      "iqr": 3384.7,
+      "min": 1847.6,
+      "max": 7189.7,
+      "iqr_over_median": 1.74,
+      "noisy": true,
+      "samples": [
+        1847.6,
+        1929.4,
+        1945.2,
+        3356.8,
+        7189.7
+      ]
+    }
+  }
+}

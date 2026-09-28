@@ -1,0 +1,36 @@
+--- baseline before  15:41:46
+loadavg: 4.47 1.10 0.37
+MemAvailable: 53.8GB
+MemFree:      54.0GB
+k3 procs:     0
+0
+top procs:    30.7 systemd;11.3 cloud-init; 5.1 systemd;
+[ab29] /mnt/f/kimi-k3-in-c/reports/gateab_ab/v29_clean-20260928_154147 trunk 32GB / cache 15GB, 16 workers, operator idle, baseline recorded
+--- baseline after  15:52:35
+loadavg: 10.59 10.23 5.99
+MemAvailable: 53.9GB
+MemFree:      49.5GB
+k3 procs:     0
+0
+top procs:     0.2 systemd; 0.0 systemd-udevd; 0.0 systemd;
+EXIT=0
+--- v29_clean (v25 repeat, operator idle, baseline recorded)
+--- baseline echo  15:52:36
+loadavg: 10.59 10.23 5.99
+MemAvailable: 53.9GB
+MemFree:      49.5GB
+k3 procs:     0
+0
+top procs:     0.2 systemd; 0.0 systemd-udevd; 0.0 systemd;
+
+trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+8 tokens in 614.5 s, 76.82 s/token average
+                  this token; TRUE resident hit rate 18.61%
+  phase2 i/o    : 21.03 GB in 51.79 s (406 MB/s)  [pure parallel disk read]
+I/O share of wall clock: 150.9%  (trunk 457.4 s + experts 470.2 s of 614.5 s)
+  experts, whole run: 180.11 GB read | 2366 of 11776 requests retained in RAM (20.09%) | 9410 evictions
+  read 349.03 GB in 457.38 s (763 MB/s pread)
+  bind wall 28.22 s over 744 binds; read 457.38 + widen 3.01 = 460.39 s of device work,
+TIME_ELAPSED=643.36
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":37172502528,"wall_seconds":614.5303,"seconds_per_token":76.8163,"expert_bytes_read":180105117696,"trunk_bytes_read":349030957056,"stopped_at":-1,"generated_text":null}
+[ab29] end 15:52:36

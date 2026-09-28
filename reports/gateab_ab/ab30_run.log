@@ -1,0 +1,27 @@
+[v30] waiting for quiet: loadavg1=1 (1/60)
+[v30] waiting for quiet: loadavg1=1 (2/60)
+[v30] loadavg1=0, starting
+[v30] run1 = 73.96 s/token  (/mnt/f/kimi-k3-in-c/reports/gateab_ab/v30_repeat/run1-20260928_160701)
+[v30] waiting for quiet: loadavg1=6 (1/60)
+[v30] waiting for quiet: loadavg1=4 (2/60)
+[v30] waiting for quiet: loadavg1=3 (3/60)
+[v30] waiting for quiet: loadavg1=2 (4/60)
+[v30] waiting for quiet: loadavg1=1 (5/60)
+[v30] waiting for quiet: loadavg1=1 (6/60)
+[v30] loadavg1=0, starting
+[v30] run2 = 73.98 s/token  (/mnt/f/kimi-k3-in-c/reports/gateab_ab/v30_repeat/run2-20260928_161955)
+[v30] waiting for quiet: loadavg1=6 (1/60)
+[v30] waiting for quiet: loadavg1=4 (2/60)
+[v30] waiting for quiet: loadavg1=3 (3/60)
+[v30] waiting for quiet: loadavg1=2 (4/60)
+[v30] waiting for quiet: loadavg1=1 (5/60)
+[v30] waiting for quiet: loadavg1=1 (6/60)
+[v30] loadavg1=0, starting
+[v30] run3 = 71.45 s/token  (/mnt/f/kimi-k3-in-c/reports/gateab_ab/v30_repeat/run3-20260928_163244)
+ALL DONE 16:43:13
+== three runs ==
+[v30] run1 = 73.96 s/token  (/mnt/f/kimi-k3-in-c/reports/gateab_ab/v30_repeat/run1-20260928_160701)
+[v30] run2 = 73.98 s/token  (/mnt/f/kimi-k3-in-c/reports/gateab_ab/v30_repeat/run2-20260928_161955)
+[v30] run3 = 71.45 s/token  (/mnt/f/kimi-k3-in-c/reports/gateab_ab/v30_repeat/run3-20260928_163244)
+values: [73.96, 73.98, 71.45]
+median: 73.96   min..max: 71.45..73.98   spread: 3.4%

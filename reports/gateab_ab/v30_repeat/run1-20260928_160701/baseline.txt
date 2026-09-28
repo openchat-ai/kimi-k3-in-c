@@ -1,0 +1,9 @@
+--- before run1  16:07:01
+loadavg: 0.98 0.36 0.13
+MemAvailable: 53.9GB
+trunk_avail: 196G
+run1 exit=0
+--- after run1  16:17:23
+loadavg: 10.60 10.15 5.66
+MemAvailable: 53.9GB
+trunk_avail: 196G

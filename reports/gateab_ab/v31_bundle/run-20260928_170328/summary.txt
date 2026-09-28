@@ -1,0 +1,16 @@
+--- v31_bundle (--layer-bundle, auto budget)
+
+== the planner's own plan (first output not written by me):
+layer-bundle plan: resident 14/93 layers -> trunk 23.2 GB (incl ring) / expert arena 25.1 GB [L2-alive expert preload] (horizon 8 passes, alive-bounded)
+auto budget: 57.9 GB available, 9.6 GB reserved -> trunk 6.0 GB / expert cache 42.3 GB
+
+trunk stream: 56.60 GB packed, 14/93 layers PINNED (19.94 GB), ring 2 x 1.30 GB
+8 tokens in 832.4 s, 104.05 s/token average
+                  this token; TRUE resident hit rate 14.33%
+  phase2 i/o    : 22.07 GB in 55.69 s (396 MB/s)  [pure parallel disk read]
+I/O share of wall clock: 136.9%  (trunk 442.4 s + experts 696.9 s of 832.4 s)
+  experts, whole run: 181.54 GB read | 2858 of 11776 requests retained in RAM (24.27%) | 8918 evictions
+  read 377.70 GB in 442.37 s (854 MB/s pread)
+  bind wall 16.23 s over 744 binds; read 442.37 + widen 2.96 = 445.34 s of device work,
+TIME_ELAPSED=858.05
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":42933915648,"wall_seconds":832.3631,"seconds_per_token":104.0454,"expert_bytes_read":181543993344,"trunk_bytes_read":377703931904,"stopped_at":-1,"generated_text":null}
