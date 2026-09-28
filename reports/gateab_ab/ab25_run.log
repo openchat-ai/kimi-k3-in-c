@@ -1,0 +1,18 @@
+[ab25] start 12:21:11 mem=53.9GB
+[ab25] /mnt/f/kimi-k3-in-c/reports/gateab_ab/v25_trace8-20260928_122111 trunk 32GB (22 layers) + cache 15GB, 8 tokens, trace on
+EXIT=0
+--- v25_trace8 (trunk 32GB / cache 15GB, 8 tokens, trace on)
+trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+8 tokens in 548.3 s, 68.54 s/token average
+  requests     : 1472  hits 1472 (100.00%)  misses 0  evictions 1198
+                  this token; TRUE resident hit rate 18.61%
+  phase2 i/o    : 21.03 GB in 50.31 s (418 MB/s)  [pure parallel disk read]
+  requests     : 10242  hits 10242 (100.00%)  misses 0
+I/O share of wall clock: 143.9%  (trunk 392.0 s + experts 397.2 s of 548.3 s)
+  experts, whole run: 180.11 GB read | 2366 of 11776 requests retained in RAM (20.09%) | 9410 evictions
+  read 349.03 GB in 391.99 s (890 MB/s pread)
+  bind wall 19.52 s over 744 binds; read 391.99 + widen 3.15 = 395.14 s of device work,
+TIME_ELAPSED=581.05
+{"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":37172711424,"wall_seconds":548.3424,"seconds_per_token":68.5428,"expert_bytes_read":180105117696,"trunk_bytes_read":349030957056,"stopped_at":-1,"generated_text":null}
+[ab25] trace rows: 2225
+[ab25] end 12:30:58
