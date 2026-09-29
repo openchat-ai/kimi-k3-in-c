@@ -1,0 +1,4 @@
+[v41] rep1 start 17:54:01  0.07 0.52 0.32
+[v41] rep1 done  8 tokens in 566.8 s, 70.85 s/token average  rows=2960
+[v41] rep2 start 18:04:17  7.22 9.08 5.39
+[v41] rep2 done  8 tokens in 601.4 s, 75.17 s/token average  rows=2960
