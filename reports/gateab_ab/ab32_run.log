@@ -1,0 +1,7 @@
+[v32] rep1 start 08:07:41  load_before=0.88 1.07 0.48 mem_before=53.9GB 
+[v32] rep1 done  8 tokens in 608.3 s, 76.04 s/token average
+[v32] rep2 start 08:20:47  load_before=0.93 5.86 4.75 mem_before=53.9GB 
+[v32] rep2 done  8 tokens in 587.1 s, 73.39 s/token average
+[v32] rep3 start 08:33:33  load_before=0.91 6.30 6.67 mem_before=53.9GB 
+[v32] rep3 done  8 tokens in 599.3 s, 74.91 s/token average
+[v32] all 3 reps complete 08:44:11

@@ -1860,6 +1860,18 @@ int main(int argc, char **argv)
      * the benchmarks and oracle gates rely on. */
     for (int g = 0; nout < gen || (incremental && g == 0); g++) {
         k3_cache_reset_stats(&cache);
+        /* Stamp the decode step onto every event emitted from here on. This call was
+         * simply missing until now, so every row of every trace.csv had token=0 and the
+         * timeline could not separate the first token's cold start from steady state --
+         * which is what made table 2b's "steady-state 66.12 s/token" unsupportable.
+         *
+         * CAVEAT, and it is not fixable by moving this line: the trunk stream is read
+         * by a separate reader thread that runs ahead of the forward pass, so trunk
+         * events land on whichever step was current when the emit happened rather than
+         * the step that layer belongs to. Expert and compute events are emitted from
+         * this thread and are attributed exactly. Table 2b leans on the expert and
+         * compute columns, which are the sound ones. */
+        k3_trace_token(g);
         const double ts = now_s();
         int frc = -1;   /* "not run" already means failed: a forward that never happened must abort */
         int emitn = 0;
