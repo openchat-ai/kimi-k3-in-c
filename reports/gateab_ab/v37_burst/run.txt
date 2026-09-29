@@ -1,0 +1,29 @@
+geometry: slot=17547264 B, aligned=True, lanes=16, total=20.99 GB
+engine's per-layer expert event: ~11 slots (0.19 GB) x 93 layers
+
+warm-up done
+
+  sample 1/5
+  sample 2/5
+  sample 3/5
+  sample 4/5
+  sample 5/5
+
+=== MB/s, 5 samples, interleaved. engine phase-2 = 410 MB/s
+   arm                          median      min      max   IQR/med  verdict
+   continuous (no pause)          1214      739     1422     0.477  NOISY
+   burst 74 slots/lane            1254      555     1321     0.326  NOISY
+   burst 12 slots/lane, 0s        1222      762     1350     0.260  NOISY
+   burst 12 slots/lane, 1s        1110     1068     1141     0.035  usable
+   burst 3 slots/lane, 0s         1210      776     1264     0.379  NOISY
+
+=== which arm reproduces the engine's 410?
+   continuous (no pause)        1214 MB/s  = 2.96x the engine
+   burst 74 slots/lane          1254 MB/s  = 3.06x the engine
+   burst 12 slots/lane, 0s      1222 MB/s  = 2.98x the engine
+   burst 12 slots/lane, 1s      1110 MB/s  = 2.71x the engine
+   burst 3 slots/lane, 0s       1210 MB/s  = 2.95x the engine
+
+   If some burst arm lands near 410, the gap is drive behaviour under bursts
+   and the engine is not the problem. If every arm stays far above 410, the
+   gap is in k3_cache / k3_l2cache and the next step is to bisect the kio hop.

@@ -1618,6 +1618,17 @@ int main(int argc, char **argv)
             printf("expert L2 cache enabled: %d slots x %.2f MB = %.2f GB on %s\n",
                    l2.nslot, (double)l2.slot_bytes / 1e6,
                    (double)l2.nslot * l2.slot_bytes / 1e9, l2_path);
+            /* Exact figures, for anything that has to reproduce the engine's access
+             * pattern from outside (the storage probe does). The %.2f MB above is
+             * rounded, and the previous probe used 17600000 for the unit, which is
+             * neither l2.slot_bytes nor the arena's: every slot it read sat 48192 bytes
+             * further along than the engine's, so 100 slots in it had drifted 4.8 MB.
+             * A bandwidth number from misaligned offsets is still a bandwidth number,
+             * but it is not "the same unit the engine reads", and the writeup claimed
+             * it was. */
+            printf("expert L2 exact: nslot=%d slot_bytes=%lld l2_slot=%lld K3_ST_ALIGN=%d\n",
+                   l2.nslot, (long long)l2.slot_bytes,
+                   (long long)l2.slot_bytes, (int)K3_ST_ALIGN);
             printf("expert L2 eviction policy: %s\n",
                    l2_policy == 1 ? "lru" : "heat");
         } else {

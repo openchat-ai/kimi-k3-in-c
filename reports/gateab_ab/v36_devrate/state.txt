@@ -1,0 +1,5 @@
+load before: 0.09 1.08 0.74
+mem avail : 53.9GB
+
+
+load after: 12.44 8.70 4.18

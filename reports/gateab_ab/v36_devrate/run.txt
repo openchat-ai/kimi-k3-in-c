@@ -1,0 +1,26 @@
+engine geometry: nslot=17096 slot_bytes=17547264 (aligned to 4096: True)
+sample size: 1196 slots = 20.99 GB per arm
+warm-up, discarded: 64 slots = 1.12 GB
+
+warm-up done for all arms
+
+  sample 1/5 done
+  sample 2/5 done
+  sample 3/5 done
+  sample 4/5 done
+  sample 5/5 done
+
+=== results, MB/s, 5 samples each, arms interleaved
+   arm                      median      min      max  IQR/med   verdict
+   A  O_DIRECT  1 lane        2044     1969     2335    0.100   usable
+   B  O_DIRECT 16 lanes       1786     1776     1845    0.030   usable
+   C buffered  16 lanes       1363      169     2308    1.140   NOISY, no ratio
+
+=== the two numbers that decide whether the 2.5x gap is real
+   O_DIRECT 16 lanes :   1786 MB/s
+   buffered 16 lanes :   1363 MB/s   (0.76x the O_DIRECT figure)
+   O_DIRECT  1 lane  :   2044 MB/s   (16-lane/1-lane scaling: 0.87x)
+   engine, 16 lanes  :  410 MB/s   (phase2 i/o, O_DIRECT, same unit)
+
+   -> the device sustains 1786 MB/s on the engine's own geometry, so the
+      engine's 410 is a real ~4.4x inefficiency. Chase the read path.
