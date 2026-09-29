@@ -218,6 +218,7 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
      * Phase 2 (the disk reads) runs UNLOCKED so the two threads overlap on the drive.
      * With no reader thread pref_started is 0 and no lock is taken: baseline is unchanged. */
     const int locked = c->pref_started;
+    const double p1_start = now_s();
     if (locked) pthread_mutex_lock(&c->mu);
     for (int i = 0; i < n && nw < cap; i++) {
         const int e = ids[i];
@@ -258,8 +259,20 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
             c->prefetch_kept += (uint64_t)kept;
         }
     }
-    if (nw == 0) { if (locked) pthread_mutex_unlock(&c->mu); return 0; }
-    if (locked) pthread_mutex_unlock(&c->mu);
+    if (nw == 0) {
+        if (locked) pthread_mutex_unlock(&c->mu);
+    } else if (locked) {
+        pthread_mutex_unlock(&c->mu);
+    }
+    /* Phase 1 accounting and the WIDEN trace row: the whole serial reserve, lock hold
+     * included. Previously unmeasured -- the trace started at phase 2, so a phase-1
+     * bottleneck read as a "drive gap" that probes could never reproduce. */
+    c->phase1_seconds += now_s() - p1_start;
+    c->phase1_calls++;
+    if (nw > 0 && k3_trace_on())
+        k3_trace_ev(K3_PHASE_WIDEN, layer, p1_start, now_s(),
+                    (uint64_t)nw * (uint64_t)c->slot_bytes, 0, 0, 0, 0);
+    if (nw == 0) return 0;
 
     /* Issue in DISK-OFFSET order. Experts are not stored id-ordered inside a shard, so
      * sorting by where the bytes actually live turns a scattered set of seeks into a

@@ -1876,7 +1876,8 @@ int main(int argc, char **argv)
      * that step alone. The end-of-run summary needs whole-run totals, so accumulate the
      * expert side here; the trunk side is already cumulative. Comparing a cumulative
      * figure against a single step would misstate the I/O share. */
-    double expert_s_total = 0.0, expert_gb_total = 0.0;
+    double expert_s_total = 0.0, expert_gb_total = 0.0, expert_p1_total = 0.0;
+    uint64_t expert_p1_calls = 0;
     uint64_t expert_reqs_total = 0, expert_evict_total = 0;
     int *emit = (int *)malloc((size_t)(batch_gen ? gen : K3_SPEC_MAX + 1) * sizeof(int));
     if (!emit) { fprintf(stderr, "OOM for emit buffer\n"); return 1; }
@@ -2135,6 +2136,8 @@ int main(int argc, char **argv)
         /* Roll the per-step figures up before the next reset wipes them. */
         expert_s_total     += cache.load_seconds;
         expert_gb_total    += (double)cache.bytes_read / 1e9;
+        expert_p1_total    += cache.phase1_seconds;
+        expert_p1_calls    += cache.phase1_calls;
         expert_reqs_total  += cache.hits + cache.misses;
         expert_evict_total += cache.evictions;
         for (int i = 0; i < emitn && nout < gen && T < Tmax; i++) {
@@ -2267,6 +2270,8 @@ int main(int argc, char **argv)
         printf("I/O share of wall clock: %.1f%%  (trunk %.1f s + experts %.1f s of %.1f s)\n",
                share, trunk_s, expert_s_total, t_total);
         printf("  both figures are WHOLE-RUN totals over %d steps\n", nout);
+        printf("  expert phase split: phase1 SERIAL reserve %.1f s (%llu calls) vs phase2 read %.1f s\n",
+               expert_p1_total, (unsigned long long)expert_p1_calls, expert_s_total);
         /* Above 100% is not a bug in the arithmetic: with more than one trunk ring slot
          * the reader thread does device work while the main thread computes, so the two
          * terms genuinely overlap and their sum can exceed wall clock. Say so, rather

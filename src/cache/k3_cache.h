@@ -107,6 +107,12 @@ typedef struct {
      * O_DIRECT bandwidth) from the serial LRU/bookkeeping and publish phases around it. */
     double       phase2_seconds;
     uint64_t     phase2_bytes;
+    /* phase1 is the SERIAL reserve in cache_getmany: the lock hold + pick_victim +
+     * bookkeeping that precedes the parallel read, and the only getmany phase the trace
+     * has never instrumented (K3_PHASE_WIDEN). If the engine never waits on the drive,
+     * most of the expert wall must be here, under c->mu. */
+    double       phase1_seconds;
+    uint64_t     phase1_calls;
     uint32_t    *hist;            /* [n_layers*n_experts] request counts       */
 
     /* L1 replacement policy, mirroring K3L2. 1 = heat (default; evict lowest
