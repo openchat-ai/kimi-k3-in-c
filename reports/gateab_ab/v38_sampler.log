@@ -1,0 +1,8 @@
+[v38] baseline captured, launching k3 (gen 8, trunk 32 / cache 15)
+[v38]   still running, 60 s sampled
+[v38]   still running, 120 s sampled
+[v38]   still running, 180 s sampled
+[v38]   still running, 240 s sampled
+[v38] sampling done, 289 seconds captured -> F:\kimi-k3-in-c\reports\gateab_ab\v38_hostcounters\sample-20260929_155230.csv
+[v38] k3 result: {"prompt_ids":[1008],"generated_ids":[220,802,24,12,2975,15,3629,1389],"full_ids":[1008,220,802,24,12,2975,15,3629,1389],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":37172326400,"wall_seconds":551.9592,"seconds_per_token":68.9949,"expert_bytes_read":180105117696,"trunk_bytes_read":349030957056,"stopped_at":-1,"generated_text":null}
+

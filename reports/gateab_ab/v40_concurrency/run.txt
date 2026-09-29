@@ -1,0 +1,44 @@
+engine for comparison: 410 MB/s at ~11 outstanding reads
+device cache preconditioned to a known state first (v39 method)
+
+[1/2] preconditioning ...
+   preconditioned 40 GB in 38.6 s
+[2/2] concurrency sweep, 120 rounds/arm, 0s pause, n=5 interleaved
+      round 1/5 done
+      round 2/5 done
+      round 3/5 done
+      round 4/5 done
+      round 5/5 done
+
+=== effective rate: bytes / read time only (pause excluded)
+   R        median      min   IQR/med  vs engine   verdict
+   1          1286      986     0.222      3.14x     NOISY
+   2          1944      443     0.519      4.74x     NOISY
+   4          2551     2386     0.075      6.22x    usable
+   8          2708      919     0.344      6.60x     NOISY
+   11         2723     2699     0.039      6.64x    usable
+   16         2806     2795     0.063      6.84x    usable
+
+=== observed rate: includes the 0.15 s pause per layer
+   R        median      min   IQR/med
+   1           107      105     0.020
+   2           209      153     0.147
+   4           395      391     0.012
+   8           695      464     0.170
+   11          874      871     0.012
+   16         1123     1121     0.024
+
+=== bytes actually moved per arm (n=5 totals)
+   R=1       10.5 GB
+   R=2       21.1 GB
+   R=4       42.1 GB
+   R=8       84.2 GB
+   R=11     115.8 GB
+   R=16     168.5 GB
+
+   engine's own R=11 : 2723 MB/s effective
+   device at R=16    : 2806 MB/s effective
+   ratio              : 1.03x
+   -> the device at the engine's concurrency does reach the engine's rate,
+      which would point the remaining gap at R itself: more outstanding
+      reads per layer is a lever.

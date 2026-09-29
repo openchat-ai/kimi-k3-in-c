@@ -1,0 +1,4 @@
+load before: 0.07 0.77 0.50
+mem avail : 53.9GB
+/dev/sdd7       384G  169G  196G  47% /mnt/nvme
+load after: 11.31 6.00 2.62

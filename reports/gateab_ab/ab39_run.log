@@ -1,0 +1,31 @@
+geometry: nslot=17096 slot_bytes=17547264 lanes=16, 20.99 GB per sample
+engine for comparison: 410 MB/s (phase-2, O_DIRECT, same unit)
+
+[1/4] COLD sample (cache holds recent experts.l2 reads) ...
+[2/4] preconditioning the device cache ...
+   preconditioning: writing 40 GB with O_DIRECT ...
+   wrote 40.0 GB in 37.0 s (1080 MB/s) -- cache should now hold this, not experts.l2
+[3/4] POST samples, starting immediately after the write ...
+      sample 1/5: POST   1750   POST+1s   1383
+      sample 2/5: POST   1428   POST+1s   1109
+      sample 3/5: POST   1288   POST+1s   1136
+      sample 4/5: POST   1332   POST+1s   1175
+      sample 5/5: POST   1377   POST+1s   1219
+
+[4/4] results (MB/s)
+   COLD           n=1  median   1758  min   1758  max   1758  IQR/med 0.000  usable
+   POST           n=5  median   1377  min   1288  max   1750  IQR/med 0.203  NOISY
+   POST+1s        n=5  median   1175  min   1109  max   1383  IQR/med 0.152  NOISY
+
+   cache effect: COLD 1758 -> POST 1377  (1.28x)
+   engine 410 MB/s is 3.36x the POST figure, 2.87x the POST+1s figure
+
+   -> the drive still sustains well above the engine's 410 MB/s with a
+      full cache, so the gap is real and lives in k3_cache / k3_l2cache.
+
+   host counters: /mnt/f/kimi-k3-in-c/reports/gateab_ab/v39_hostcounters/host.csv
+   removed /mnt/nvme/precond.tmp
+load before: 0.07 0.77 0.50
+mem avail : 53.9GB
+/dev/sdd7       384G  169G  196G  47% /mnt/nvme
+load after: 11.31 6.00 2.62
