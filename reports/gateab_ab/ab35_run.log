@@ -1,0 +1,7 @@
+[v35] rep1 start 12:16:11  0.09 0.76 0.46
+[v35] rep1 done  8 tokens in 672.9 s, 84.11 s/token average
+[v35] rep1 token1 = 129.57s  trace rows = 2226
+[v35] rep2 start 12:31:51  0.18 3.93 4.14
+[v35] rep2 done  8 tokens in 771.5 s, 96.43 s/token average
+[v35] rep2 token1 = 146.12s  trace rows = 2226
+[v35] both reps complete 12:45:05

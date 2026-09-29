@@ -143,6 +143,17 @@ static int admit_unlocked(K3Cache *c, int layer, int expert)
                             c->arena + (size_t)slot * c->slot_bytes,
                             c->slot_bytes, &pad);
     c->load_seconds += now_s() - t0;
+    /* No trace event here on purpose. One was added while chasing the trunk 6 GB /
+     * cache 40 GB token-1 excursion, and it emitted zero rows: cache_get is never called,
+     * every expert goes through cache_getmany_inner's phase-2 batch. The apparent
+     * 14.73 GB vs 137 GB gap between the phase-2 counter and the whole-run expert counter
+     * is a definitional difference -- phase 2 counts misses only, 840 x 17.56 MB =
+     * 14.75 GB -- not a second uninstrumented path.
+     *
+     * And the excursion turned out not to be a stall at all: token 1 was uniformly twice
+     * as slow, 99.9% of it accounted for inside the expert and compute phases, longest
+     * single traced event 12.81 s. The 6/40 arm's spread is the NVMe delivering less,
+     * not anything happening between the instrumented regions. */
     if (got != r.nbytes) {
         fprintf(stderr, "k3_cache: short load of L%d expert %d (%lld of %lld)\n",
                 layer, expert, (long long)got, (long long)r.nbytes);
