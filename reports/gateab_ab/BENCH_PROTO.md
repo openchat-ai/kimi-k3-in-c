@@ -223,5 +223,28 @@ ls reports/gateab_ab/*.sh                                          # 脚本号�
 
 `v34` 是今天唯一做到这一点的设计（交错 A B A B A B），也是唯一给出可信数字的实验。`v36` 照规程全条款执行却仍不可复现（见第 8 节），说明规程无法替代这个设计上的选择。
 
+### 12. 本机没有硬件 PMU，所以第 7 节必须那样写（2026-09-29 实测）
+
+第 11 节说"更好的信号难找"。在**这台**机器上，情况更强：**更好的信号不存在。**
+
+"共享环境下资源如何被精确消费"是成熟领域，其核心手段是硬件性能计数器，不是操作系统层的统计：
+
+| 手段 | 出处 | 本机 |
+|---|---|---|
+| `uncore_imc_*`（DRAM 控制器，内存带宽占用） | Caladan, OSDI'20 | **无** |
+| per-core LLC miss 计数器（定位干扰源） | Caladan, OSDI'20 | **无** |
+| `/sys/fs/resctrl`（Intel RDT，内存按组配额与归因） | DC-Store, FAST'20 | **无** |
+| `/dev/cpu/0/msr` | — | **无** |
+| `/dev/perf_event` | — | **无** |
+| `cpu` event source | — | **无** |
+
+`/sys/bus/event_source/devices` 只有 `breakpoint kprobe msr software tracepoint uprobe`，是最小集。**原因是架构性的：WSL2 的 hypervisor 不把 PMU 虚拟化给客户机**，装 `perf` 也没用。这台机器同时没有交换：`pgscan_kswapd` / `pgsteal_kswapd` / `pswpin` / `pswpout` 全为 0，故 DC-Store 所述"内存压力转成 page-out I/O 干扰"这条路径在此关闭——今天观测到的读全部来自模型。
+
+**因此本机可用的观测面只有四样**：`/proc/diskstats`（每设备 ios/merges/sectors/ticks/in_flight）、`/proc/vmstat`（回收与换页事件）、引擎自带台账（pread 秒数、字节、bind wall）、`K3_TRACE` 逐相位时间线。
+
+**结论**：第 7 节"证据的单位是配对差"在本机不是折中，是**唯一可行**。OS 层投影无法做得更细，能做的只有让结论不依赖它的绝对值。想真正进入这一领域，需要换宿主（裸机，或 VMware / Hyper-V 而非 WSL）。
+
+**本节也是下一个人会重新问一遍的问题，故写在此处。**
+
 
 
