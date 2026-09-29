@@ -388,7 +388,7 @@ Exactly one of these is required. Passing none, or more than one, is a usage err
 |---|---|---|
 | `--prompt` | `TEXT` | tokenize TEXT and run it. **Requires `--tok`.** |
 | `--prompt-file` | `PATH` | tokenize the file's bytes. **Requires `--tok`.** Preferred for anything non-ASCII: the shell re-encodes `argv`, whereas a file is read verbatim |
-| `--ids` | `1,2,3` | token ids directly. No tokenizer is loaded at all, so this works on a machine with no tokenizer files. The reproducible channel the tests use |
+| `--ids` | `1,2,3` | token ids directly. No tokenizer is loaded at all, so this works on a machine with no tokenizer files. The reproducible channel the tests use. An existing file PATH is also accepted and read verbatim (whitespace/comma-separated ids — convenient for real prompt-length sequences) |
 
 ```bash
 # text in

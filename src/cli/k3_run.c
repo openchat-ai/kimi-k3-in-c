@@ -1320,9 +1320,25 @@ int main(int argc, char **argv)
         free(ptext);
         printf("  tokenized: %ld bytes -> %d ids\n", plen, np);
     } else {
-        for (const char *p = ids_s; *p && np < K3_MAX_PROMPT; ) {
-            prompt[np++] = (int)strtol(p, (char **)&p, 10);
-            while (*p == ',' || *p == ' ') p++;
+        /* --ids accepts EITHER a file of whitespace/comma-separated ids (the run-horizon
+         * already counts via count_ids_file) OR an inline comma/space-separated list. Reading
+         * the file is keyed on the argument being an existing path, so inline lists keep
+         * their exact semantics and a bogus path falls back to the inline parse (which then
+         * yields the same "no prompt ids" refusal as before). */
+        FILE *idsf = fopen(ids_s, "r");
+        if (idsf) {
+            char *line = NULL; size_t n = 0, got;
+            while (np < K3_MAX_PROMPT && (got = getline(&line, &n, idsf)) != (size_t)-1)
+                for (char *p = line; *p && np < K3_MAX_PROMPT; ) {
+                    prompt[np++] = (int)strtol(p, &p, 10);
+                    while (*p == ',' || *p == ' ' || *p == '\n' || *p == '\r') p++;
+                }
+            free(line); fclose(idsf);
+        } else {
+            for (const char *p = ids_s; *p && np < K3_MAX_PROMPT; ) {
+                prompt[np++] = (int)strtol(p, (char **)&p, 10);
+                while (*p == ',' || *p == ' ') p++;
+            }
         }
     }
     if (np == 0) { fprintf(stderr, "no prompt ids parsed\n"); return 2; }
