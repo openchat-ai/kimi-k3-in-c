@@ -1,0 +1,7 @@
+[v33] rep1 start 09:22:54  load_before=0.99 0.39 0.14 mem_before=53.9GB 
+[v33] rep1 done  8 tokens in 642.7 s, 80.33 s/token average
+[v33] rep2 start 09:36:22  load_before=0.92 4.85 4.05 mem_before=53.9GB 
+[v33] rep2 done  8 tokens in 808.7 s, 101.09 s/token average
+[v33] rep3 start 09:52:45  load_before=0.92 5.85 6.55 mem_before=53.9GB 
+[v33] rep3 done  8 tokens in 725.0 s, 90.63 s/token average
+[v33] all 3 reps complete 10:05:39

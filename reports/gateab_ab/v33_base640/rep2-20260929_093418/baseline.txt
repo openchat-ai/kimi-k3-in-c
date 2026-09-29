@@ -1,0 +1,3 @@
+load_before=0.92 4.85 4.05
+mem_before=53.9GB
+EXIT=0  end 09:50:21  load_after=8.24 9.27 7.59

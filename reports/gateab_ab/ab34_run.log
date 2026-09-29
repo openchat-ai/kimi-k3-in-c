@@ -1,0 +1,13 @@
+[v34] t32c15_r1 start 10:09:29  0.16 4.11 6.36
+[v34] t32c15_r1 done  8 tokens in 611.7 s, 76.47 s/token average
+[v34] t6c40_r1 start 10:24:06  0.27 4.84 7.03
+[v34] t6c40_r1 done  8 tokens in 867.9 s, 108.48 s/token average
+[v34] t32c15_r2 start 10:43:00  0.17 4.20 6.87
+[v34] t32c15_r2 done  8 tokens in 544.0 s, 68.00 s/token average
+[v34] t6c40_r2 start 10:56:33  0.24 4.67 6.87
+[v34] t6c40_r2 done  8 tokens in 827.6 s, 103.45 s/token average
+[v34] t32c15_r3 start 11:14:49  0.21 3.58 6.10
+[v34] t32c15_r3 done  8 tokens in 576.2 s, 72.03 s/token average
+[v34] t6c40_r3 start 11:28:49  0.32 4.60 6.62
+[v34] t6c40_r3 done  8 tokens in 757.3 s, 94.67 s/token average
+[v34] all 6 runs complete 11:41:48

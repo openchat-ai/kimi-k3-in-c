@@ -1,0 +1,17 @@
+=== t6c40_r2 (trunk 6GB / cache 40GB)
+-- before
+1min/5min/15min = 0.24 4.67 6.87
+mem_avail = 53.9GB
+dirty    = 0.0GB
+anon      = 0.1GB
+-- after drop_caches
+1min/5min/15min = 0.24 4.67 6.87
+mem_avail = 54.0GB
+dirty    = 0.0GB
+anon      = 0.1GB
+EXIT=0  end 11:10:44
+-- after
+1min/5min/15min = 7.36 8.01 7.93
+mem_avail = 53.9GB
+dirty    = 0.0GB
+anon      = 0.1GB

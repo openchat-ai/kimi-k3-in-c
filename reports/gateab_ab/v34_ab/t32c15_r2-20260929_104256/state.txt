@@ -1,0 +1,17 @@
+=== t32c15_r2 (trunk 32GB / cache 15GB)
+-- before
+1min/5min/15min = 0.18 4.27 6.91
+mem_avail = 53.9GB
+dirty    = 0.0GB
+anon      = 0.1GB
+-- after drop_caches
+1min/5min/15min = 0.17 4.20 6.87
+mem_avail = 54.0GB
+dirty    = 0.0GB
+anon      = 0.1GB
+EXIT=0  end 10:52:30
+-- after
+1min/5min/15min = 11.36 10.38 8.89
+mem_avail = 53.9GB
+dirty    = 0.0GB
+anon      = 0.1GB
