@@ -1,0 +1,65 @@
+====================================================================
+v55: the device measured in the engine's own access shape
+====================================================================
+
+ACCESS SHAPE
+  O_DIRECT, 4M blocks, sequential unless noted, 2 GiB per arm
+  source layer_000.bin, 2232 MiB -- larger than the 2 GiB requested,
+  so no arm was truncated at end of file
+
+BLOCK SIZE, SINGLE STREAM
+  bs=1M      1024 MB/s
+  bs=4M      1331 MB/s
+  bs=16K       74 MB/s
+  bs=64K      321 MB/s
+  16K is 1/18 of 4M. The engine reads 17.5 MB slots on 4M alignment,
+  so it is on the good side of this cliff, not the bad side.
+
+CONCURRENCY AT 4M
+   1 streams    1331 MB/s
+   4 streams    1626 MB/s
+   8 streams    1596 MB/s
+  16 streams    1537 MB/s
+  32 streams    1602 MB/s
+  16 streams    1740 MB/s
+  4 streams to 32 streams: 8x the concurrency, zero gain.
+
+CONCURRENCY AT 1M
+  16 streams    1392 MB/s
+
+SCATTERED VERSUS SEQUENTIAL
+  16x 16K strided       651 MB/s
+  16x 4M strided       1740 MB/s
+  scattered at 4M is faster than sequential at 4M.
+
+REPEATABILITY, SAME CONFIGURATION TWICE
+  1 stream 4M     1331 / 1024      25%   (small sample)
+  16 streams 4M   1537 / 1569       2%
+  32 streams 4M   1602 / 1606       0.2%
+  16x 4M strided  1740 / 1728       0.7%
+  the concurrency groups repeat to 1-4%; the single-stream group does not,
+  which is why the ceiling is quoted from 4 streams and up, not from 1.
+
+THE NUMBER, CORRECTED
+---------------------
+  device ceiling, engine's shape    ~1600 MB/s   (4 streams, 4M, O_DIRECT)
+  engine, same drive                891 MB/s    (216.66 GB / 243.2 s, v52)
+  utilisation                        56%
+  gap                               1.80x
+
+  previously reported in this file:  2463 MB/s ceiling, 2.77x gap
+  where 2463 came from: a large-block benchmark, not 4M O_DIRECT.
+  Comparing the engine against a number from a different access shape is the
+  same class of error as comparing l2->bytes_read against total bytes, which
+  is the mistake the first third of this file describes.
+
+WHAT THIS DOES NOT EXPLAIN
+-------------------------
+  prefetch is slower at every arena size (v50 0.75x, v54 0.60x) and 21% of
+  prefetched experts survive to be used. Neither is a device effect: the
+  device does not care about the pattern, and there is spare bandwidth.
+  So the cost is on the host side -- CPU, contention, or the survival
+  measurement itself being wrong. Note the 21% survival figure has been
+  quoted since v50 without being independently checked, and stat_idle_s and
+  hit_wall have both turned out to be broken counters in the same run.
+  Treat it as unverified.

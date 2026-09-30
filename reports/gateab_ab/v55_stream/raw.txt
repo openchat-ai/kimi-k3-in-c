@@ -1,0 +1,11 @@
+1 stream 1M	1M	1	1024
+1 stream 4M	4M	1	1331
+1 stream 16K	16K	1	74
+1 stream 64K	64K	1	321
+4 streams 4M	4M	4	1626
+8 streams 4M	4M	8	1596
+16 streams 4M	4M	16	1537
+16 streams 1M	1M	16	1392
+32 streams 4M	4M	32	1602
+16x 16K strided	16K	16	651
+16x 4M strided	4M	16	1740

@@ -1,0 +1,26 @@
+idle: load=0.28  15:49:57
+
+== single stream
+  1 stream 1M              bs=1M     n=1       1024 MB/s
+  1 stream 4M              bs=4M     n=1       1331 MB/s
+  1 stream 16K             bs=16K    n=1         74 MB/s
+  1 stream 64K             bs=64K    n=1        321 MB/s
+
+== concurrency, sequential
+  4 streams 4M             bs=4M     n=4       1626 MB/s
+  8 streams 4M             bs=4M     n=8       1596 MB/s
+  16 streams 4M            bs=4M     n=16      1537 MB/s
+  16 streams 1M            bs=1M     n=16      1392 MB/s
+  32 streams 4M            bs=4M     n=32      1602 MB/s
+
+== 16 streams, scattered 64K stride
+  16x 16K strided          bs=16K    n=16       651 MB/s
+  16x 4M strided           bs=4M     n=16      1740 MB/s
+
+engine, same drive, same file: 891 MB/s from 16 workers (v52)
+
+device under 16 sequential streams:
+  1537 MB/s
+  1740 MB/s
+
+raw: reports/gateab_ab/v55_stream/raw.txt   end 15:52:17

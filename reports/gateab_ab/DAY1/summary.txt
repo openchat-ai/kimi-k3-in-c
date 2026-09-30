@@ -2,69 +2,118 @@
 kimi-k3-in-c, 2026-09-29/30: what was established and what was not
 ====================================================================
 
-THE HEADLINE, CORRECTED
------------------------
+  THE HEADLINE, CORRECTED TWICE
+  ------------------------------
   engine total  216.66 GB / 243.2 s = 891 MB/s   (trunk 140.16 + expert 76.51)
-  device, same file, O_DIRECT       2463 MB/s    (v47, 420 s continuous, flat)
-  gap 2.77x
+  device, engine's own access shape  ~1600 MB/s   (v55: 4M blocks, O_DIRECT, 4 streams)
+  gap 1.80x,  engine uses 56% of the device
+
+  The first correction was the engine's side: the figure quoted all day was
+  439 MB/s, which is l2->bytes_read alone, the expert path. trunk_bytes_read
+  is a separate counter in the same json: 140.16 GB against 76.51 GB. That
+  turned 6.2x into 2.77x.
+
+  The second correction is the device's side, and it came later, from v55.
+  The 2463 MB/s was a large-block benchmark. The engine reads 17.5 MB slots on
+  4M alignment with O_DIRECT, and on that shape the device gives 1537-1626.
+  So the denominator was wrong too: 2.77x becomes 1.80x. Comparing the engine
+  against a number measured in a different access shape is the same class of
+  error as comparing l2->bytes_read against total bytes -- one just happens
+  to flatter the engine instead of the device.
 
   For most of the day the figure quoted was 439 MB/s, which is l2->bytes_read
-  alone: the expert path. trunk_bytes_read sat unused in the same json.
-  Every exclusion list was built around a gap more than twice the real one.
+    alone: the expert path. trunk_bytes_read sat unused in the same json.
+    Every exclusion list was built around a gap more than twice the real one.
 
-EXCLUDED WITH DATA (not causes; they are the things now known not to matter)
-------------------------------------------------------------------------
-  page cache      engine is O_DIRECT throughout; v51 counted 3134 O_DIRECT, 0 buffered
-  device cache    v39 wrote 40 GB over the cache, 1377 vs 410 remains
-  burst size      v40, R=1..16 all within one order of magnitude
-  concurrency     engine sustains 11.4x already; v40 flat from R=4 onward
-  kio hop         v44, five arms 2776-3209 MB/s, differences inside noise
-  phase-1 lock    0.02 s per token against 70 s of wall
-  refill writes   misses 0, written 0.00 GB, the critical section never entered
+  EXCLUDED WITH DATA (not causes; they are the things now known not to matter)
+  ------------------------------------------------------------------------
+    page cache      engine is O_DIRECT throughout; v51 counted 3134 O_DIRECT, 0 buffered
+    device cache    v39 wrote 40 GB over the cache, 1377 vs 410 remains
+    burst size      v40, R=1..16 all within one order of magnitude
+    concurrency     v55: the device stops gaining at 4 streams and returns zero
+                    from 4 to 32, so more workers cannot help by any route
+    kio hop         v44, five arms 2776-3209 MB/s, differences inside noise
+    phase-1 lock    0.02 s per token against 70 s of wall
+    refill writes   misses 0, written 0.00 GB, the critical section never entered
 
-CANDIDATES KILLED BY THEIR OWN DATA (each one I had believed)
------------------------------------------------------------
-  layer pause     v48: the engine never pauses; expert reads are 100% inside compute
-  window mismatch v47: 420 s continuous is flat, so not a burst-vs-steady artefact
-  prefetch        v50: 0.75x. depth 0 is the BETTER setting, so 'degraded path' is dead
-  probe pollution v46: the same arm is stable within 1.13x in 5 of 6 runs
+  CANDIDATES KILLED BY THEIR OWN DATA (each one I had believed)
+  -----------------------------------------------------------
+    layer pause     v48: the engine never pauses; expert reads are 100% inside compute
+    window mismatch v47: 420 s continuous is flat, so not a burst-vs-steady artefact
+    prefetch        v50: 0.75x. depth 0 is the BETTER setting, so 'degraded path' is dead
+    probe pollution v46: the same arm is stable within 1.13x in 5 of 6 runs
+    stream conflict v55: scattered 4M reads 1740 MB/s beat sequential 1537, so the
+                    claim in e3ec059 that the trunk and expert streams fight over
+                    the device is wrong. The arena's trunk-residency cost is real
+                    (v54: 75.5 to 126.2 s/token) but it is not a contention effect.
 
-WHERE THE 2.77x ACTUALLY GOES (v52, counters in the pool)
-------------------------------------------------------------
+  WHERE THE GAP ACTUALLY GOES (v52 counters, v55 confirms independently)
+  --------------------------------------------------------------------
   kio tier0: 4595 reqs, 216.66 GB, device 109 MB/s | queue 52.8 s (2.7% of req time), submit-lock 1.8 s, worker-lock 0.0 s, idle 0.1 s
   workers inside pread  1988 s of 3891 available worker-seconds = 51%
-  -> queue 2.7%, locks ~0, workers asleep ~49%: the device is idle during arithmetic
-  -> the drive could move 216.66 GB in 88 s; it took 243 s
+    -> queue 2.7%, locks ~0, workers asleep ~49%: the device is idle during arithmetic
+    -> the drive could move 216.66 GB in 88 s; it took 243 s
+    -> v55 agrees without using any of these counters: dd on the same file, same
+       4M O_DIRECT shape, hands the device 1537-1626 MB/s against the engine's
+       891. 56% utilisation. Two methods, no shared assumption, same answer.
 
-WHY THE FIX IS NOT AVAILABLE
----------------------------
-  v50  15 GB arena, prefetch on : issued 1235, survival 21.1%, 355 vs 476 MB/s
-  v54  24 GB arena, prefetch on : survival 21.7% (854->1367 slots moved it 0.3pp),
-                                  trunk residency 22->15 layers, queue 2.6%->11.1%,
-                                  75.5 -> 126.2 s/token
-  -> the evictions were never a capacity problem, and buying arena costs trunk
-     residency, so the sequential and scattered streams fight over one device
+  WHY THE FIX IS NOT AVAILABLE
+  ---------------------------
+    v50  15 GB arena, prefetch on : issued 1235, survival 21.1%, 355 vs 476 MB/s
+    v54  24 GB arena, prefetch on : survival 21.7% (854->1367 slots moved it 0.3pp),
+                                    trunk residency 22->15 layers, queue 2.6%->11.1%,
+                                    75.5 -> 126.2 s/token
+    -> the evictions were never a capacity problem
+    -> and v55 removes the reason I gave for the trunk cost. It is not that the
+       two streams fight for the device: scattered 4M reads are FASTER than
+       sequential ones (1740 against 1537). The trunk-residency cost is real and
+       measured, but its cause is still open.
+    -> which leaves prefetch unexplained. It is slower at every arena size, the
+       device has spare bandwidth, and the device does not care about the access
+       pattern. So the cost is on the host. Note that stat_idle_s and hit_wall
+       have both turned out to be broken counters in the same run, so the 21%
+       survival figure -- quoted since v50 -- should be treated as unverified
+       until someone checks it.
 
 THE INSTRUMENT LESSON (BENCH_PROTO section 13)
 ----------------------------------------------
-  Thirteen external experiments failed to localise it. The read path is 1500 lines
-  across 58 functions, and five counters in k3_io.c answered it in one run.
+  Thirteen external experiments failed to localise it. The read path is 1500 lines  across 58 functions, and five counters in k3_io.c answered it in one run.
 
-  The four instrument defects, all of the same kind -- assuming instead of reading:
-    * a short read was explained as 'past EOF' when errno said EBADF
-    * NSLOT was computed (300 GB / slot) when the engine prints the true value
-    * a struct declared inside a for loop outlived its threads by luck
-    * a report was attached to k3_io_free, which the engine never calls
+    Six instrument defects, all one kind -- assuming instead of reading:
+      * a short read was explained as 'past EOF' when errno said EBADF
+      * NSLOT was computed (300 GB / slot) when the engine prints the true value
+      * a struct declared inside a for loop outlived its threads by luck
+      * a report was attached to k3_io_free, which the engine never calls
+      * v55's rate sum matched a literal "(MB/s)" while dd prints the unit as a
+        separate field, so eleven arms reported zero streams; the parse worked
+        standalone, which is what made it look like a plumbing problem
+      * v55's smoke test hardcoded 4194304 where the script used the variable
+        "4M", so it exercised a different code path than the one that failed.
+        This is the defect that keeps recurring: a test that does not run the
+        thing it is testing. Worth a standing rule, not another instance.
 
-  Two of the conclusions drawn from them were wrong on contact with the next
-  experiment, and one of those ('v40 was contaminated') I had to retract.
+    Three conclusions drawn from faulty instruments were wrong on contact with
+    the next experiment, and two of those had to be retracted after being
+    written down: 'v40 was contaminated', and 'the trunk and expert streams
+    fight over the device'.
 
-OPEN, NOT CLOSED
------------------
-  * cross-layer pipelining: issue layer L+1's reads during layer L's arithmetic.
-    Not implemented; this is the only lever the measurements point at.
-  * hit_wall reported 0.00 s in one run while pread_seconds was 1742.60 s.
-    Unexplained. Every engine hit I/O rate quoted here comes from a run where
-    hit_wall was sane, but the field is unreliable and should not be trusted blindly.
-  * stat_idle_s only samples the instant a worker finds the queue empty, not its
-    sleep, so it proves nothing. The 49% figure is arithmetic on the other counters.
+    One methodological note that cost the most: the device ceiling was taken
+    from a large-block benchmark (2463 MB/s) and compared against an engine
+    doing 4M O_DIRECT reads. The shape has to match the workload, and it did
+    not. That single mismatch inflated every conclusion built on it.
+
+  OPEN, NOT CLOSED
+  -----------------
+    * cross-layer pipelining: issue layer L+1's reads during layer L's arithmetic.
+      Not implemented. It is still the only lever the numbers point at -- the
+      device is idle during arithmetic and there is spare bandwidth -- but note
+      that v55 killed the contention story that motivated it, so the benefit is
+      less obviously large than when this was first written.
+    * why prefetch is slower at every arena size, when the device is neither
+      saturated nor sensitive to the access pattern. Host-side cause unknown.
+    * hit_wall reported 0.00 s in one run while pread_seconds was 1742.60 s.
+      Unexplained. Every engine hit I/O rate quoted here comes from a run where
+      hit_wall was sane, but the field is unreliable and should not be trusted blindly.
+    * stat_idle_s only samples the instant a worker finds the queue empty, not its
+      sleep, so it proves nothing. The 49% figure is arithmetic on the other counters.
+    * prefetch survival 21%, quoted since v50, never independently verified.
