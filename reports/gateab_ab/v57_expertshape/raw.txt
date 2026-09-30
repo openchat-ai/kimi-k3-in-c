@@ -1,0 +1,6 @@
+scattered 1 stream  x120	1	120	0	12411
+scattered_4s_x120	4	480	0	12223
+scattered_8s_x120	8	960	0	13402
+scattered_16s_x120	16	1920	0	12996
+sequential 1 stream x120	1	120	1	5678
+sequential_8s_x120	8	960	1	5454

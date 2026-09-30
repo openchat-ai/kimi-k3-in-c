@@ -1,0 +1,21 @@
+geometry ok: 14589 slots x 17547264 = 239G
+stride 4096, coprime with 14589: yes
+
+== smoke
+  SMOKE_1s_20r                     2807 MB/s  (20 reads across 1 streams)
+idle: load=0.21 0.36 0.16  17:20:21
+
+== scattered 17.5 MB, the shape the engine actually uses
+  scattered 1 stream  x120        12411 MB/s  (120 reads across 1 streams)
+  scattered_4s_x120               12223 MB/s  (480 reads across 4 streams)
+  scattered_8s_x120               13402 MB/s  (960 reads across 8 streams)
+  scattered_16s_x120              12996 MB/s  (1920 reads across 16 streams)
+
+== sequential 17.5 MB, same size and count (isolates the pattern)
+  sequential 1 stream x120         5678 MB/s  (120 reads across 1 streams)
+  sequential_8s_x120               5454 MB/s  (960 reads across 8 streams)
+
+== for comparison
+  engine group1 (experts)      34-46 MB/s per stream, concurrency ~9
+  engine group0 (trunk)       781-1003 MB/s per stream
+  device ceiling, 4M blocks      ~1600 MB/s at 4 streams (v55)

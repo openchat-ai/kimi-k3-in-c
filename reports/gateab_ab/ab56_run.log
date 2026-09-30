@@ -1,0 +1,14 @@
+idle: load=0.37 0.45 0.19  16:41:08
+[r1] 3 tokens in 195.6 s, 65.21 s/token average
+      kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 121 MB/s, aggregate 1107 MB/s, concurrency 9.1x | queue 57.7 s (3.2% of io), submit-lock 2.5 s, worker-lock 0.1 s, sleep 1548.9 s in 8408 waits (49% of worker-time)
+            group0: 235 reqs, 140.16 GB | per-stream 1003 MB/s | queue 0.2 s (0.1%)
+            group1: 4360 reqs, 76.51 GB | per-stream 46 MB/s | queue 57.5 s (3.5%)
+[r2] 3 tokens in 226.9 s, 75.62 s/token average
+      kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 108 MB/s, aggregate 955 MB/s, concurrency 8.9x | queue 60.9 s (3.0% of io), submit-lock 2.4 s, worker-lock 0.1 s, sleep 1699.5 s in 8408 waits (47% of worker-time)
+            group0: 235 reqs, 140.16 GB | per-stream 881 MB/s | queue 0.1 s (0.1%)
+            group1: 4360 reqs, 76.51 GB | per-stream 41 MB/s | queue 60.8 s (3.3%)
+[r3] 3 tokens in 239.7 s, 79.91 s/token average
+      kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 90 MB/s, aggregate 904 MB/s, concurrency 10.0x | queue 69.6 s (2.9% of io), submit-lock 2.6 s, worker-lock 0.1 s, sleep 1521.1 s in 8377 waits (40% of worker-time)
+            group0: 235 reqs, 140.16 GB | per-stream 781 MB/s | queue 0.1 s (0.1%)
+            group1: 4360 reqs, 76.51 GB | per-stream 34 MB/s | queue 69.5 s (3.1%)
+done 16:54:00

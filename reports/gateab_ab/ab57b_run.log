@@ -1,0 +1,4 @@
+geometry: 14589 slots x 17547264, stride 4096 coprime
+
+== smoke: 12 reads, both patterns, must agree with bytes/wall
+  SMOKE_scattered_1s         SHORT: 11 of 12 invocations reported -- not recording

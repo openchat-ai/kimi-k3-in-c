@@ -85,14 +85,42 @@ typedef struct K3IO {
      * behave nothing alike -- the trunk stream is one request for a whole 600 MB layer,
      * expert reads are one 17.5 MB slot each -- and a combined total would hide which one
      * is starving. Cumulative across worker threads, so divide by the observed wall to get
-     * concurrency, and by nothing at all to get per-device rate. */
+     * concurrency, and by nothing at all to get per-device rate.
+     *
+     * Every field here was a plain += from 16 worker threads with no atomics. That is a data
+     * race and not a measurement. The v52 run that produced the day's 51% figure was read
+     * through these; the conclusion survived only because dd measured the same thing
+     * independently (v55) and agreed to within a few percent. The race was invisible, not
+     * harmless -- fix it rather than trusting a plausible number.
+     *
+     * Times are integer nanoseconds, not double, because GCC's __atomic_add_fetch has no
+     * double overload and a CAS loop over bit patterns is a much easier thing to get
+     * subtly wrong than a scale factor. 243 s is 2.4e11 ns, far inside uint64. */
+#define K3_STAT_ADD_U64(p, v) __atomic_add_fetch((p), (uint64_t)(v), __ATOMIC_RELAXED)
+#define K3_STAT_GET_U64(p)     __atomic_load_n((p), __ATOMIC_RELAXED)
     uint64_t    stat_reqs[K3_IO_MAX_TIERS];
     uint64_t    stat_bytes[K3_IO_MAX_TIERS];
-    double      stat_pread_s[K3_IO_MAX_TIERS];   /* summed across workers */
-    double      stat_queue_s[K3_IO_MAX_TIERS];   /* submit -> dequeue */
-    double      stat_submit_s[K3_IO_MAX_TIERS];  /* inside submit_g, under the lock */
-    double      stat_lock_s[K3_IO_MAX_TIERS];    /* worker waiting for io->mu */
-    double      stat_idle_s[K3_IO_MAX_TIERS];    /* worker found every queue empty */
+    uint64_t    stat_pread_ns[K3_IO_MAX_TIERS];  /* summed across workers */
+    uint64_t    stat_queue_ns[K3_IO_MAX_TIERS];  /* submit -> dequeue */
+    uint64_t    stat_submit_ns[K3_IO_MAX_TIERS]; /* inside submit_g, under the lock */
+    uint64_t    stat_lock_ns[K3_IO_MAX_TIERS];   /* worker waiting for io->mu */
+    /* Time actually spent asleep in pthread_cond_wait. The old stat_idle_s sampled only the
+     * instant a worker found every queue empty -- the time spent deciding to sleep, not the
+     * time spent sleeping. It reported 0.1 s against 243 s of wall, which is why the day's
+     * 49%-idle figure had to be derived by subtracting the other counters instead of read. */
+    uint64_t    stat_sleep_ns[K3_IO_MAX_TIERS];
+    uint64_t    stat_sleep_n[K3_IO_MAX_TIERS];   /* count of sleeps, to check the sum */
+    /* Per group. Aggregating a 600 MB sequential trunk request with a 17.5 MB scattered
+     * expert read into one number describes neither, and hides which stream is starving. */
+    uint64_t    stat_reqs_g[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
+    uint64_t    stat_bytes_g[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
+    uint64_t    stat_pread_ns_g[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
+    uint64_t    stat_queue_ns_g[K3_IO_MAX_TIERS][K3_IO_MAX_GROUPS];
+    /* Failed requests. Bytes are counted only on success: the old code added r->nbytes
+     * unconditionally, so a short or failed read still counted as delivered and the
+     * reported rate would be one the drive never achieved. */
+    uint64_t    stat_fail[K3_IO_MAX_TIERS];
+    double      t_start_s;                       /* wall when the first request was queued */
 } K3IO;
 
 /* io: module state. tiers: number of medium tiers. workers: array of worker

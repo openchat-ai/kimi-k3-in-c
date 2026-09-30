@@ -66,22 +66,27 @@ static void *k3_io_tier_main(void *arg)
         }
         if (!r && io->stop) { pthread_mutex_unlock(&io->mu); return NULL; }
         if (!r) {
-            /* An empty queue is not contention, it is idleness, so it is counted separately
-             * from the lock wait. Folding the two together would let a pool that is merely
-             * under-subscribed look like one that is fighting over its own mutex. */
-            io->stat_idle_s[tier] += now_s() - t_lock;
+            /* Time the sleep itself, not the decision to sleep. The previous counter sampled
+             * the instant between finding the queues empty and calling cond_wait, which
+             * measured the cost of a branch: 0.1 s against 243 s of wall. What the day's
+             * conclusion needed was how long workers sat in the wait, so wrap the wait.
+             * pthread_cond_wait returns with io->mu held again, which is why the unlock
+             * below comes after it. */
+            const double t_sleep = now_s();
             pthread_cond_wait(&io->cv[tier], &io->mu);
+            K3_STAT_ADD_U64(&io->stat_sleep_ns[tier], (now_s() - t_sleep) * 1e9);
+            K3_STAT_ADD_U64(&io->stat_sleep_n[tier], 1);
             pthread_mutex_unlock(&io->mu);
             continue;
         }
         pthread_mutex_unlock(&io->mu);
-        io->stat_lock_s[tier] += now_s() - t_lock;
+        K3_STAT_ADD_U64(&io->stat_lock_ns[tier], (now_s() - t_lock) * 1e9);
 
         /* Time the queue wait separately from the read. If a request spends its life here
          * rather than in pread, the drive is idle and the limit is the pool; if it spends it
          * in pread, the drive is the limit and the pool size is irrelevant. Those two
          * require different fixes and only the ratio between them tells you which applies. */
-        if (r) io->stat_queue_s[tier] += t_deq - r->t_sub;
+        K3_STAT_ADD_U64(&io->stat_queue_ns[tier], (t_deq - r->t_sub) * 1e9);
 
         const double t_io0 = now_s();
         /* Drain one request. Each tier has its own worker POOL; the NVMe pool's
@@ -123,15 +128,27 @@ static void *k3_io_tier_main(void *arg)
         if (getenv("K3_IO_DBG"))
             fprintf(stderr, "DBG io worker tier=%d rc=%ld nbytes=%zu\n", tier, (long)rc, r->nbytes);
 
-        /* Cumulative across workers, so the ratio stat_bytes / stat_pread_s is the rate the
-         * device delivered under this access pattern, independent of how many workers were
-         * active. Compared against the same file read by a standalone probe, that difference
-         * is the whole question: equal rates mean the drive is not the limit. */
+        /* Cumulative across workers, so stat_bytes / stat_pread_s is the rate one stream
+         * would have delivered at the device, and stat_pread_s / wall is the concurrency
+         * actually achieved. Reported separately now, because the single figure conflated
+         * them and that conflation is what made 109 MB/s look like a device limit when it
+         * was a per-thread rate with ~16 threads behind it.
+         *
+         * Bytes count only on success. Adding r->nbytes unconditionally let a short or
+         * failed read count as delivered, which inflates the rate by exactly the shortfall. */
         {
             const double dt = now_s() - t_io0;
-            io->stat_pread_s[tier] += dt;
-            io->stat_bytes[tier]  += (uint64_t)r->nbytes;
-            io->stat_reqs[tier]   += 1;
+            const size_t got = (rc > 0) ? (size_t)rc : 0;
+            K3_STAT_ADD_U64(&io->stat_pread_ns[tier], dt * 1e9);
+            K3_STAT_ADD_U64(&io->stat_reqs[tier], 1);
+            K3_STAT_ADD_U64(&io->stat_bytes[tier], got);
+            if (g >= 0 && g < K3_IO_MAX_GROUPS) {
+                K3_STAT_ADD_U64(&io->stat_pread_ns_g[tier][g], dt * 1e9);
+                K3_STAT_ADD_U64(&io->stat_reqs_g[tier][g], 1);
+                K3_STAT_ADD_U64(&io->stat_bytes_g[tier][g], got);
+                K3_STAT_ADD_U64(&io->stat_queue_ns_g[tier][g], (t_deq - r->t_sub) * 1e9);
+            }
+            if (got != r->nbytes) K3_STAT_ADD_U64(&io->stat_fail[tier], 1);
         }
 
         pthread_mutex_lock(&r->mu);
@@ -165,27 +182,57 @@ void k3_io_init(K3IO *io, int tiers, const int *workers)
 
 void k3_io_report(const K3IO *io)
 {
-    /* Where the pool's time went, per tier. The line that decides whether the drive is the
-     * limit is bytes / pread_s: that is the rate the device delivered under this access
-     * pattern, summed across workers, and it is directly comparable with a standalone probe
-     * reading the same file. If it matches the probe, the drive is not the limit and the
-     * queue figures say where the time actually is.
+    /* Two rates, not one. stat_bytes / stat_pread_s is what ONE stream delivered at the
+     * device, and it is the figure to compare against a standalone probe reading the same
+     * file in the same shape. stat_pread_s / wall is how many streams were actually in
+     * flight. The old line printed the first and labelled it "device", which read as a
+     * device limit; the engine's 109 MB/s was a per-thread rate with sixteen threads behind
+     * it, against a device that does 1600. Both numbers are needed to tell a saturated
+     * device from an idle one, and printing one invites exactly the error v55 corrected.
      *
-     * Concurrency is pread_s / wall-ish, and queue_s is submit -> dequeue: a large queue
-     * figure with a small pread figure means the workers were not the constraint either,
-     * which leaves the submitter. */
+     * Sleep is reported as time and count, because a large total from a handful of long
+     * waits and the same total from many short ones mean different things, and a single
+     * figure cannot distinguish them. */
+    const double now = now_s();
+    const double wall = (io->t_start_s > 0) ? (now - io->t_start_s) : 0.0;
+
     for (int t = 0; t < io->ntiers; t++) {
-        if (!io->stat_reqs[t]) continue;
-        const double pr = io->stat_pread_s[t] > 0 ? io->stat_pread_s[t] : 1e-9;
-        printf("kio tier%d: %llu reqs, %.2f GB, "
-               "device %.0f MB/s | queue %.1f s (%.1f%% of req time), "
-               "submit-lock %.1f s, worker-lock %.1f s, idle %.1f s\n",
-               t, (unsigned long long)io->stat_reqs[t],
+        const uint64_t reqs = K3_STAT_GET_U64(&io->stat_reqs[t]);
+        if (!reqs) continue;
+        const double pread_s = (double)io->stat_pread_ns[t] / 1e9;
+        const double queue_s = (double)io->stat_queue_ns[t] / 1e9;
+        const double lock_s  = (double)io->stat_lock_ns[t] / 1e9;
+        const double sleep_s = (double)io->stat_sleep_ns[t] / 1e9;
+        const double pr = pread_s > 0 ? pread_s : 1e-9;
+        const double wall_s = wall > 0 ? wall : pr;
+        printf("kio tier%d: %llu reqs, %.2f GB delivered | "
+               "per-stream %.0f MB/s, aggregate %.0f MB/s, concurrency %.1fx | "
+               "queue %.1f s (%.1f%% of io), submit-lock %.1f s, worker-lock %.1f s, "
+               "sleep %.1f s in %.0f waits (%.0f%% of worker-time)%s\n",
+               t, (unsigned long long)reqs,
                (double)io->stat_bytes[t] / 1e9,
                (double)io->stat_bytes[t] / pr / 1e6,
-               io->stat_queue_s[t],
-               100.0 * io->stat_queue_s[t] / pr,
-               io->stat_submit_s[t], io->stat_lock_s[t], io->stat_idle_s[t]);
+               (double)io->stat_bytes[t] / wall_s / 1e6,
+               pread_s / wall_s,
+               queue_s,
+               100.0 * queue_s / pr,
+               (double)io->stat_submit_ns[t] / 1e9, lock_s,
+               sleep_s, (double)io->stat_sleep_n[t],
+               100.0 * sleep_s / (io->nworkers[t] * wall_s),
+               io->stat_fail[t] ? "  [HAS SHORT/FAILED READS]" : "");
+
+        for (int g = 0; g < K3_IO_MAX_GROUPS; g++) {
+            const uint64_t gr = K3_STAT_GET_U64(&io->stat_reqs_g[t][g]);
+            if (!gr) continue;
+            const double gp = (double)io->stat_pread_ns_g[t][g] / 1e9;
+            const double gq = (double)io->stat_queue_ns_g[t][g] / 1e9;
+            const double gpr = gp > 0 ? gp : 1e-9;
+            printf("      group%d: %llu reqs, %.2f GB | per-stream %.0f MB/s | queue %.1f s (%.1f%%)\n",
+                   g, (unsigned long long)gr,
+                   (double)io->stat_bytes_g[t][g] / 1e9,
+                   (double)io->stat_bytes_g[t][g] / gpr / 1e6,
+                   gq, 100.0 * gq / gpr);
+        }
     }
 }
 
@@ -224,7 +271,11 @@ K3IOReq *k3_io_submit_g(K3IO *io, int tier, int group, int fd, off_t off,
 
     const double t_lk = now_s();
     pthread_mutex_lock(&io->mu);
-    io->stat_submit_s[tier] += now_s() - t_lk;
+    K3_STAT_ADD_U64(&io->stat_submit_ns[tier], (now_s() - t_lk) * 1e9);
+    /* Stamp the tier's clock origin on the first request, so the report can divide by wall
+     * and print the concurrency actually achieved. Before this the report had no wall and
+     * had to guess one, which is why it printed a per-stream rate under the label "device". */
+    if (io->t_start_s == 0.0) io->t_start_s = now_s();
     if (io->qtail[tier][group]) io->qtail[tier][group]->next = r;
     else                        io->q[tier][group] = r;
     io->qtail[tier][group] = r;
