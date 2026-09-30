@@ -1,0 +1,16 @@
+=== the first few reads: want vs slot_bytes vs nbytes, and which fd
+     L2 want=17547264 slot=17547264 nbytes=17547264 fd=O_DIRECT
+     L2 want=17547264 slot=17547264 nbytes=17547264 fd=O_DIRECT
+     L2 want=17547264 slot=17547264 nbytes=17547264 fd=O_DIRECT
+     L2 want=17547264 slot=17547264 nbytes=17547264 fd=O_DIRECT
+     L2 want=17547264 slot=17547264 nbytes=17547264 fd=O_DIRECT
+     L2 want=17547264 slot=17547264 nbytes=17547264 fd=O_DIRECT
+
+=== fd split in the ledger
+   3 tokens in 210.0 s, 70.01 s/token average
+     fd split  : 3134 O_DIRECT, 0 BUFFERED (0.00% buffered)
+     hit I/O   : 76.51 GB in 0.00 s (wall) = 0 MB/s [pread 1742.60 s, 44 MB/s per-thread]
+     expert phase split: phase1 SERIAL reserve 0.1 s (552 calls) vs phase2 read 141.1 s
+start : 12:54:48
+load  : 0.06 0.44 0.26
+EXIT=0  end 12:58:37

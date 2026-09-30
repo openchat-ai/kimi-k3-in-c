@@ -1,0 +1,16 @@
+geometry: nslot=14589 slot=17547264, 11 threads, burst=14 rounds, 100 s per arm
+engine: 439 MB/s. Its arithmetic is 14.85 s / 93 layers = 0.16 s per layer.
+
+   pause  0.00 s     307.6 GB in  101.0 s =   3044 MB/s   
+   pause  0.16 s     260.9 GB in  101.3 s =   2574 MB/s   
+   pause  0.32 s     251.3 GB in  101.1 s =   2486 MB/s   
+   pause  0.48 s     197.0 GB in  100.6 s =   1959 MB/s   
+
+=== summary
+   pause              MB/s    vs engine
+   0.00               3044        6.93x
+   0.16               2574        5.86x
+   0.32               2486        5.66x
+   0.48               1959        4.46x
+
+   v47, no pause at all, 420 s continuous : 2610 MB/s (5.95x)

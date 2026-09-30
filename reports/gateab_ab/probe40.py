@@ -38,7 +38,7 @@ import threading
 import time
 
 L2 = "/mnt/nvme/experts.l2"
-NSLOT = 17096
+NSLOT = 14589
 SLOT = 17547264
 ROUNDS = 120
 PAUSE = 0.15
@@ -100,8 +100,12 @@ def round_once(R, seed):
                 s -= NSLOT
             offs.append(s * SLOT)
 
+        short = []
+
         def lane(i):
-            os.preadv(fd, [bufs[i]], offs[i])
+            got = os.preadv(fd, [bufs[i]], offs[i])
+            if got != SLOT:
+                short.append(got)
 
         th = [threading.Thread(target=lane, args=(i,)) for i in range(R)]
         t0 = time.monotonic()
@@ -112,6 +116,10 @@ def round_once(R, seed):
         el = time.monotonic() - t0
         for b in bufs:
             b.close()
+        if short:
+            raise RuntimeError("short read(s): %s of %d bytes -- a read past EOF returns "
+                               "immediately and would inflate the rate"
+                               % (short[:4], SLOT))
         return el, R * SLOT
     finally:
         os.close(fd)
@@ -139,7 +147,16 @@ def main():
     print("device cache preconditioned to a known state first (v39 method)\n", flush=True)
 
     # Sanity: geometry must still be what the engine sees.
-    assert SLOT == 17547264 and NSLOT == 17096, "engine geometry changed"
+    # Geometry is asserted against the file, not against a literal. The first version of
+    # this probe hardcoded NSLOT=17096, which is what a 300 GB file would hold; experts.l2
+    # is 255997034496 bytes and holds 14589 slots. About 15% of reads therefore ran past EOF
+    # and returned immediately, inflating every rate and making the R sweep look flat,
+    # which is how "concurrency is not a lever" got concluded. A short read is now fatal.
+    actual = os.path.getsize(L2) // SLOT
+    if actual != NSLOT:
+        raise SystemExit("NSLOT=%d but the file holds %d slots" % (NSLOT, actual))
+    assert SLOT == 17547264, "engine slot size changed"
+    assert SLOT % 4096 == 0, "slot not page aligned"
 
     print("[1/2] preconditioning ...", flush=True)
     precondition()

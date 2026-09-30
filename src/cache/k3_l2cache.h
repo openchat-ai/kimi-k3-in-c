@@ -72,6 +72,16 @@ typedef struct K3L2 {
 
     /* stats */
     uint64_t     hits, misses, bytes_read, bytes_written;
+    /* Which of the two descriptors each hit read actually used. k3_l2cache.c opens the
+     * file twice -- O_RDONLY|O_DIRECT as fdh for aligned whole-slot reads, and O_RDWR
+     * buffered as fd for everything else -- and the choice hinges on whether the expert's
+     * real nbytes equals the padded slot size. That branch is silent, so a fall-through to
+     * the buffered descriptor would silently give up O_DIRECT on a 256 GB file, and
+     * buffered reads on this drive have measured IQR 1.140 (13.6x) across runs. Counted
+     * rather than assumed; if buffered_reads is ever above zero on a steady-state run,
+     * every rate attributed to the NVMe is suspect. */
+    uint64_t     odirect_reads, buffered_reads;
+    int          want_sample;
     /* I/O timing, split by source so the report can say how much of the load time was
      * the fast sdd7 hit reads vs the slow /model HDD miss reads. Effective MB/s is the
      * classic trap here: a 199 MB/s average hides a 1.5 GB/s NVMe hit path dragging a

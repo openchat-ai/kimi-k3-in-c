@@ -1,0 +1,39 @@
+[v49] pair 1  DEVICE first  11:10:38
+   33491 slots read, 587.7 GB in 210.1 s = 2797 MB/s
+   engine: 439 MB/s over 409 s  ->  ratio 6.37x
+[v49] pair 1  ENGINE       11:14:09
+    trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+    trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+    3 tokens in 234.6 s, 78.21 s/token average
+      of those hits : 1416 came from the batch prefetch, i.e. read from disk
+      read from disk: 24.85 GB in 55.89 s (445 MB/s while loading)
+      hit I/O   : 76.49 GB in 170.69 s (wall) = 448 MB/s [pread 2162.53 s, 35 MB/s per-thread]
+         experts the prefetcher had just read from disk, so it is not a
+[v49] pair 1 done 11:18:23
+[v49] pair 2  DEVICE first  11:18:53
+   31220 slots read, 547.8 GB in 210.2 s = 2607 MB/s
+   engine: 439 MB/s over 409 s  ->  ratio 5.94x
+[v49] pair 2  ENGINE       11:22:23
+    trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+    trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+    3 tokens in 237.7 s, 79.23 s/token average
+      of those hits : 1416 came from the batch prefetch, i.e. read from disk
+      read from disk: 24.85 GB in 67.51 s (368 MB/s while loading)
+      hit I/O   : 76.51 GB in 175.04 s (wall) = 437 MB/s [pread 2246.06 s, 34 MB/s per-thread]
+         experts the prefetcher had just read from disk, so it is not a
+[v49] pair 2 done 11:26:30
+[v49] pair 3  DEVICE first  11:27:00
+   29503 slots read, 517.7 GB in 210.2 s = 2463 MB/s
+   engine: 439 MB/s over 409 s  ->  ratio 5.61x
+[v49] pair 3  ENGINE       11:30:30
+    trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+    trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+    3 tokens in 228.0 s, 75.99 s/token average
+      of those hits : 1416 came from the batch prefetch, i.e. read from disk
+      read from disk: 24.85 GB in 56.04 s (443 MB/s while loading)
+      hit I/O   : 76.51 GB in 164.95 s (wall) = 464 MB/s [pread 2149.06 s, 36 MB/s per-thread]
+         experts the prefetcher had just read from disk, so it is not a
+[v49] pair 3 done 11:34:27
+start : 11:10:38
+load  : 0.03 0.17 0.09
+end   : 11:34:57

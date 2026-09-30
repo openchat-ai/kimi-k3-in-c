@@ -1,0 +1,106 @@
+built ok
+host sampler pid 732
+geometry: nslot=14589 slot=17547264, 11 threads x 6 batches x 120 rounds = 23162.4 MB per batch
+
+[1/2] series T: base fixed at 4096, 6 measurements -- time alone
+08:53:30  T   base= 4096 batch 1/6    7173 MB/s
+08:53:34  T   base= 4096 batch 2/6    7106 MB/s
+08:53:37  T   base= 4096 batch 3/6    7095 MB/s
+08:53:40  T   base= 4096 batch 4/6    7077 MB/s
+08:53:43  T   base= 4096 batch 5/6    7108 MB/s
+08:53:47  T   base= 4096 batch 6/6    7140 MB/s
+       T   base= 4096 MEAN                  7117 MB/s
+08:53:50  T   base= 4096 batch 1/6    7146 MB/s
+08:53:53  T   base= 4096 batch 2/6    7160 MB/s
+08:53:56  T   base= 4096 batch 3/6    7136 MB/s
+08:54:00  T   base= 4096 batch 4/6    7177 MB/s
+08:54:03  T   base= 4096 batch 5/6    7150 MB/s
+08:54:06  T   base= 4096 batch 6/6    7192 MB/s
+       T   base= 4096 MEAN                  7160 MB/s
+08:54:09  T   base= 4096 batch 1/6    7153 MB/s
+08:54:13  T   base= 4096 batch 2/6    6838 MB/s
+08:54:16  T   base= 4096 batch 3/6    4700 MB/s
+08:54:21  T   base= 4096 batch 4/6    4715 MB/s
+08:54:26  T   base= 4096 batch 5/6    4710 MB/s
+08:54:31  T   base= 4096 batch 6/6    4697 MB/s
+       T   base= 4096 MEAN                  5469 MB/s
+08:54:36  T   base= 4096 batch 1/6    4705 MB/s
+08:54:41  T   base= 4096 batch 2/6    4707 MB/s
+08:54:46  T   base= 4096 batch 3/6    4712 MB/s
+08:54:50  T   base= 4096 batch 4/6    4704 MB/s
+08:54:55  T   base= 4096 batch 5/6    4705 MB/s
+08:55:00  T   base= 4096 batch 6/6    4710 MB/s
+       T   base= 4096 MEAN                  4707 MB/s
+08:55:05  T   base= 4096 batch 1/6    4711 MB/s
+08:55:10  T   base= 4096 batch 2/6    4712 MB/s
+08:55:15  T   base= 4096 batch 3/6    4713 MB/s
+08:55:20  T   base= 4096 batch 4/6    4714 MB/s
+08:55:25  T   base= 4096 batch 5/6    4702 MB/s
+08:55:30  T   base= 4096 batch 6/6    4693 MB/s
+       T   base= 4096 MEAN                  4708 MB/s
+08:55:35  T   base= 4096 batch 1/6    4706 MB/s
+08:55:40  T   base= 4096 batch 2/6    4711 MB/s
+08:55:45  T   base= 4096 batch 3/6    4717 MB/s
+08:55:50  T   base= 4096 batch 4/6    4706 MB/s
+08:55:54  T   base= 4096 batch 5/6    4709 MB/s
+08:55:59  T   base= 4096 batch 6/6    4723 MB/s
+       T   base= 4096 MEAN                  4712 MB/s
+
+[2/2] series R: 6 different bases -- time plus region
+08:56:04  R   base= 2084 batch 1/6    3037 MB/s
+08:56:12  R   base= 2084 batch 2/6    3170 MB/s
+08:56:19  R   base= 2084 batch 3/6    3201 MB/s
+08:56:26  R   base= 2084 batch 4/6    3201 MB/s
+08:56:34  R   base= 2084 batch 5/6    3184 MB/s
+08:56:41  R   base= 2084 batch 6/6    3190 MB/s
+       R   base= 2084 MEAN                  3164 MB/s
+08:56:48  R   base= 4168 batch 1/6    4463 MB/s
+08:56:53  R   base= 4168 batch 2/6    4711 MB/s
+08:56:58  R   base= 4168 batch 3/6    4717 MB/s
+08:57:03  R   base= 4168 batch 4/6    4703 MB/s
+08:57:08  R   base= 4168 batch 5/6    4702 MB/s
+08:57:13  R   base= 4168 batch 6/6    4703 MB/s
+       R   base= 4168 MEAN                  4667 MB/s
+08:57:18  R   base= 6252 batch 1/6    4028 MB/s
+08:57:24  R   base= 6252 batch 2/6    4248 MB/s
+08:57:29  R   base= 6252 batch 3/6    4241 MB/s
+08:57:35  R   base= 6252 batch 4/6    4247 MB/s
+08:57:40  R   base= 6252 batch 5/6    4245 MB/s
+08:57:46  R   base= 6252 batch 6/6    4223 MB/s
+       R   base= 6252 MEAN                  4205 MB/s
+08:57:51  R   base= 8336 batch 1/6    2454 MB/s
+08:58:00  R   base= 8336 batch 2/6    2586 MB/s
+08:58:09  R   base= 8336 batch 3/6    2587 MB/s
+08:58:18  R   base= 8336 batch 4/6    2587 MB/s
+08:58:27  R   base= 8336 batch 5/6    2584 MB/s
+08:58:36  R   base= 8336 batch 6/6    2587 MB/s
+       R   base= 8336 MEAN                  2564 MB/s
+08:58:45  R   base=10420 batch 1/6    1891 MB/s
+08:58:58  R   base=10420 batch 2/6    1882 MB/s
+08:59:10  R   base=10420 batch 3/6    1882 MB/s
+08:59:22  R   base=10420 batch 4/6    1883 MB/s
+08:59:34  R   base=10420 batch 5/6    1885 MB/s
+08:59:47  R   base=10420 batch 6/6    1889 MB/s
+       R   base=10420 MEAN                  1885 MB/s
+08:59:59  R   base=12504 batch 1/6    1882 MB/s
+09:00:11  R   base=12504 batch 2/6    1879 MB/s
+09:00:24  R   base=12504 batch 3/6    1877 MB/s
+09:00:36  R   base=12504 batch 4/6    1871 MB/s
+09:00:48  R   base=12504 batch 5/6    1876 MB/s
+09:01:01  R   base=12504 batch 6/6     983 MB/s
+       R   base=12504 MEAN                  1728 MB/s
+   T (fixed base)         median   5469  min   4707  max   7160  max/med  1.31x  IQR/med 0.440
+   R (varied base)        median   3164  min   1728  max   4667  max/med  1.48x  IQR/med 0.733
+
+=== reading
+   time-only spread      max/min =  1.52x
+   time+region spread    max/min =  2.70x
+   -> neither factor explains v44's 3.4x. Its per-round base of
+      4096*(r+1) also advanced time between the arms, so the two are still
+      partly confounded here; a proper design crosses base with time.
+host.csv lines: 235
+load before: 0.10 0.65 0.39
+mem avail : 53.9GB
+start     : 08:53:27
+exit=0
+end     : 09:01:25

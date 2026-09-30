@@ -46,6 +46,11 @@ typedef struct K3IOReq {
     size_t   chunk;
     ssize_t  rc;
     int      done;            /* 1 when the worker finished (rc valid) */
+    /* When the request was handed to the pool, so the worker can time how long it sat in
+     * the queue before anyone picked it up. Queue time is the difference between "the drive
+     * is slow" and "the drive was never asked", and only the request can carry the answer
+     * back: the pool has no other way to know how long a given request was waiting. */
+    double   t_sub;
     pthread_mutex_t mu;       /* per-request completion lock */
     pthread_cond_t  cv;
 } K3IOReq;
@@ -74,6 +79,20 @@ typedef struct K3IO {
     int         rr[K3_IO_MAX_TIERS];
     int         nworkers[K3_IO_MAX_TIERS]; /* workers per tier */
     int         ntiers;
+    /* Where the time goes, per tier. The decisive number is stat_bytes / stat_pread_s: if
+     * that is the drive's rate under the same access pattern, the drive is not the limit
+     * and the time is in the queue. The two queues are separated because the two streams
+     * behave nothing alike -- the trunk stream is one request for a whole 600 MB layer,
+     * expert reads are one 17.5 MB slot each -- and a combined total would hide which one
+     * is starving. Cumulative across worker threads, so divide by the observed wall to get
+     * concurrency, and by nothing at all to get per-device rate. */
+    uint64_t    stat_reqs[K3_IO_MAX_TIERS];
+    uint64_t    stat_bytes[K3_IO_MAX_TIERS];
+    double      stat_pread_s[K3_IO_MAX_TIERS];   /* summed across workers */
+    double      stat_queue_s[K3_IO_MAX_TIERS];   /* submit -> dequeue */
+    double      stat_submit_s[K3_IO_MAX_TIERS];  /* inside submit_g, under the lock */
+    double      stat_lock_s[K3_IO_MAX_TIERS];    /* worker waiting for io->mu */
+    double      stat_idle_s[K3_IO_MAX_TIERS];    /* worker found every queue empty */
 } K3IO;
 
 /* io: module state. tiers: number of medium tiers. workers: array of worker
@@ -82,6 +101,9 @@ typedef struct K3IO {
  * everywhere. */
 void  k3_io_init(K3IO *io, int tiers, const int *workers);
 void  k3_io_free(K3IO *io);
+/* Print the per-tier breakdown of where the pool's time went. Call before k3_io_free, which
+ * joins the workers; the figures are cumulative across them either way. */
+void  k3_io_report(const K3IO *io);
 /* Submit one read (or a chunked span) on a tier+group; returns a request to wait
  * on. When chunk > 0, the worker reads the whole [off, off+nbytes) as consecutive
  * `chunk`-byte preads -- one completion for the whole span. */

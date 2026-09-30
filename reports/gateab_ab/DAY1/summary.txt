@@ -1,0 +1,70 @@
+====================================================================
+kimi-k3-in-c, 2026-09-29/30: what was established and what was not
+====================================================================
+
+THE HEADLINE, CORRECTED
+-----------------------
+  engine total  216.66 GB / 243.2 s = 891 MB/s   (trunk 140.16 + expert 76.51)
+  device, same file, O_DIRECT       2463 MB/s    (v47, 420 s continuous, flat)
+  gap 2.77x
+
+  For most of the day the figure quoted was 439 MB/s, which is l2->bytes_read
+  alone: the expert path. trunk_bytes_read sat unused in the same json.
+  Every exclusion list was built around a gap more than twice the real one.
+
+EXCLUDED WITH DATA (not causes; they are the things now known not to matter)
+------------------------------------------------------------------------
+  page cache      engine is O_DIRECT throughout; v51 counted 3134 O_DIRECT, 0 buffered
+  device cache    v39 wrote 40 GB over the cache, 1377 vs 410 remains
+  burst size      v40, R=1..16 all within one order of magnitude
+  concurrency     engine sustains 11.4x already; v40 flat from R=4 onward
+  kio hop         v44, five arms 2776-3209 MB/s, differences inside noise
+  phase-1 lock    0.02 s per token against 70 s of wall
+  refill writes   misses 0, written 0.00 GB, the critical section never entered
+
+CANDIDATES KILLED BY THEIR OWN DATA (each one I had believed)
+-----------------------------------------------------------
+  layer pause     v48: the engine never pauses; expert reads are 100% inside compute
+  window mismatch v47: 420 s continuous is flat, so not a burst-vs-steady artefact
+  prefetch        v50: 0.75x. depth 0 is the BETTER setting, so 'degraded path' is dead
+  probe pollution v46: the same arm is stable within 1.13x in 5 of 6 runs
+
+WHERE THE 2.77x ACTUALLY GOES (v52, counters in the pool)
+------------------------------------------------------------
+  kio tier0: 4595 reqs, 216.66 GB, device 109 MB/s | queue 52.8 s (2.7% of req time), submit-lock 1.8 s, worker-lock 0.0 s, idle 0.1 s
+  workers inside pread  1988 s of 3891 available worker-seconds = 51%
+  -> queue 2.7%, locks ~0, workers asleep ~49%: the device is idle during arithmetic
+  -> the drive could move 216.66 GB in 88 s; it took 243 s
+
+WHY THE FIX IS NOT AVAILABLE
+---------------------------
+  v50  15 GB arena, prefetch on : issued 1235, survival 21.1%, 355 vs 476 MB/s
+  v54  24 GB arena, prefetch on : survival 21.7% (854->1367 slots moved it 0.3pp),
+                                  trunk residency 22->15 layers, queue 2.6%->11.1%,
+                                  75.5 -> 126.2 s/token
+  -> the evictions were never a capacity problem, and buying arena costs trunk
+     residency, so the sequential and scattered streams fight over one device
+
+THE INSTRUMENT LESSON (BENCH_PROTO section 13)
+----------------------------------------------
+  Thirteen external experiments failed to localise it. The read path is 1500 lines
+  across 58 functions, and five counters in k3_io.c answered it in one run.
+
+  The four instrument defects, all of the same kind -- assuming instead of reading:
+    * a short read was explained as 'past EOF' when errno said EBADF
+    * NSLOT was computed (300 GB / slot) when the engine prints the true value
+    * a struct declared inside a for loop outlived its threads by luck
+    * a report was attached to k3_io_free, which the engine never calls
+
+  Two of the conclusions drawn from them were wrong on contact with the next
+  experiment, and one of those ('v40 was contaminated') I had to retract.
+
+OPEN, NOT CLOSED
+-----------------
+  * cross-layer pipelining: issue layer L+1's reads during layer L's arithmetic.
+    Not implemented; this is the only lever the measurements point at.
+  * hit_wall reported 0.00 s in one run while pread_seconds was 1742.60 s.
+    Unexplained. Every engine hit I/O rate quoted here comes from a run where
+    hit_wall was sane, but the field is unreliable and should not be trusted blindly.
+  * stat_idle_s only samples the instant a worker finds the queue empty, not its
+    sleep, so it proves nothing. The 49% figure is arithmetic on the other counters.

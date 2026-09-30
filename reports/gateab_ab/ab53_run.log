@@ -1,0 +1,26 @@
+[v53] pair 1  A  32/15 pf0  13:54:09
+  [A_32_15_pf0_r1] 3 tokens in 213.8 s, 71.27 s/token average
+       expert cache: 854 slots x 17.56 MB = 14.99 GB (1.04% of the 1.45 TB expert pool)
+                         this token; TRUE resident hit rate 3.80%
+         hit I/O   : 76.51 GB in 0.00 s (wall) = 0 MB/s [pread 1733.24 s, 44 MB/s per-thread]
+       kio tier0: 4594 reqs, 216.64 GB, device 118 MB/s | queue 49.9 s (2.7% of req time), submit-lock 1.5 s, worker-lock 0.0 s, idle 0.1 s
+         read 140.16 GB in 159.14 s (881 MB/s pread)
+[v53] pair 1  B  32/32 pf1  13:58:27
+  [B_32_32_pf1_r1] 
+[v53] pair 1  C  32/32 pf0  13:58:53
+  [C_32_32_pf0_r1] 
+[v53] pair 2  A  32/15 pf0  13:59:19
+  [A_32_15_pf0_r2] 3 tokens in 223.4 s, 74.47 s/token average
+       expert cache: 854 slots x 17.56 MB = 14.99 GB (1.04% of the 1.45 TB expert pool)
+                         this token; TRUE resident hit rate 3.80%
+         hit I/O   : 76.51 GB in 0.00 s (wall) = 0 MB/s [pread 1887.93 s, 41 MB/s per-thread]
+       kio tier0: 4594 reqs, 216.02 GB, device 108 MB/s | queue 57.1 s (2.9% of req time), submit-lock 1.7 s, worker-lock 0.1 s, idle 0.1 s
+         read 140.16 GB in 163.58 s (857 MB/s pread)
+[v53] pair 2  B  32/32 pf1  14:03:37
+  [B_32_32_pf1_r2] 
+[v53] pair 2  C  32/32 pf0  14:04:02
+  [C_32_32_pf0_r2] 
+start : 13:54:09
+load  : 0.06 0.36 0.20
+mem   : 53.9GB
+end   : 14:04:28

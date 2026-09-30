@@ -1,0 +1,21 @@
+=== kio pool breakdown (the answer to 2.4x)
+kio tier0: 4595 reqs, 216.66 GB, device 109 MB/s | queue 52.8 s (2.7% of req time), submit-lock 1.8 s, worker-lock 0.0 s, idle 0.1 s
+
+=== ledger for cross-check
+trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+3 tokens in 243.2 s, 81.08 s/token average
+  of those hits : 1416 came from the batch prefetch, i.e. read from disk
+  read from disk: 24.85 GB in 64.82 s (383 MB/s while loading)
+  phase2 i/o    : 24.86 GB in 64.82 s (383 MB/s)  [pure parallel disk read]
+  read  from sdd7: 76.51 GB, written 0.00 GB
+  hit I/O   : 76.51 GB in 0.00 s (wall) = 0 MB/s [pread 1866.34 s, 41 MB/s per-thread]
+  expert phase split: phase1 SERIAL reserve 0.1 s (552 calls) vs phase2 read 155.8 s
+     experts the prefetcher had just read from disk, so it is not a
+  read 140.16 GB in 176.88 s (792 MB/s pread)
+
+=== totals from ctrl.json
+   trunk   140.16 GB
+   expert   76.51 GB
+   total   216.66 GB in 243.2 s = 891 MB/s
+   device does 2463 MB/s on the same file, so the total-rate gap is 2.77x

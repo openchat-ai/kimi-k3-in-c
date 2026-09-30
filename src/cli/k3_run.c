@@ -2222,6 +2222,12 @@ int main(int argc, char **argv)
     k3_chip_print_bill();
     k3_cache_report(&cache, "final step");
     if (have_l2) k3_l2_report(&l2, "final step");
+    /* The pool's time breakdown, printed here rather than from k3_io_free because the
+     * engine never frees the pool -- it exits with the workers still running, which is
+     * fine since the process is going away, but it means k3_io_free's report is dead code.
+     * k3_io_report only reads cumulative counters, so calling it while the workers are
+     * still draining under-reports the tail of the last burst, not the rate. */
+    k3_io_report(&g_io);
 
     FILE *f = fopen(outp, "w");
     if (f) {

@@ -256,6 +256,19 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
         const int64_t want = r->nbytes < l2->nbytes ? r->nbytes : l2->nbytes;
         if (want > bufcap) return -1;
         const int rfd = (l2->fdh >= 0 && want == l2->slot_bytes) ? l2->fdh : l2->fd;
+        /* Which descriptor did this read actually use? O_DIRECT is the whole point of the
+         * second fd -- the buffered one would pull the whole 256 GB file through the page
+         * cache -- but the choice is silent: any expert whose real nbytes differs from the
+         * padded slot size falls back to the buffered fd, and a buffered read on this drive
+         * measured IQR 1.140 across runs, i.e. 13.6x. So the split is counted, not assumed,
+         * and reported next to the rates it is supposed to explain. */
+        if (rfd == l2->fdh) l2->odirect_reads++;
+        else               l2->buffered_reads++;
+        if (l2->want_sample < 4)
+            fprintf(stderr, "  L2 want=%lld slot=%lld nbytes=%lld fd=%s\n",
+                    (long long)want, (long long)l2->slot_bytes, (long long)r->nbytes,
+                    rfd == l2->fdh ? "O_DIRECT" : "BUFFERED");
+        l2->want_sample++;
         const double t0 = now_s();
         ssize_t n;
         if (l2->kio) {
@@ -368,6 +381,15 @@ void k3_l2_report(const K3L2 *l2, const char *label)
            n ? 100.0 * l2->hits / n : 0.0, (unsigned long long)l2->misses);
     printf("  read  from sdd7: %.2f GB, written %.2f GB\n",
            (double)l2->bytes_read / 1e9, (double)l2->bytes_written / 1e9);
+    /* Printed next to the rates it is supposed to explain: if buffered_reads is nonzero, the
+     * hit rate below was not measured on the O_DIRECT path the engine appears to use, and
+     * on this drive buffered reads have swung 13.6x between runs. */
+    printf("  fd split  : %llu O_DIRECT, %llu BUFFERED (%.2f%% buffered)\n",
+           (unsigned long long)l2->odirect_reads,
+           (unsigned long long)l2->buffered_reads,
+           (l2->odirect_reads + l2->buffered_reads) > 0
+               ? 100.0 * (double)l2->buffered_reads
+                 / (double)(l2->odirect_reads + l2->buffered_reads) : 0.0);
     printf("  hit I/O   : %.2f GB in %.2f s (wall) = %.0f MB/s"
            " [pread %.2f s, %.0f MB/s per-thread]\n",
            (double)l2->bytes_read / 1e9, l2->hit_wall,

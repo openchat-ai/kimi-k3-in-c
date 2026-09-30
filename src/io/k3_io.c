@@ -19,6 +19,10 @@ static void *k3_io_tier_main(void *arg)
     int   tier = (int)(intptr_t)((void **)arg)[1];
     free(arg);
     for (;;) {
+        /* Stamped before the lock, so the queue-wait figure includes any time the worker
+         * spent contending for it. Taken inside the lock instead it would read as zero
+         * contention, which is the conclusion one wants to be able to draw. */
+        const double t_lock = now_s();
         pthread_mutex_lock(&io->mu);
         /* Take a request from ANY group that has work, scanning round-robin.
          *
@@ -44,6 +48,7 @@ static void *k3_io_tier_main(void *arg)
          * next to a drain it no longer controls is how the next reader wires it back in. */
         int g = -1;
         K3IOReq *r = NULL;
+        const double t_deq = now_s();
         {
             /* Round-robin the start point, then take the first non-empty queue. Two
              * workers waking together therefore tend to land in DIFFERENT groups,
@@ -61,12 +66,24 @@ static void *k3_io_tier_main(void *arg)
         }
         if (!r && io->stop) { pthread_mutex_unlock(&io->mu); return NULL; }
         if (!r) {
+            /* An empty queue is not contention, it is idleness, so it is counted separately
+             * from the lock wait. Folding the two together would let a pool that is merely
+             * under-subscribed look like one that is fighting over its own mutex. */
+            io->stat_idle_s[tier] += now_s() - t_lock;
             pthread_cond_wait(&io->cv[tier], &io->mu);
             pthread_mutex_unlock(&io->mu);
             continue;
         }
         pthread_mutex_unlock(&io->mu);
+        io->stat_lock_s[tier] += now_s() - t_lock;
 
+        /* Time the queue wait separately from the read. If a request spends its life here
+         * rather than in pread, the drive is idle and the limit is the pool; if it spends it
+         * in pread, the drive is the limit and the pool size is irrelevant. Those two
+         * require different fixes and only the ratio between them tells you which applies. */
+        if (r) io->stat_queue_s[tier] += t_deq - r->t_sub;
+
+        const double t_io0 = now_s();
         /* Drain one request. Each tier has its own worker POOL; the NVMe pool's
          * several workers let trunk (sequential) and expert L2-hit (parallel)
          * streams share the drive concurrently -- no 0/1 gate. The slow tier also
@@ -106,6 +123,17 @@ static void *k3_io_tier_main(void *arg)
         if (getenv("K3_IO_DBG"))
             fprintf(stderr, "DBG io worker tier=%d rc=%ld nbytes=%zu\n", tier, (long)rc, r->nbytes);
 
+        /* Cumulative across workers, so the ratio stat_bytes / stat_pread_s is the rate the
+         * device delivered under this access pattern, independent of how many workers were
+         * active. Compared against the same file read by a standalone probe, that difference
+         * is the whole question: equal rates mean the drive is not the limit. */
+        {
+            const double dt = now_s() - t_io0;
+            io->stat_pread_s[tier] += dt;
+            io->stat_bytes[tier]  += (uint64_t)r->nbytes;
+            io->stat_reqs[tier]   += 1;
+        }
+
         pthread_mutex_lock(&r->mu);
         r->rc = rc;
         r->done = 1;
@@ -135,8 +163,35 @@ void k3_io_init(K3IO *io, int tiers, const int *workers)
     }
 }
 
+void k3_io_report(const K3IO *io)
+{
+    /* Where the pool's time went, per tier. The line that decides whether the drive is the
+     * limit is bytes / pread_s: that is the rate the device delivered under this access
+     * pattern, summed across workers, and it is directly comparable with a standalone probe
+     * reading the same file. If it matches the probe, the drive is not the limit and the
+     * queue figures say where the time actually is.
+     *
+     * Concurrency is pread_s / wall-ish, and queue_s is submit -> dequeue: a large queue
+     * figure with a small pread figure means the workers were not the constraint either,
+     * which leaves the submitter. */
+    for (int t = 0; t < io->ntiers; t++) {
+        if (!io->stat_reqs[t]) continue;
+        const double pr = io->stat_pread_s[t] > 0 ? io->stat_pread_s[t] : 1e-9;
+        printf("kio tier%d: %llu reqs, %.2f GB, "
+               "device %.0f MB/s | queue %.1f s (%.1f%% of req time), "
+               "submit-lock %.1f s, worker-lock %.1f s, idle %.1f s\n",
+               t, (unsigned long long)io->stat_reqs[t],
+               (double)io->stat_bytes[t] / 1e9,
+               (double)io->stat_bytes[t] / pr / 1e6,
+               io->stat_queue_s[t],
+               100.0 * io->stat_queue_s[t] / pr,
+               io->stat_submit_s[t], io->stat_lock_s[t], io->stat_idle_s[t]);
+    }
+}
+
 void k3_io_free(K3IO *io)
 {
+    k3_io_report(io);
     pthread_mutex_lock(&io->mu);
     io->stop = 1;
     for (int t = 0; t < io->ntiers; t++) pthread_cond_broadcast(&io->cv[t]);
@@ -161,10 +216,15 @@ K3IOReq *k3_io_submit_g(K3IO *io, int tier, int group, int fd, off_t off,
     r->nbytes = nbytes;
     r->chunk = chunk;
     r->dst = (unsigned char *)dst;
+    /* Stamped after the calloc but before the lock, so the worker's queue figure starts
+     * where the caller decided to make the request rather than where the pool got to it. */
+    r->t_sub = now_s();
     pthread_mutex_init(&r->mu, NULL);
     pthread_cond_init(&r->cv, NULL);
 
+    const double t_lk = now_s();
     pthread_mutex_lock(&io->mu);
+    io->stat_submit_s[tier] += now_s() - t_lk;
     if (io->qtail[tier][group]) io->qtail[tier][group]->next = r;
     else                        io->q[tier][group] = r;
     io->qtail[tier][group] = r;

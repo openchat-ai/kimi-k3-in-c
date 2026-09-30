@@ -1,0 +1,63 @@
+geometry: slot=17547264 aligned=1, 120 rounds/arm, 23162.4 MB per arm
+
+  rep 1  A  direct pread, 11 threads      (v40's shape)
+   threads=11 workers= 0  wall 390622116.00 s       0 MB/s  (in-request      0 MB/s, concurrency  9.12x)
+  rep 1  B  via kio, 11 requesters, 16 workers (engine)
+   threads=11 workers=16  wall 272979920.00 s       0 MB/s  (in-request      0 MB/s, concurrency  7.47x)
+  rep 1  C  via kio, 11 requesters,  4 workers
+   threads=11 workers= 4  wall -621421568.00 s      -0 MB/s  (in-request      0 MB/s, concurrency -0.53x)
+  rep 1  D  via kio, 11 requesters, 32 workers
+   threads=11 workers=32  wall 274925719.00 s       0 MB/s  (in-request      0 MB/s, concurrency  7.83x)
+  rep 1  E  via kio, 16 requesters, 16 workers
+   threads=16 workers=16  wall -115165770.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency 30.18x)
+  rep 2  A  direct pread, 11 threads      (v40's shape)
+   threads=11 workers= 0  wall -744205964.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency  4.95x)
+  rep 2  B  via kio, 11 requesters, 16 workers (engine)
+   threads=11 workers=16  wall -144310271.00 s      -0 MB/s  (in-request      0 MB/s, concurrency -18.89x)
+  rep 2  C  via kio, 11 requesters,  4 workers
+   threads=11 workers= 4  wall 206412229.00 s       0 MB/s  (in-request      0 MB/s, concurrency  4.44x)
+  rep 2  D  via kio, 11 requesters, 32 workers
+   threads=11 workers=32  wall -151194273.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency 27.54x)
+  rep 2  E  via kio, 16 requesters, 16 workers
+   threads=16 workers=16  wall -182523858.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency 28.77x)
+  rep 3  A  direct pread, 11 threads      (v40's shape)
+   threads=11 workers= 0  wall -566352562.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency 12.59x)
+  rep 3  B  via kio, 11 requesters, 16 workers (engine)
+   threads=11 workers=16  wall 483372627.00 s       0 MB/s  (in-request      0 MB/s, concurrency  6.96x)
+  rep 3  C  via kio, 11 requesters,  4 workers
+   threads=11 workers= 4  wall -101288592.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency 12.72x)
+  rep 3  D  via kio, 11 requesters, 32 workers
+   threads=11 workers=32  wall 468755370.00 s       0 MB/s  (in-request      0 MB/s, concurrency  7.27x)
+  rep 3  E  via kio, 16 requesters, 16 workers
+   threads=16 workers=16  wall 20320490.00 s       0 MB/s  (in-request     -0 MB/s, concurrency -219.04x)
+  rep 4  A  direct pread, 11 threads      (v40's shape)
+   threads=11 workers= 0  wall 180807219.00 s       0 MB/s  (in-request      0 MB/s, concurrency 16.47x)
+  rep 4  B  via kio, 11 requesters, 16 workers (engine)
+   threads=11 workers=16  wall -168814514.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency  4.70x)
+  rep 4  C  via kio, 11 requesters,  4 workers
+   threads=11 workers= 4  wall 440663700.00 s       0 MB/s  (in-request      0 MB/s, concurrency  9.80x)
+  rep 4  D  via kio, 11 requesters, 32 workers
+   threads=11 workers=32  wall -144297236.00 s      -0 MB/s  (in-request      0 MB/s, concurrency -22.02x)
+  rep 4  E  via kio, 16 requesters, 16 workers
+   threads=16 workers=16  wall 480660885.00 s       0 MB/s  (in-request      0 MB/s, concurrency 14.62x)
+  rep 5  A  direct pread, 11 threads      (v40's shape)
+   threads=11 workers= 0  wall -727341599.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency  5.01x)
+  rep 5  B  via kio, 11 requesters, 16 workers (engine)
+   threads=11 workers=16  wall 7158801.00 s       0 MB/s  (in-request     -0 MB/s, concurrency -92.27x)
+  rep 5  C  via kio, 11 requesters,  4 workers
+   threads=11 workers= 4  wall -225667388.00 s      -0 MB/s  (in-request     -0 MB/s, concurrency 18.85x)
+  rep 5  D  via kio, 11 requesters, 32 workers
+   threads=11 workers=32  wall 22458612.00 s       0 MB/s  (in-request     -0 MB/s, concurrency -98.99x)
+  rep 5  E  via kio, 16 requesters, 16 workers
+   threads=16 workers=16  wall 86410913.00 s       0 MB/s  (in-request     -0 MB/s, concurrency -43.08x)
+
+=== results, MB/s, n=5, interleaved
+   arm                                            median      min   IQR/med  vs direct
+   A  direct pread, 11 threads      (v40's shape)       -0       -0    -2.928      1.00x
+   B  via kio, 11 requesters, 16 workers (engine)        0       -0     4.634     -1.54x   NOISY
+   C  via kio, 11 requesters,  4 workers              -0       -0    -4.164      1.20x
+   D  via kio, 11 requesters, 32 workers               0       -0     4.805     -1.59x   NOISY
+   E  via kio, 16 requesters, 16 workers               0       -0     8.196     -2.25x   NOISY
+
+   engine's own hit I/O ledger :  439 MB/s
+   v40 direct pread, R=11      : 2723 MB/s

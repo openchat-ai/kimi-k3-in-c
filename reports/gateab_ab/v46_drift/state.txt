@@ -1,0 +1,5 @@
+load before: 0.10 0.65 0.39
+mem avail : 53.9GB
+start     : 08:53:27
+exit=0
+end     : 09:01:25

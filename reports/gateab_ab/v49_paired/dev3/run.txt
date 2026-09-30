@@ -1,0 +1,17 @@
+geometry: nslot=14589 slot=17547264, 11 threads, continuous, target 210 s
+engine's ledger for comparison: 179.74 GB in 409.18 s = 439 MB/s
+      t(s)   seg MB/s     cumul GB running MB/s
+        20       3088         61.8         3088
+        40       1572         93.2          786
+        60       3088        155.0         1029
+        80       2583        206.6          646
+       100       1235        231.3          247
+       120       2583        283.0          430
+       140       2470        332.4          353
+       160       2639        385.2          330
+       180       2639        438.0          293
+       200       2526        488.5          253
+
+=== whole run
+   29503 slots read, 517.7 GB in 210.2 s = 2463 MB/s
+   engine: 439 MB/s over 409 s  ->  ratio 5.61x
