@@ -114,45 +114,53 @@ static void test_clamp(void)
     k3_io_free(&io);
 }
 
-/* 5. group scheduling: with group 1 active, group-0 requests queue; toggling back
- *    drains them. Each group's requests land in distinct FIFOs, so the L2 burst
- *    (group 1) can own the device while the trunk stream (group 0) parks. */
+/* 5. group scheduling: workers drain every non-empty group round-robin, so no group
+ *    starves while another owns the queue. k3_io_set_active/active_group[] are gone;
+ *    the old rule that parked group 0 while group 1 was active was the v5_l2g1
+ *    deadlock (group-1 requests queued behind a group nobody selected) and the
+ *    no-overlap bug (a single active group serialised trunk vs L2). */
 static void test_groups(int *fd, unsigned char *data)
 {
     K3IO io;
     const int workers[2] = { 2, 1 };
     k3_io_init(&io, 2, workers);
 
-    unsigned char buf0[1024], buf1[1024];
-    memset(buf0, 0, sizeof buf0);
-    memset(buf1, 0, sizeof buf1);
+    /* pure group-1 burst: this is the v5 deadlock shape -- only group 1 has work. */
+    enum { NT = 4 };
+    unsigned char *buf1[NT];
+    K3IOReq *q1[NT];
+    for (int i = 0; i < NT; i++) {
+        buf1[i] = malloc(1024);
+        memset(buf1[i], 0, 1024);
+        q1[i] = k3_io_submit_g(&io, 0, 1, fd[0], (off_t)i * 1024, 1024, 0, buf1[i]);
+        check(q1[i] != NULL, "submit group1 only");
+    }
+    for (int i = 0; i < NT; i++) {
+        ssize_t r = k3_io_wait(q1[i]);
+        check(r == 1024, "group1-only read length");
+        check(memcmp(buf1[i], data + i * 1024, 1024) == 0, "group1-only bytes");
+        free(buf1[i]);
+    }
 
-    /* park trunk: switch to group 1 first, then submit a group-0 request that must
-     * wait until we switch back */
-    k3_io_set_active(&io, 0, 1);
-    K3IOReq *q0 = k3_io_submit_g(&io, 0, 0, fd[0], 0, 1024, 0, buf0);
-    check(q0 != NULL, "submit group0 while group1 active");
-
-    /* let the worker drain its tail briefly, then prove q0 did NOT complete yet */
-    struct timespec ts = { 0, 30 * 1000 * 1000 };
-    nanosleep(&ts, NULL);
-    pthread_mutex_lock(&q0->mu);
-    int done0 = q0->done;
-    pthread_mutex_unlock(&q0->mu);
-    check(done0 == 0, "group0 request queued while group1 active");
-
-    /* group1 request completes while group0 waits */
-    K3IOReq *q1 = k3_io_submit_g(&io, 0, 1, fd[0], 0, 1024, 0, buf1);
-    check(q1 != NULL, "submit group1");
-    ssize_t r1 = k3_io_wait(q1);
-    check(r1 == 1024, "group1 read length");
-    check(memcmp(buf1, data, 1024) == 0, "group1 bytes");
-
-    /* switch back to group 0: now q0 drains and completes */
-    k3_io_set_active(&io, 0, 0);
-    ssize_t r0 = k3_io_wait(q0);
-    check(r0 == 1024, "group0 read after switch-back");
-    check(memcmp(buf0, data, 1024) == 0, "group0 bytes");
+    /* mixed group-0 + group-1: both streams must be served, neither may starve. */
+    unsigned char *buf[2][NT];
+    K3IOReq *q[2][NT];
+    for (int g = 0; g < 2; g++)
+        for (int i = 0; i < NT; i++) {
+            buf[g][i] = malloc(1024);
+            memset(buf[g][i], 0, 1024);
+            /* all group-0 requests first, then all group-1: the round-robin scan
+             * must still reach group 1 while group 0 stays non-empty. */
+            q[g][i] = k3_io_submit_g(&io, 0, g, fd[0], (off_t)(i * 1024), 1024, 0, buf[g][i]);
+            check(q[g][i] != NULL, "mixed submit");
+        }
+    for (int g = 0; g < 2; g++)
+        for (int i = 0; i < NT; i++) {
+            ssize_t r = k3_io_wait(q[g][i]);
+            check(r == 1024, "mixed read length");
+            check(memcmp(buf[g][i], data + i * 1024, 1024) == 0, "mixed bytes");
+            free(buf[g][i]);
+        }
 
     k3_io_free(&io);
 }
