@@ -129,14 +129,64 @@ Claims that died on re-measurement, in order:
 
 1 T-parameter MoE on CPU cannot reach practical chat (<1-2 s/token): the author's own
 decode-by-RAM table bottoms out at 5.59 s/token at 128+ GB (compute-bound). The current
-65-75 s/token is not a floor, but the headroom is bounded and small: cross-layer pipelining
-can hide at most the 13.2 s/token of arithmetic and bind, so ~52 s/token is its ceiling, and
-reaching even that needs the mixed trunk+expert shape to sustain 1389 MB/s where the engine
-today manages 1107. The device-versus-engine gap is real and engine-side -- 891 against a
-sustained 2463-2797 MB/s on the expert shape alone -- but most of that gap is not reachable
-by scheduling, because the trunk stream and the expert stream contend for one device and
-prefetching trades one against the other (v50, v54). One measurement decides the rest
-(`steady58` / v58, acceptance line above). The project's value on this hardware is the
-measurement discipline and the closed ledger, not a usable product. The notes lineage that
-made this possible -- `compressed-trunk.md`, `int8-draft-container.md`, the shelved Huffman
+65-75 s/token is not a floor, but the arithmetic headroom is far smaller than it first
+looked, because the expert arithmetic cannot be hidden the way a naive "cross-layer
+pipelining" story assumes (see the overlap section below): the dependency chain
+attention -> router -> experts is strict, `getmany` is fully synchronous, and the 16 reads
+of a layer all land at the end of their burst, leaving the 7.34 s/token of expert matmul
+with nothing to overlap. The only lever is the device delivering more bytes/s, and even
+that is capped by trunk/expert contention (v50, v54). One measurement decides the
+per-expert pipeline (`K3_SPREAD_DBG` -> `spread_parse.py`); a second decides the mixed
+ceiling (`steady58` / v58). The project's value on this hardware is the measurement
+discipline and the closed ledger, not a usable product. The notes lineage that made this
+possible -- `compressed-trunk.md`, `int8-draft-container.md`, the shelved Huffman
 prototype, and `tools/qdq_trunk.py` -- is fully present in this tree.
+
+## Expert read/compute overlap: the spread verdict
+
+The tempting idea is to submit each expert's matmul to the compute pool the moment its
+17.55 MB read lands, instead of after the whole top-16 burst. Two facts, both from the
+code, kill the easy version of it:
+
+- Within a layer the chain is strict: `k3_decoder_layer_inc` runs attention, then
+  `k3_moe` runs the router (which needs the attention output), then the expert reads.
+  There is no intra-layer work to reorder ahead of the wait.
+- `cache_getmany_inner` is fully synchronous. Phase 2 runs an `omp parallel for` over
+  the batch, the main thread blocks for the whole burst, and the routed matmuls run
+  after it. The compute has no window inside the burst.
+
+Whether the per-expert pipeline is worth building reduces to ONE physical question: do
+the 16 reads of a layer complete *staggered* or *together*? `reports/gateab_ab/overlap_sim.py`
+models both structures against the measured split (7.34 s/tok expert arithmetic, 44.6 s/tok
+expert reads, 16 experts x 17.55 MB, 92 MoE layers, pool = `CHIP_NWORKERS`, default 4):
+
+| within-burst spread `frac` | predicted gain (pool 4) |
+|---|---|
+| 0 (all reads land together) | **0%** |
+| 0.1 | ~1-2% |
+| 0.3 | ~3-5% |
+| >= 0.5 | ~5.6-8.4% (pool-limited ceiling) |
+
+The gain is capped by the pool: 16 chains on 4 workers is 4 waves, so even with perfect
+staggering only part of the arithmetic overlaps. The gain is also small at the low end
+because the device is a shared-bandwidth bottleneck during the burst.
+
+`K3_SPREAD_DBG=1` prints, per burst, `frac = (last_completion - first_completion)/burst`
+in `cache_getmany_inner` phase 2. `reports/gateab_ab/spread_parse.py` reads that log and
+turns it into the call:
+
+    K3_SPREAD_DBG=1 <engine run> 2> run.log
+    python3 reports/gateab_ab/spread_parse.py run.log
+
+- `frac ~ 0` (reads together) -> the per-expert pipeline is worthless. Do not build the
+  chip-path streaming refactor. The independent-only "safe" variant (move down+shared,
+  which do not depend on expert bytes) is worth ~2.9% on paper but needs its own window,
+  so it is also gated on the same measurement.
+- `frac >= 0.3` -> a few percent, pool-limited. Only then is the chip-path per-expert
+  streaming refactor (incremental job submission as reads land) worth its concurrency risk,
+  and it must still be validated bit-exact with the fixture oracle (`make test`).
+
+The simulation killed the earlier "hide 13.2 s/token, ~52 s/token, 1389 MB/s" estimate.
+That number assumed arithmetic and bind could hide under a demand-overlap window that the
+dependency chain never opens. The real, measured lever is device bandwidth; the pipeline is
+at best a few percent and only if the reads land staggered.

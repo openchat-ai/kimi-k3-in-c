@@ -206,7 +206,8 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
 {
     if (n <= 0) return 0;
 
-    typedef struct { int slot; int expert; K3ExpertRef r; int64_t got, pad; } Work;
+    typedef struct { int slot; int expert; K3ExpertRef r; int64_t got, pad;
+                     double tdone; } Work;
     /* One entry per expert in a batch prefetch, so it is bounded by top-k. */
     Work w[K3_MAX_TOPK];
     int nw = 0;
@@ -324,8 +325,26 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
 #endif
         w[i].got = got;
         w[i].pad = pad;
+        /* When each read in this burst actually landed, relative to the burst
+         * start. The forward path can only hide expert arithmetic under the read
+         * burst if these completions are STAGGERED; if they all land together the
+         * per-expert pipeline has no window (see reports/gateab_ab/overlap_sim.py).
+         * K3_SPREAD_DBG prints the per-burst spread; now_s() is clock_gettime, so
+         * this is safe from the 16 read threads. */
+        w[i].tdone = now_s() - t0;
     }
     const double t2 = now_s() - t0;
+    if (getenv("K3_SPREAD_DBG") && nw > 1) {
+        double tmin = w[0].tdone, tmax = w[0].tdone;
+        for (int i = 1; i < nw; i++) {
+            if (w[i].tdone < tmin) tmin = w[i].tdone;
+            if (w[i].tdone > tmax) tmax = w[i].tdone;
+        }
+        fprintf(stderr, "DBG spread L%d nw=%d burst=%.4f first=%.4f last=%.4f "
+                        "span=%.4f frac=%.3f\n",
+                layer, nw, t2, tmin, tmax, tmax - tmin,
+                t2 > 0 ? (tmax - tmin) / t2 : 0.0);
+    }
     c->phase2_seconds += t2;
     c->phase2_bytes += (uint64_t)nw * (uint64_t)c->slot_bytes;
     c->load_seconds += t2;
