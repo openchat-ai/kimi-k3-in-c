@@ -202,37 +202,32 @@ static int admit(K3Cache *c, int layer, int expert)
  * next request for that expert would count a HIT and multiply garbage. That exact bug
  * existed in the trunk ring and is why the order here is deliberate.
  */
-static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int from_reader)
+/* ---- phase 1: reserve, serially ---- */
+/* pick_victim and the slot bookkeeping are shared mutable state and must not race with
+ * the lookahead reader or the async burst reader, so this runs under c->mu whenever
+ * either thread can exist. Phase 2 (the disk reads) deliberately runs UNLOCKED so the
+ * threads overlap on the drive. With no reader threads pref_started is 0, async_burst
+ * is 0 and no lock is taken: baseline is unchanged. */
+static void burst_phase1(K3BurstJob *j)
 {
-    if (n <= 0) return 0;
-
-    typedef struct { int slot; int expert; K3ExpertRef r; int64_t got, pad;
-                     double tdone; } Work;
-    /* One entry per expert in a batch prefetch, so it is bounded by top-k. */
-    Work w[K3_MAX_TOPK];
+    K3Cache *c = j->c;
+    K3Work  *w = j->w;
     int nw = 0;
-    const int cap = (int)(sizeof w / sizeof *w);
 
-    /* ---- phase 1: reserve, serially ---- */
-    /* The reader and the main thread both hop on the mutex here and in phase 3;
-     * pick_victim and the slot bookkeeping are shared mutable state and must not race.
-     * Phase 2 (the disk reads) runs UNLOCKED so the two threads overlap on the drive.
-     * With no reader thread pref_started is 0 and no lock is taken: baseline is unchanged. */
-    const int locked = c->pref_started;
-    const double p1_start = now_s();
+    const int locked = c->pref_started || c->async_burst;
     if (locked) pthread_mutex_lock(&c->mu);
-    for (int i = 0; i < n && nw < cap; i++) {
-        const int e = ids[i];
+    for (int i = 0; i < j->n && nw < K3_MAX_TOPK; i++) {
+        const int e = j->ids[i];
         if (e < 0 || e >= c->n_experts) continue;
-        const int32_t key = layer * c->n_experts + e;
+        const int32_t key = j->layer * c->n_experts + e;
         if (c->slot_of[key] >= 0) continue;             /* already resident */
 
         int dup = 0;                                    /* the same id twice in one top-k */
-        for (int j = 0; j < nw; j++) if (w[j].expert == e) { dup = 1; break; }
+        for (int m = 0; m < nw; m++) if (w[m].expert == e) { dup = 1; break; }
         if (dup) continue;
 
         K3ExpertRef r;
-        if (k3_expert_ref(c->st, layer, e, &r) != 0) continue;
+        if (k3_expert_ref(c->st, j->layer, e, &r) != 0) continue;
         if (r.nbytes > c->slot_bytes) continue;
 
         const int slot = pick_victim(c);
@@ -243,58 +238,74 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
         c->key_of[slot] = K3_SLOT_INFLIGHT;
         c->used_at[slot] = ++c->clock;
 
-        w[nw].slot = slot; w[nw].expert = e; w[nw].r = r; w[nw].got = -1; w[nw].pad = 0;
+        w[nw].slot = slot; w[nw].expert = e; w[nw].r = r;
+        w[nw].got = -1; w[nw].pad = 0; w[nw].tdone = 0;
         nw++;
     }
     /* Survival of the prefetch: how much of this layer's PREVIOUS-token routing is
      * still resident when the main thread reaches the layer. The prefetcher's whole
      * point is that they should be; if they are sparse the lookahead is wasteful. */
-    if (!from_reader && c->prefetch_depth > 0) {
-        const int32_t *row = c->prev_idx + (size_t)layer * (K3_MAX_TOPK + 1);
+    if (!j->from_reader && c->prefetch_depth > 0) {
+        const int32_t *row = c->prev_idx + (size_t)j->layer * (K3_MAX_TOPK + 1);
         const int pn = row[0] < K3_MAX_TOPK ? row[0] : K3_MAX_TOPK;
         if (pn > 0) {
             int kept = 0;
             for (int i = 0; i < pn; i++)
-                if (c->slot_of[(size_t)layer * c->n_experts + row[1 + i]] >= 0) kept++;
+                if (c->slot_of[(size_t)j->layer * c->n_experts + row[1 + i]] >= 0) kept++;
             c->prefetch_cands += (uint64_t)pn;
             c->prefetch_kept += (uint64_t)kept;
         }
     }
-    if (nw == 0) {
-        if (locked) pthread_mutex_unlock(&c->mu);
-    } else if (locked) {
-        pthread_mutex_unlock(&c->mu);
+    if (locked) pthread_mutex_unlock(&c->mu);
+    j->nw = nw;
+}
+
+/* Issue in DISK-OFFSET order. Experts are not stored id-ordered inside a shard, so
+ * sorting by where the bytes actually live turns a scattered set of seeks into a
+ * mostly forward sweep. Insertion sort: nw is at most the top-k. Shared, so the order
+ * the device sees -- and the trace reports -- cannot drift between the two paths. */
+static void burst_sort(K3BurstJob *j)
+{
+    K3Work *w = j->w;
+    for (int i = 1; i < j->nw; i++) {
+        K3Work t = w[i]; int m = i - 1;
+        while (m >= 0 && (w[m].r.shard > t.r.shard ||
+                          (w[m].r.shard == t.r.shard && w[m].r.off > t.r.off))) {
+            w[m + 1] = w[m]; m--;
+        }
+        w[m + 1] = t;
     }
-    /* Phase 1 accounting and the WIDEN trace row: the whole serial reserve, lock hold
-     * included. Previously unmeasured -- the trace started at phase 2, so a phase-1
-     * bottleneck read as a "drive gap" that probes could never reproduce. */
+}
+
+/* Wrap phase 1 with the serial-reserve accounting and the WIDEN trace row the old
+ * single-call path produced. Shared by both entry points so the counters and trace
+ * cannot drift between the sync and async routes. */
+static void burst_phase1_accounted(K3BurstJob *j)
+{
+    K3Cache *c = j->c;
+    const double p1_start = now_s();
+    burst_phase1(j);
     c->phase1_seconds += now_s() - p1_start;
     c->phase1_calls++;
-    if (nw > 0 && k3_trace_on())
-        k3_trace_ev(K3_PHASE_WIDEN, layer, p1_start, now_s(),
-                    (uint64_t)nw * (uint64_t)c->slot_bytes, 0, 0, 0, 0);
-    if (nw == 0) return 0;
+    if (j->nw > 0 && k3_trace_on())
+        k3_trace_ev(K3_PHASE_WIDEN, j->layer, p1_start, now_s(),
+                    (uint64_t)j->nw * (uint64_t)c->slot_bytes, 0, 0, 0, 0);
+}
 
-    /* Issue in DISK-OFFSET order. Experts are not stored id-ordered inside a shard, so
-     * sorting by where the bytes actually live turns a scattered set of seeks into a
-     * mostly forward sweep. Insertion sort: nw is at most the top-k. */
-    for (int i = 1; i < nw; i++) {
-        Work t = w[i]; int j = i - 1;
-        while (j >= 0 && (w[j].r.shard > t.r.shard ||
-                         (w[j].r.shard == t.r.shard && w[j].r.off > t.r.off))) {
-            w[j + 1] = w[j]; j--;
-        }
-        w[j + 1] = t;
-    }
-
-    /* ---- phase 2: read, concurrently ---- */
-    /* NOTE: the trunk stream and this phase-2 burst share one NVMe. There used to be a
-     * gate here that parked the trunk reader for the whole burst (probe_coldc measured
-     * concurrent trunk+expert aggregating to 1257 MB/s against 1509 trunk-alone and
-     * 1675 serial). The gate's own effect measured 0-3 s -- inside this box's 3.4%
-     * reproducibility band -- and on the kio path it never ran at all, the pool's
-     * round-robin drain serving both groups in flight instead. Removed; the probe
-     * result stands as a device fact, the mechanism built on it did not pay. */
+/* ---- phase 2: read, concurrently ---- */
+/* NOTE: the trunk stream and this phase-2 burst share one NVMe. There used to be a
+ * gate here that parked the trunk reader for the whole burst (probe_coldc measured
+ * concurrent trunk+expert aggregating to 1257 MB/s against 1509 trunk-alone and
+ * 1675 serial). The gate's own effect measured 0-3 s -- inside this box's 3.4%
+ * reproducibility band -- and on the kio path it never ran at all, the pool's
+ * round-robin drain serving both groups in flight instead. Removed; the probe
+ * result stands as a device fact, the mechanism built on it did not pay. */
+static void burst_phase2(K3BurstJob *j)
+{
+    K3Cache *c = j->c;
+    K3Work  *w = j->w;
+    const int nw = j->nw;
+    const int layer = j->layer;
     const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
     const double ms0 = c->l2 ? c->l2->miss_seconds : 0;
     const uint64_t hs0_l2 = c->l2 ? c->l2->hits : 0;   /* for the K3_TRACE row below */
@@ -378,10 +389,19 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
 #endif
         double p2pread = (c->l2 ? c->l2->hit_seconds : 0) - (c->l2 ? hs0 : 0);
         fprintf(stderr, "DBG getmany L%d nw=%d wall=%.3fs thr(out)%d thr(in)%d conc_peak=%d pread=%.3fs%s\n",
-                layer, nw, t2, nth, omp_inr_nt, inr_peak, p2pread, from_reader ? " [reader]" : "");
+                layer, nw, t2, nth, omp_inr_nt, inr_peak, p2pread, j->from_reader ? " [reader]" : "");
     }
+}
 
-    /* ---- phase 3: publish only what actually arrived ---- */
+/* ---- phase 3: publish only what actually arrived ---- */
+static int burst_phase3(K3BurstJob *j)
+{
+    K3Cache *c = j->c;
+    K3Work  *w = j->w;
+    const int nw = j->nw;
+    const int layer = j->layer;
+    const int from_reader = j->from_reader;
+    const int locked = c->pref_started || c->async_burst;
     if (locked) pthread_mutex_lock(&c->mu);
     int ok = 0;
     for (int i = 0; i < nw; i++) {
@@ -418,7 +438,129 @@ static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int
     return ok;
 }
 
-/* Main-thread entry: the forward path routes here via src.getmany. */
+/* The synchronous entry, unchanged in observable behaviour: reserve, sort, read, publish,
+ * all inline on the calling thread. This is what pref_io_main runs too. */
+static int cache_getmany_inner(K3Cache *c, int layer, const int *ids, int n, int from_reader)
+{
+    if (n <= 0) return 0;
+    K3Work w[K3_MAX_TOPK];
+    K3BurstJob j;
+    j.c = c; j.ids = ids; j.n = n; j.layer = layer;
+    j.from_reader = from_reader; j.w = w; j.nw = 0;
+    burst_phase1_accounted(&j);
+    if (j.nw == 0) return 0;
+    burst_sort(&j);
+    burst_phase2(&j);
+    return burst_phase3(&j);
+}
+
+/* The burst reader: runs ONLY phase 2, the unlocked disk read, so the main thread can
+ * overlap work independent of the expert bytes with it. Woken once per begin by a cv
+ * signal; announces completion with phase2_done under the same mutex. Thread-safety
+ * mirrors pref_io_main: everything shared lives behind c->mu, the reads are not. */
+static void *burst_io_main(void *arg)
+{
+    K3Cache *c = (K3Cache *)arg;
+    pthread_mutex_lock(&c->mu);
+    for (;;) {
+        while (!c->burst.armed && !c->burst.stop)
+            pthread_cond_wait(&c->cv, &c->mu);
+        if (c->burst.stop) break;
+        /* armed was set by begin only AFTER reserve+sort finished, so the job is complete
+         * here. Taking it = clearing armed ATOMICALLY with the copy: otherwise a begin
+         * that arms a second job while this thread still thinks the first is pending
+         * would let the same read run twice and race the next begin's reserve. */
+        K3BurstJob job = c->burst.job;      /* copy: w points into c->burst.w */
+        c->burst.armed = 0;
+        pthread_mutex_unlock(&c->mu);
+        burst_phase2(&job);
+        pthread_mutex_lock(&c->mu);
+        c->burst.phase2_done = 1;
+        pthread_cond_signal(&c->cv);        /* wake the main thread's wait() */
+    }
+    pthread_mutex_unlock(&c->mu);
+    return NULL;
+}
+
+static int burst_start(K3Cache *c)
+{
+    if (c->burst.started) return 0;
+    pthread_mutex_lock(&c->mu);
+    if (!c->burst.started) {
+        c->burst.started = 1;
+        if (pthread_create(&c->burst.thr, NULL, burst_io_main, c) != 0) {
+            c->burst.started = 0;           /* stay in the sync fallback */
+            pthread_mutex_unlock(&c->mu);
+            return -1;
+        }
+    }
+    pthread_mutex_unlock(&c->mu);
+    return 0;
+}
+
+/* src.getmany_begin: reserve the slots and start the phase-2 read, then return control
+ * so the caller can run work that does not touch the expert bytes. The ids array must
+ * stay valid until the matching getmany_wait. Returns the number of reads in flight
+ * (0 means every routed expert was already resident: nothing to overlap). */
+static int cache_getmany_begin(K3ExpertSrc *self, int layer, const int *ids, int n)
+{
+    K3Cache *c = (K3Cache *)self;
+    if (n <= 0) return 0;
+    if (burst_start(c) != 0) return 0;
+
+    pthread_mutex_lock(&c->mu);
+    if (c->burst.in_flight) {
+        /* Misuse: a begin that overlaps its predecessor would clobber the in-flight
+         * job's shared read array. The forward path never does this (see k3_moe);
+         * treat it as the bug it is rather than corrupting w[]. */
+        pthread_mutex_unlock(&c->mu);
+        fprintf(stderr, "k3_cache: getmany_begin with a burst still in flight (L%d)\n", layer);
+        return -1;
+    }
+    K3BurstJob *jb = &c->burst.job;
+    jb->c = c; jb->ids = ids; jb->n = n; jb->layer = layer;
+    jb->from_reader = 0; jb->w = c->burst.w; jb->nw = 0;
+    c->burst.phase2_done = 0;
+    c->burst.in_flight = 1;
+    pthread_mutex_unlock(&c->mu);
+
+    burst_phase1_accounted(jb);             /* reserve under c->mu */
+    if (jb->nw == 0) {                      /* everything was resident already */
+        pthread_mutex_lock(&c->mu);
+        c->burst.in_flight = 0;
+        pthread_mutex_unlock(&c->mu);
+        return 0;
+    }
+    burst_sort(jb);
+    /* arm AFTER the reserve and sort are fully visible: the reader takes armed under
+     * mu, so it can only see a complete job. Signalling before phase 1 let it copy a
+     * half-built job and re-read the previous burst (see burst_io_main). */
+    pthread_mutex_lock(&c->mu);
+    c->burst.armed = 1;
+    pthread_cond_signal(&c->cv);            /* wake the reader: run phase 2 now */
+    pthread_mutex_unlock(&c->mu);
+    return jb->nw;
+}
+
+/* src.getmany_wait: join the reader's phase-2 read and publish the results, returning
+ * the number published -- the same return getmany() has. Observable end state is
+ * identical to the sync path; the read only overlapped the caller's independent work. */
+static int cache_getmany_wait(K3ExpertSrc *self, int layer, const int *ids, int n)
+{
+    K3Cache *c = (K3Cache *)self;
+    (void)ids; (void)n;
+    (void)layer;
+    pthread_mutex_lock(&c->mu);
+    while (!c->burst.phase2_done)
+        pthread_cond_wait(&c->cv, &c->mu);
+    c->burst.phase2_done = 0;
+    c->burst.in_flight = 0;
+    pthread_mutex_unlock(&c->mu);
+    return burst_phase3(&c->burst.job);
+}
+
+/* Main-thread entry: the forward path routes here via src.getmany when the async burst
+ * is not armed. */
 static int cache_getmany(K3ExpertSrc *self, int layer, const int *ids, int n)
 {
     return cache_getmany_inner((K3Cache *)self, layer, ids, n, 0);
@@ -578,6 +720,19 @@ int k3_cache_init(K3Cache *c, const K3St *st, const K3Cfg *cfg, int64_t budget_b
     c->src.getmany = getenv("K3_NOPREFETCH") ? NULL : cache_getmany;
     if (!c->src.getmany)
         fprintf(stderr, "k3_cache: batch prefetch DISABLED by K3_NOPREFETCH\n");
+    /* K3_ASYNC_BURST=1 arms getmany_begin/getmany_wait. The forward path then splits
+     * the layer: reserve+start the read early and run the down-projection (which needs
+     * no expert bytes) while the disk is busy; publish happens at getmany_wait. The
+     * observable end state is identical to the sync getmany, so the flag is a pure
+     * overlap decision. Off by default: the baseline stays single-threaded. */
+    c->async_burst = getenv("K3_ASYNC_BURST") != NULL;
+    if (c->async_burst) {
+        c->src.getmany_begin = cache_getmany_begin;
+        c->src.getmany_wait = cache_getmany_wait;
+    } else {
+        c->src.getmany_begin = NULL;
+        c->src.getmany_wait = NULL;
+    }
     c->src.on_route = cache_on_route;
     c->src.ctx = c;
     c->st = st;
@@ -679,6 +834,13 @@ void k3_cache_free(K3Cache *c)
         pthread_cond_broadcast(&c->cv);
         pthread_mutex_unlock(&c->mu);
         pthread_join(c->pref_thr, NULL);
+    }
+    if (c->burst.started) {
+        pthread_mutex_lock(&c->mu);
+        c->burst.stop = 1;
+        pthread_cond_broadcast(&c->cv);
+        pthread_mutex_unlock(&c->mu);
+        pthread_join(c->burst.thr, NULL);
     }
     if (c->pref_inited) {
         pthread_mutex_destroy(&c->mu);

@@ -56,7 +56,55 @@ typedef struct {
     int     n;                     /* valid entries in idx[]                     */
 } K3PrefJob;
 
+typedef struct K3Cache K3Cache;   /* defined below; the burst job holds a pointer */
+
+/* One reserved expert inside a burst (see getmany_begin in k3.h). tdone is the
+ * phase-2 completion stamp relative to the read's start, for the K3_SPREAD_DBG
+ * verdict (reports/gateab_ab/spread_parse.py). */
 typedef struct {
+    int         slot;
+    int         expert;
+    K3ExpertRef r;
+    int64_t     got, pad;
+    double      tdone;
+} K3Work;
+
+/* Everything the cache's two burst entry points share. One burst is in flight at a
+ * time, owned by the main thread, so the reader thread's fill of `w[]` needs no extra
+ * synchronisation beyond begin/wait themselves. */
+typedef struct {
+    K3Cache   *c;
+    const int *ids;       /* the routed top-k, caller-owned during begin..wait */
+    int        n;
+    int        layer;
+    int        from_reader; /* 1 = lookahead reader, 0 = forward path (affects counters) */
+    K3Work    *w;          /* [K3_MAX_TOPK], written by phase 1 and phase 2 */
+    int        nw;         /* reserved entries after phase 1 */
+} K3BurstJob;
+
+/* One in-flight ASYNC burst, started by getmany_begin and finished by getmany_wait.
+ * The main thread reserves the slots (phase 1), fires the reader thread with phase 2,
+ * and runs work independent of the expert bytes meanwhile; wait() joins the read then
+ * publishes phase 3. After wait() the observable state is exactly what getmany() would
+ * have left. Single in flight: begin/wait are paired around one layer's top-k.
+ *
+ * The mutex discipline is the prefetch reader's: phase 1 (reserve) and phase 3
+ * (publish) run under c->mu, phase 2 (the disk read) runs unlocked so it overlaps the
+ * trunk stream. Reserved slots sit at K3_SLOT_INFLIGHT until wait publishes, so
+ * pick_victim already refuses them -- no slot can be handed out twice. */
+typedef struct K3Burst {
+    pthread_t  thr;
+    int        started;     /* thread created (lazy, like the prefetch reader) */
+    int        stop;        /* cache teardown: thread exit request */
+    int        armed;       /* a fresh job is ready for phase 2 (set by begin AFTER
+                             * reserve+sort, cleared by the reader when it takes it) */
+    int        in_flight;   /* begin called, matching wait not yet (misuse check) */
+    int        phase2_done; /* reader thread finished the phase-2 read */
+    K3Work     w[K3_MAX_TOPK]; /* read slots, shared begin<->wait, indexed by job.w */
+    K3BurstJob job;         /* valid only while armed */
+} K3Burst;
+
+struct K3Cache {
     K3ExpertSrc  src;             /* MUST be first: pass &cache->src to K3MoeW */
 
     const K3St  *st;
@@ -161,6 +209,23 @@ typedef struct {
                                          * the main thread reaches the layer      */
     uint64_t         prefetch_cands;    /* survival denominator                   */
 
+    /* ---- async burst (getmany_begin / getmany_wait) ----------------------
+     * The split that lets the forward path overlap work independent of the expert
+     * bytes with the phase-2 read. Exactly one burst is in flight at a time; the
+     * thread is created on the first begin and reused, mirroring the prefetch reader
+     * above. The handshake: begin fills the job and arms it AFTER reserve+sort; the
+     * reader takes the job by value (clearing armed under c->mu), runs phase 2, and
+     * sets phase2_done; wait() consumes that and publishes phase 3. The shared read
+     * array K3Burst.w is touched only between begin and wait, by exactly two threads.
+     *
+     * The mutex discipline is the prefetch reader's: phase 1 (reserve) and phase 3
+     * (publish) run under c->mu, phase 2 (the disk read) runs unlocked so it overlaps
+     * the trunk stream. Because the reserved slots sit at K3_SLOT_INFLIGHT until wait
+     * publishes them, pick_victim already refuses them, so nothing in flight is handed
+     * out twice -- the same invariant the batch prefetch relies on. */
+    K3Burst     burst;
+    int         async_burst;        /* K3_ASYNC_BURST: begin/wait are armed      */
+
     /* THE ACCESS TRACE, and why it is worth recording.
      * The question this project exists to answer is how much RAM Kimi K3 actually
      * needs, which is a question about hit rate versus cache size. Measuring that
@@ -173,7 +238,7 @@ typedef struct {
      * each, is 12 KB per token. */
     int32_t     *trace;
     int64_t      ntrace, captrace;
-} K3Cache;
+};
 
 /* budget_bytes is the arena size; it is rounded down to whole experts. Fails if that
  * leaves fewer than topk+1 slots, because a smaller cache cannot serve one token

@@ -155,6 +155,24 @@ code, kill the easy version of it:
   the batch, the main thread blocks for the whole burst, and the routed matmuls run
   after it. The compute has no window inside the burst.
 
+THE "SAFE" VARIANT (implemented, default off). The down-projection (`k3_moe` step 2) and
+the shared expert need no expert bytes: they depend only on the layer input, which the
+router already consumed. Moving the down-projection between `getmany_begin` and
+`getmany_wait` hides it under the read burst. This gain does NOT depend on the spread --
+it is an unconditional swap of a ~2.5-2.9% slice of wall into an already-busy window --
+so it was implemented first, behind `K3_ASYNC_BURST`:
+
+- `k3.h`: `K3ExpertSrc.getmany_begin/getmany_wait` (optional, fall back to `getmany`).
+- `k3_cache.c`: `cache_getmany_inner` split into phase 1 (reserve) / phase 2 (read) /
+  phase 3 (publish) helpers. The async path runs phase 1 + sort on the main thread,
+  arms a single reusable reader thread for the unlocked phase-2 read, and publishes in
+  `getmany_wait`. Observable end state is bit-identical to `getmany()`; verified
+  byte-exact and race-clean in `test_cache` (runs the real begin/reserve -> wait/publish
+  cadence; also clean under ASan/UBSan). The handshake is `armed`/`phase2_done` on the
+  cache mutex, armed only after reserve+sort so the reader can never re-read a stale job
+  (that bug comes from arming on `in_flight` before phase 1; it corrupted slots under
+  eviction pressure and the test caught it).
+
 Whether the per-expert pipeline is worth building reduces to ONE physical question: do
 the 16 reads of a layer complete *staggered* or *together*? `reports/gateab_ab/overlap_sim.py`
 models both structures against the measured split (7.34 s/tok expert arithmetic, 44.6 s/tok
@@ -179,9 +197,8 @@ turns it into the call:
     python3 reports/gateab_ab/spread_parse.py run.log
 
 - `frac ~ 0` (reads together) -> the per-expert pipeline is worthless. Do not build the
-  chip-path streaming refactor. The independent-only "safe" variant (move down+shared,
-  which do not depend on expert bytes) is worth ~2.9% on paper but needs its own window,
-  so it is also gated on the same measurement.
+  chip-path streaming refactor. The independent-only "safe" variant is implemented and
+  gated on `K3_ASYNC_BURST`; it does NOT wait on this verdict (see above).
 - `frac >= 0.3` -> a few percent, pool-limited. Only then is the chip-path per-expert
   streaming refactor (incremental job submission as reads land) worth its concurrency risk,
   and it must still be validated bit-exact with the fixture oracle (`make test`).

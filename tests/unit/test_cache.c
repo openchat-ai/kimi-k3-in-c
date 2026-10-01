@@ -179,6 +179,38 @@ int main(int argc, char **argv)
     { char b[64]; snprintf(b, sizeof b, "%d of %d wrong", bad3, NE);
       ck(bad3 == 0, "mixed batch and serial", b); }
 
+    /* ---- 2c: the async burst (begin/wait) must agree with the serial path ----
+     * This is the getmany split the engine uses to hide the down-projection under the
+     * read burst (K3_ASYNC_BURST, see k3.h). Semantically it must publish exactly what
+     * getmany publishes, so drive the real begin/reserve -> wait/publish cadence and
+     * verify every expert. The ids array is copied through the window exactly as the
+     * engine does: its idx[] outlives begin..wait. When built unarmed the pointers are
+     * NULL and this is a no-op-by-default check. */
+    if (!cache.src.getmany_begin || !cache.src.getmany_wait) {
+        ck(1, "async burst present", "begin/wait NULL (K3_ASYNC_BURST unset)");
+    } else {
+        k3_cache_reset_stats(&cache);
+        int bad4 = 0;
+        for (int start = 0; start + c.topk <= NE; start += c.topk) {
+            int ids[16];
+            for (int j = 0; j < c.topk; j++) ids[j] = start + j;
+            int in_flight = cache.src.getmany_begin(&cache.src, 0, ids, c.topk);
+            /* The engine's independent work (the down-projection) would run here; only
+             * begin/wait and get() may touch the source in this window. Nothing else is
+             * needed to prove byte-exact publication. */
+            if (in_flight > 0)
+                cache.src.getmany_wait(&cache.src, 0, ids, c.topk);
+            for (int j = 0; j < c.topk; j++) {
+                K3ExpertQ q;
+                if (cache.src.get(&cache.src, 0, ids[j], &q) != 0) { bad4++; continue; }
+                if (!same_expert(&st, 0, ids[j], &q)) bad4++;
+            }
+        }
+        char b[96];
+        snprintf(b, sizeof b, "%d batches of %d, %d wrong", NE / c.topk, c.topk, bad4);
+        ck(bad4 == 0, "async burst begin/wait is byte-exact", b);
+    }
+
     k3_cache_free(&cache);
     k3_st_close(&st);
     printf("\n%s\n", g_fail ? "CACHE TESTS FAILED" : "CACHE TESTS PASSED");

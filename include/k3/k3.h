@@ -363,6 +363,30 @@ typedef struct K3ExpertSrc {
      * ZERO THIS FIELD. It is a function pointer in a struct that callers build on the
      * stack; an uninitialised one is a jump to garbage. See the warning below. */
     int (*getmany)(struct K3ExpertSrc *self, int layer, const int *experts, int n);
+    /* OPTIONAL, ZERO THIS FIELD: split getmany into begin/wait so the caller can do
+     * work that does NOT depend on the expert bytes while the burst is still in flight.
+     * getmany_begin reserves the slots and fires the reads, returning immediately;
+     * getmany_wait blocks until they land and publishes them resident. Semantically
+     * identical to getmany() -- after wait() returns, every expert that getmany would
+     * have brought in is resident, and a short return is handled the same way -- so a
+     * caller that has nothing to overlap simply calls getmany() and is unaffected.
+     *
+     * WHY IT EXISTS. Inside one layer the dependency is strict: attention, then the
+     * router (which needs the attention output), then the expert reads. There is no
+     * layer-internal work to reorder ahead of the reads. The down-projection and the
+     * shared expert, however, depend only on the layer INPUT, so they can run during the
+     * burst. That is worth a small but unconditional fraction of the wall (measured
+     * 2.5-2.9% of s/token; see reports/gateab_ab/overlap_sim.py) and it does NOT depend
+     * on whether the reads complete staggered -- unlike per-expert streaming, which
+     * does and is gated on a separate measurement.
+     *
+     * CONTRACT: exactly one begin per wait, from the same thread, and no get()/
+     * admit() between them. The reserved slots are held K3_SLOT_INFLIGHT meanwhile, so
+     * pick_victim already refuses them; a get() in that window would read the same
+     * expert twice into different slots. May be NULL, and callers MUST fall back to
+     * getmany() when either pointer is NULL. */
+    int (*getmany_begin)(struct K3ExpertSrc *self, int layer, const int *experts, int n);
+    int (*getmany_wait)(struct K3ExpertSrc *self, int layer, const int *experts, int n);
     /* OPTIONAL: 1 if the expert is already resident (get() would read no disk), filling
      * out when non-NULL. The draft model's cache-only routing uses this to propose tokens
      * with zero expert I/O. May be NULL; callers must cope. */

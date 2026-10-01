@@ -592,8 +592,27 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
             if (wsum > 0.0f) for (int j = 0; j < nk; j++) wt[j] /= wsum;
         }
 
-        /* 2. down-project into the latent space */
+        /* The async burst: start the expert reads BEFORE the down-projection, because the
+         * down-projection needs no expert bytes (it is the input projection), so it runs
+         * hidden under the read burst. wait() publishes; the state the loops below see is
+         * exactly what the old getmany() left -- which is the A/B contract (k3.h). Falls
+         * back to plain getmany() when the source has no begin/wait (or none armed), and
+         * to one-at-a-time get() when getmany is NULL too. begin returning 0 means every
+         * routed expert was already resident: nothing was reserved, no wait is owed. */
+        int burst_armed = (!w->cache_only && w->src
+                           && w->src->getmany_begin && w->src->getmany_wait);
+        int burst_n = burst_armed
+            ? w->src->getmany_begin(w->src, w->layer, idx, nk)
+            : 0;
+        if (burst_n < 0) {                   /* misuse: nothing was started, fall back */
+            burst_armed = 0;
+            burst_n = 0;
+        }
+
+        /* 2. down-project into the latent space (independent of the expert bytes) */
         k3_mmw(z, xt, w->down, w->wdt, E, L);
+        if (burst_n > 0)
+            w->src->getmany_wait(w->src, w->layer, idx, nk);
 
         /* 3. the selected experts, in latent space, weighted and summed */
         for (int i = 0; i < L; i++) accL[i] = 0.0f;
@@ -610,7 +629,8 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
             K3ChipJob *jobs = (K3ChipJob *)malloc((size_t)nk * sizeof(K3ChipJob));
             if (!jobs) k3_fatal_oom("MoE chip batch", (size_t)nk * sizeof(K3ChipJob));
             const double ct0 = k3_chip_now();
-            if (w->src->getmany) w->src->getmany(w->src, w->layer, idx, nk);
+            if (!burst_armed && w->src->getmany)
+                w->src->getmany(w->src, w->layer, idx, nk);
             int nj = 0;
             for (int j = 0; j < nk; j++) {
                 K3ExpertQ q;
@@ -647,7 +667,7 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
              * again: a queue depth of one against a drive that needs depth to reach its
              * rated bandwidth. getmany is optional and may be NULL, in which case nothing
              * changes and the loop reads them one at a time exactly as before. */
-            if (!w->cache_only && w->src && w->src->getmany)
+            if (!burst_armed && !w->cache_only && w->src && w->src->getmany)
                 w->src->getmany(w->src, w->layer, idx, nk);
             for (int j = 0; j < nk; j++) {
                 if (w->src) {
