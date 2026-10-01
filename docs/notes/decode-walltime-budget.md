@@ -42,13 +42,57 @@ against a 400-second steady-state number compares a 4 s figure with a 400 s one.
 The 6x figure is still not the operative one. The engine does not run the expert stream alone:
 it runs trunk (781-1003 MB/s) and experts (345-460 MB/s) on the same device at the same time,
 and the 55 s cold concurrent probe bounds that mixed workload at 1257 MB/s aggregate. Against
-the workload the engine actually has, the headroom is 891 -> 1257, about **1.4x**, not 6x.
-008449c closed cross-layer pipelining on the premise that "the device does 368 MB/s at
+the workload the engine actually has, the aggregate headroom is 891 -> 1257, about 1.4x. That
+1.4x is a statement about bytes per second, not about wall time: what cross-layer pipelining
+could actually recover is bounded by the arithmetic below, and it is about a fifth, not a
+multiple. 008449c closed the question on the premise that "the device does 368 MB/s at
 concurrency 12 for the 17.5 MB shape"; `steady47` refutes that premise directly (same file,
-same shape, similar concurrency, sustained, 2.5-2.8 GB/s). Cross-layer pipelining is
-therefore open with a bounded size: most of the 1.4x is reachable only if sustained expert
-concurrency can rise across layer boundaries, since today the pool sleeps 40-49% of worker-time
-and each layer's getmany leaves it idle in between.
+same shape, similar concurrency, sustained, 2.5-2.8 GB/s), so the closure does not stand and
+the question returns to the measurement below.
+
+## Cross-layer pipelining: the bound, and the number that decides it
+
+The repo holds two answers and they contradict each other. `e3ec059` concluded that "the
+remaining lever is changing the alternation -- cross-layer software pipelining, which this
+engine does not do", because arithmetic and I/O alternate strictly and the device idles
+through the arithmetic. `008449c` concluded the opposite, that the ceiling is the device and
+building it is not justified. The first is an observation about the engine, the second is a
+claim about the disk, and the claim is the one `steady47` refuted. So the question is open,
+and it is decidable by arithmetic plus one measurement.
+
+**The bound.** Only the arithmetic and the bind can be hidden behind the next layer's reads:
+7.3 + 5.9 = **13.2 s/token**, 20% of 65.2. The expert reads (44.6 s/token) are on the critical
+path themselves; pipelining overlaps them with compute, it does not remove them. So the
+ceiling on this lever is **~52 s/token, about 20%**, and no arrangement of scheduling does
+better than that on this workload.
+
+**The acceptance line.** Each token moves 72.22 GB (216.66 GB over 3 tokens). Today that takes
+65.21 s, which is the 1107 MB/s aggregate the engine reports. To land at 52.0 s/token the
+device must sustain **72.22 / 52.0 = 1389 MB/s** on the mixed trunk+expert shape, unpaced, for
+a window as long as an engine run. That single number decides the question:
+
+| steady58 mixed sustained aggregate | verdict |
+|---|---|
+| >= 1389 MB/s | the full overlap is physically available; build demand-overlap pipelining |
+| 900-1389 MB/s | partial; the gain is 1 - 1107/x, and it shrinks as x falls |
+| ~891 MB/s (the engine's own figure) | the engine is already at the mixed ceiling; do not build, the disk is the wall |
+
+**What is already ruled out.** The mechanism that exists -- `--prefetch-depth`, which hints the
+*previous* token's routing ahead of the demand reads -- was measured, and it loses: v50 pf0
+66.61 / 82.25 / 76.21 (mean 75.0) against pf1 88.70 / 89.12 / 88.88 (mean 88.9), about 18%
+worse, and the pf1 spread is a fraction of the pf0 spread. v54 showed why the guess does not
+pay: only 21% of the prefetched experts are still resident when the forward thread arrives, and
+a bigger arena does not fix it (21.4% -> 21.7%), so the evictions were never a capacity
+problem. The wasted reads compete with the demand reads for the same device. Whatever gets
+built has to move the *demand* reads earlier rather than guess extra ones.
+
+**The measurement.** `steady58.c` with `ab58.sh`, run as v58: the same O_DIRECT scattered-slot
+lanes steady47 used plus a trunk lane reading whole layers in order, both continuous and
+unpaced for 210 s, alternating against the engine three times at matched thermal state. It
+reports each arm separately so the expert figure stays comparable with steady47's, and
+ab58.sh refuses to run it if its self-test fails. The trunk arm is the part v49 lacked: v49's
+device arm had the drive to itself while the engine arm it was compared against streamed the
+trunk at the same time, which is why its 6.2x was not an engine-versus-device gap.
 
 Reading caveat for the record: `steady47.c:165` computes its "running MB/s" column as the last
 segment's bytes over cumulative time, so that column decays even while the real trajectory
@@ -84,12 +128,15 @@ Claims that died on re-measurement, in order:
 ## The standing conclusion
 
 1 T-parameter MoE on CPU cannot reach practical chat (<1-2 s/token): the author's own
-decode-by-RAM table bottoms out at 5.59 s/token at 128+ GB (compute-bound). But the current
-65-75 s/token is not a floor. Against the mixed trunk+expert workload the engine actually
-runs, the device delivers 1257 MB/s aggregate and the engine extracts 891, so the honest
-headroom is about 1.4x -- and closing it means sustained cross-layer expert concurrency plus
-cheaper dispatch, since the pool sleeps 40-49% of worker-time and every layer boundary leaves
-it idle. The project's value on this hardware is the measurement discipline and the closed
-ledger, not a usable product. The notes lineage that made this possible --
-`compressed-trunk.md`, `int8-draft-container.md`, the shelved Huffman prototype, and
-`tools/qdq_trunk.py` -- is fully present in this tree.
+decode-by-RAM table bottoms out at 5.59 s/token at 128+ GB (compute-bound). The current
+65-75 s/token is not a floor, but the headroom is bounded and small: cross-layer pipelining
+can hide at most the 13.2 s/token of arithmetic and bind, so ~52 s/token is its ceiling, and
+reaching even that needs the mixed trunk+expert shape to sustain 1389 MB/s where the engine
+today manages 1107. The device-versus-engine gap is real and engine-side -- 891 against a
+sustained 2463-2797 MB/s on the expert shape alone -- but most of that gap is not reachable
+by scheduling, because the trunk stream and the expert stream contend for one device and
+prefetching trades one against the other (v50, v54). One measurement decides the rest
+(`steady58` / v58, acceptance line above). The project's value on this hardware is the
+measurement discipline and the closed ledger, not a usable product. The notes lineage that
+made this possible -- `compressed-trunk.md`, `int8-draft-container.md`, the shelved Huffman
+prototype, and `tools/qdq_trunk.py` -- is fully present in this tree.
