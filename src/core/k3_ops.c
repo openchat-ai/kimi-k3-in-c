@@ -609,8 +609,16 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
             burst_n = 0;
         }
 
-        /* 2. down-project into the latent space (independent of the expert bytes) */
+        /* 2. down-project into the latent space, plus 6. the shared expert -- BOTH depend
+         * only on the layer input and weights resident in memory (no routed expert
+         * bytes, no get()/admit()), so when the burst is armed they run while the
+         * routed reads are in flight. sdn is added to ot at step 6 below, unchanged:
+         * the computation is moved, not the add. */
         k3_mmw(z, xt, w->down, w->wdt, E, L);
+        k3_mmw(sgu,      xt, w->sh1, w->wdt, E, SI);
+        k3_mmw(sgu + SI, xt, w->sh3, w->wdt, E, SI);
+        k3_situ_glu(sact, sgu, SI, c->situ_b1, c->situ_b2);
+        k3_mmw(sdn, sact, w->sh2, w->wdt, SI, E);
         if (burst_n > 0)
             w->src->getmany_wait(w->src, w->layer, idx, nk);
 
@@ -712,11 +720,9 @@ void k3_moe(float *out, const float *x, const K3MoeW *w, const K3Cfg *c,
         if (c->latent_norm) k3_rmsnorm(accL, accL, w->latent_norm, L, c->rms_eps);
         k3_mmw(ot, accL, w->up, w->wdt, L, E);
 
-        /* 6. shared expert on the ORIGINAL full-width input, added UNWEIGHTED */
-        k3_mmw(sgu,      xt, w->sh1, w->wdt, E, SI);
-        k3_mmw(sgu + SI, xt, w->sh3, w->wdt, E, SI);
-        k3_situ_glu(sact, sgu, SI, c->situ_b1, c->situ_b2);
-        k3_mmw(sdn, sact, w->sh2, w->wdt, SI, E);
+        /* 6. add the shared expert's contribution to the router output. The shared
+         * computation itself moved up beside the down-projection (step 2): it needs no
+         * routed expert bytes, and sdn here is exactly the value computed there. */
         for (int i = 0; i < E; i++) ot[i] += sdn[i];
     }
 }
