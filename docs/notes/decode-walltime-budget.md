@@ -196,12 +196,49 @@ turns it into the call:
     K3_SPREAD_DBG=1 <engine run> 2> run.log
     python3 reports/gateab_ab/spread_parse.py run.log
 
-- `frac ~ 0` (reads together) -> the per-expert pipeline is worthless. Do not build the
-  chip-path streaming refactor. The independent-only "safe" variant is implemented and
-  gated on `K3_ASYNC_BURST`; it does NOT wait on this verdict (see above).
-- `frac >= 0.3` -> a few percent, pool-limited. Only then is the chip-path per-expert
-  streaming refactor (incremental job submission as reads land) worth its concurrency risk,
-  and it must still be validated bit-exact with the fixture oracle (`make test`).
+### frac from the ab56 record: the reads land together
+
+The ab56 I/O counters decide this without a new run, because they separate "the pool
+serialised the 16 reads" from "the device streamed all 16 at once" -- and only the first
+produces a staggered `frac`:
+
+    kio tier0: 4595 reqs, 216.66 GB | concurrency 9.1x | queue 57.7 s (3.2% of io)
+               sleep 1548.9 s in 8408 waits (49% of worker-time)
+          group1: 4360 reqs, 76.51 GB | per-stream 46 MB/s | queue 57.5 s (3.5%)
+
+`group1` is the expert stream: 4360 requests x 17.55 MB = 76.5 GB, i.e. 3 tokens x 92 MoE
+layers x top-16. `queue` is the wait for a *free worker* (`t_deq - t_sub`, `k3_io.c:89`),
+not a device queue, and it is only 3.2% of pread time while the 16-worker pool sleeps 49% of
+the time: the pool is never the limiter, so all 16 reads of a burst are genuinely in flight
+at once (`DBG getmany ... conc_peak=16` confirms it on the read side). Tier 0 runs 16
+workers (`k3_run.c:1440`), and the device saturates by ~4 streams anyway -- probe57 puts it
+at 1 stream 1331 MB/s, 4 streams 1626 MB/s, i.e. ~1600 MB/s real-access ceiling, which the
+gate-era scaling in `k3_run.c:1431-1436` reproduces from the other side (4 workers 249 MB/s,
+16 workers ~1.6 GB/s). A saturated device accepts all 16 streams and streams them together;
+it would not hand 16 workers 1.6 GB/s if it serialised them a few at a time.
+
+So 16 equal 17.55 MB streams are in flight together, share the bandwidth and land together:
+`frac ~ 0`. The wave model agrees -- a device serving in depth-k waves gives
+`frac = 1 - k/16`, and the later requests would have to queue behind earlier ones, which
+would push `queue` up by orders of magnitude. It is 3.2%. Therefore the per-expert pipeline
+has no window on this device: **do not build the chip-path streaming refactor.** The
+independent-only "safe" variant is the real lever, and it does not depend on `frac`.
+
+This is why the phone's UFS number (median `frac` 0.18 on a fixture) does not transfer: UFS
+and this deep-queue NVMe are different device classes, and the ab56 counters are the right
+evidence for the target box.
+
+`K3_SPREAD_DBG=1` still prints, per burst, `frac = (last_completion - first_completion)/burst`
+in `cache_getmany_inner` phase 2, and `reports/gateab_ab/spread_parse.py` turns it into the
+call. On the PC it is confirmation, not the decision:
+
+    K3_SPREAD_DBG=1 <engine run> 2> run.log
+    python3 reports/gateab_ab/spread_parse.py run.log
+
+- `frac ~ 0` (expected, per the above) -> confirms the decision; no chip-path refactor.
+- `frac >= 0.3` -> a few percent, pool-limited, and it revives the chip-path per-expert
+  streaming refactor (incremental job submission as reads land), still to be validated
+  bit-exact with the fixture oracle (`make test`).
 
 The simulation killed the earlier "hide 13.2 s/token, ~52 s/token, 1389 MB/s" estimate.
 That number assumed arithmetic and bind could hide under a demand-overlap window that the
