@@ -68,12 +68,19 @@ for pair in 1 2 3; do
   E="$OUT/eng$pair"; mkdir -p "$E"
   echo "[v58] pair $pair  ENGINE              $(date +%T)"
   unset K3_TRACE K3_NOKIO K3_L2_NATIVE K3_IO_NW0
+  # Capture per-read completion spread so this run also yields the per-expert
+  # pipeline verdict (spread_parse.py). Off by default in the engine.
+  export K3_SPREAD_DBG=1
   ./bin/k3 /model \
     --trunk /mnt/nvme/trunk_layers_out --embed-dir /mnt/nvme/embed \
     --trunk-gb 32 --cache-gb 15 \
     --ids 1008 --gen "$ENG_GEN" --out "$E/ctrl.json" > "$E/ctrl.log" 2>&1
   grep -aE "s/token average|hit I/O|read from disk|trunk stream|kio tier0|group0|group1" \
     "$E/ctrl.log" | sed 's/^/    /' | tee "$E/ledger.txt"
+  if [ -f reports/gateab_ab/spread_parse.py ]; then
+    ( cd reports/gateab_ab && python3 spread_parse.py "$OLDPWD/$E/ctrl.log" ) \
+      > "$E/spread.txt" 2>&1 && grep -aE "median|VERDICT|GO|NO-GO|MARGINAL" "$E/spread.txt" | sed 's/^/    [spread] /'
+  fi
   echo "[v58] pair $pair done $(date +%T)"
   sleep 30
 done
