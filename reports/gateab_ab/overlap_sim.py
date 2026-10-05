@@ -38,10 +38,24 @@ N_SHARED     = 2           # shared intermediate = moe_inter*n_shared
 SHARED_INTER = MOE_INTER * N_SHARED
 
 # ---- measured components (ab56 accounting, per token) ---------------------
-MEAS_TOKEN_S   = 65.21     # best serial wall, s/tok
+# MEAS_TOKEN_S was 65.21, which is the best serial wall from the 09-30 binary. The 10-01
+# commits (ca0e9b9, 3ea020c) added the async burst, and v58 measured the resulting engine at
+# 76.72 / 87.56 / 83.70 s/token on trunk-gb 32 cache-gb 15. Using 65.21 made every predicted
+# wall unreachable: 59.71 was exactly 65.21 minus 8.4%, so the gain percentage looked right while
+# the absolute target was 12-22 s/token away from where the engine actually is. Median of the
+# three v58 runs, and the full spread is printed so a single number cannot hide it.
+MEAS_TOKEN_S   = 83.70     # median of v58 eng1-3: 76.72 / 87.56 / 83.70
+MEAS_TOKEN_SPREAD = (76.72, 87.56)   # observed min-max, same three runs
 MEAS_COMP_S     = 7.34     # expert arithmetic on the critical path, s/tok
 MEAS_DEV_BYTES  = 72.22e3  # trunk+expert bytes moved per token, MB
 MEAS_DEV_BUSY_S = None     # solved from the two above (see below)
+
+# The device's measured ceiling for this mixed shape, from v58's steady58 arms: aggregate
+# 1222 / 1136 / 1367 MB/s over 210 s, paired against the engine. DEV_BANDWIDTH below is NOT
+# this -- it is the engine's own achieved effective bandwidth, which is lower because the engine
+# does not keep the device saturated. Keeping both visible is the point: the difference between
+# them (1.3-1.6x) is device headroom, and it is not the same quantity as the pipelining gain.
+MEAS_DEVICE_CEILING_MBPS = (1222, 1136, 1367)
 
 # MAC counts per token, split by "does it depend on an expert's bytes?"
 def macs():
@@ -160,11 +174,15 @@ def main():
     print(f"  (routed share of MoE matmul: {r/(r+s+p)*100:.0f}%)")
     print()
     print("== measured calibration ==")
-    print(f"  token wall        = {MEAS_TOKEN_S:.2f} s")
+    print(f"  token wall        = {MEAS_TOKEN_S:.2f} s  (v58 eng1-3: "
+          f"{MEAS_TOKEN_SPREAD[0]:.2f}-{MEAS_TOKEN_SPREAD[1]:.2f})")
     print(f"  expert compute    = {MEAS_COMP_S:.2f} s  (on critical path today)")
     print(f"  device bytes/tok  = {MEAS_DEV_BYTES/1e3:.1f} GB")
     print(f"  device busy       = {MEAS_DEV_BUSY_S:.2f} s")
-    print(f"  eff mixed bw      = {DEV_BANDWIDTH:.0f} MB/s (busy)")
+    print(f"  eff mixed bw      = {DEV_BANDWIDTH:.0f} MB/s (busy)  <- engine's achieved rate")
+    print(f"  device ceiling    = {min(MEAS_DEVICE_CEILING_MBPS)}-"
+          f"{max(MEAS_DEVICE_CEILING_MBPS)} MB/s  <- v58 steady58 mixed arms, a DIFFERENT "
+          f"quantity")
     print()
 
     print("== per-token prediction: OLD vs NEW (expert phase), frac=0 ==")

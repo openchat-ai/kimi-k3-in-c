@@ -1,0 +1,21 @@
+== steady58 self-test: both arms through the production code path
+geometry: nslot=64 slot=1048576, 4 expert lanes + 1 trunk lane, both continuous, target 3 s, O_DIRECT=1
+    t(s)   trunk MB/s  expert MB/s     agg MB/s      cum agg
+       1         2210        11674        13884        13884
+       2         2663        12681        15344        14613
+
+=== whole run
+   expert  35505 slots, 37.2 GB in 3.0 s = 12404 MB/s
+   trunk   7.4 GB in 3.0 s = 2471 MB/s
+   aggregate 44.6 GB = 14875 MB/s
+  ok    no short expert reads
+  ok    no short trunk reads
+  ok    expert arm advanced
+  ok    trunk arm advanced
+  ok    expert rate positive
+  ok    trunk rate positive
+  ok    ran the requested window
+  ok    geometry validator rejects a non-coprime stride
+  ok    geometry validator accepts the real stride again
+
+SELFTEST OK (0 failures)

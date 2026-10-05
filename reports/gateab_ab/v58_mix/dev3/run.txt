@@ -1,0 +1,11 @@
+geometry: nslot=14589 slot=17547264, 11 expert lanes + 1 trunk lane, both continuous, target 210 s, O_DIRECT=1
+engine aggregate for comparison: 891 MB/s
+    t(s)   trunk MB/s  expert MB/s     agg MB/s      cum agg
+SHORT trunk /mnt/nvme/trunk_layers_out/layer_000.bin n=2147479552 want=2341216256
+
+=== whole run
+   expert  273 slots, 4.8 GB in 4.4 s = 1077 MB/s
+   trunk   1.3 GB in 4.4 s = 290 MB/s
+   aggregate 6.1 GB = 1367 MB/s
+   engine 891 MB/s -> ratio 1.53x
+   ABORTED: short reads (expert 0, trunk 1)

@@ -1,0 +1,113 @@
+reports/gateab_ab/steady58.c: In function ‘validate_geometry’:
+reports/gateab_ab/steady58.c:138:62: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 507 [-Wformat-truncation=]
+  138 |         if (stat(path, &s) != 0) { snprintf(err, errn, "stat %s: %s", path, strerror(errno)); return -1; }
+      |                                                              ^~       ~~~~
+In file included from /usr/include/stdio.h:974,
+                 from reports/gateab_ab/steady58.c:42:
+In function ‘snprintf’,
+    inlined from ‘validate_geometry’ at reports/gateab_ab/steady58.c:138:36:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:68:10: note: ‘__builtin___snprintf_chk’ output 8 or more bytes (assuming 1031) into a destination of size 512
+   68 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   69 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   70 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+== steady58 self-test: both arms through the production code path
+geometry: nslot=64 slot=1048576, 4 expert lanes + 1 trunk lane, both continuous, target 3 s, O_DIRECT=1
+    t(s)   trunk MB/s  expert MB/s     agg MB/s      cum agg
+       1         2210        11674        13884        13884
+       2         2663        12681        15344        14613
+
+=== whole run
+   expert  35505 slots, 37.2 GB in 3.0 s = 12404 MB/s
+   trunk   7.4 GB in 3.0 s = 2471 MB/s
+   aggregate 44.6 GB = 14875 MB/s
+  ok    no short expert reads
+  ok    no short trunk reads
+  ok    expert arm advanced
+  ok    trunk arm advanced
+  ok    expert rate positive
+  ok    trunk rate positive
+  ok    ran the requested window
+  ok    geometry validator rejects a non-coprime stride
+  ok    geometry validator accepts the real stride again
+
+SELFTEST OK (0 failures)
+[v58] pair 1  MIXED DEVICE first  15:13:01
+=== whole run
+   expert  253 slots, 4.4 GB in 4.2 s = 1067 MB/s
+   trunk   0.6 GB in 4.2 s = 155 MB/s
+   aggregate 5.1 GB = 1222 MB/s
+   engine 891 MB/s -> ratio 1.37x
+   ABORTED: short reads (expert 0, trunk 1)
+[v58] pair 1  ENGINE              15:13:06
+    trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+    trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+    3 tokens in 230.2 s, 76.72 s/token average
+      of those hits : 1416 came from the batch prefetch, i.e. read from disk
+      read from disk: 24.85 GB in 51.75 s (480 MB/s while loading)
+      hit I/O   : 76.49 GB in 146.28 s (wall) = 523 MB/s [pread 1826.67 s, 42 MB/s per-thread]
+    kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 112 MB/s, aggregate 941 MB/s, concurrency 8.4x | queue 62.6 s (3.2% of io), submit-lock 3.4 s, worker-lock 0.1 s, sleep 1996.7 s in 8290 waits (54% of worker-time)
+          group0: 235 reqs, 140.16 GB | per-stream 836 MB/s | queue 0.1 s (0.1%)
+          group1: 4360 reqs, 76.51 GB | per-stream 43 MB/s | queue 62.5 s (3.5%)
+         experts the prefetcher had just read from disk, so it is not a
+    [spread]   mean=0.580  median=0.603  p10=0.256  p90=0.896
+    [spread]   median  0.60    75.0%    59.71   8.4%
+    [spread] == VERDICT ==
+    [spread]   GO-ish: frac~0.60 -> 8.4% predicted (ceiling is pool-limited). Proceed to the per-expert streaming refactor on the PC and validate bit-exactness with the fixture oracle.
+[v58] pair 1 done 15:17:20
+[v58] pair 2  MIXED DEVICE first  15:17:50
+=== whole run
+   expert  151 slots, 2.6 GB in 3.5 s = 764 MB/s
+   trunk   1.3 GB in 3.5 s = 372 MB/s
+   aggregate 3.9 GB = 1136 MB/s
+   engine 891 MB/s -> ratio 1.27x
+   ABORTED: short reads (expert 0, trunk 1)
+[v58] pair 2  ENGINE              15:17:54
+    trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+    trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+    3 tokens in 262.7 s, 87.56 s/token average
+      of those hits : 1416 came from the batch prefetch, i.e. read from disk
+      read from disk: 24.85 GB in 51.87 s (479 MB/s while loading)
+      hit I/O   : 76.49 GB in 180.50 s (wall) = 424 MB/s [pread 2299.11 s, 33 MB/s per-thread]
+    kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 90 MB/s, aggregate 825 MB/s, concurrency 9.2x | queue 81.2 s (3.4% of io), submit-lock 3.6 s, worker-lock 0.1 s, sleep 1889.3 s in 8330 waits (45% of worker-time)
+          group0: 235 reqs, 140.16 GB | per-stream 708 MB/s | queue 0.1 s (0.0%)
+          group1: 4360 reqs, 76.51 GB | per-stream 35 MB/s | queue 81.1 s (3.7%)
+         experts the prefetcher had just read from disk, so it is not a
+    [spread]   mean=0.606  median=0.637  p10=0.302  p90=0.880
+    [spread]   median  0.64    75.0%    59.71   8.4%
+    [spread] == VERDICT ==
+    [spread]   GO-ish: frac~0.64 -> 8.4% predicted (ceiling is pool-limited). Proceed to the per-expert streaming refactor on the PC and validate bit-exactness with the fixture oracle.
+[v58] pair 2 done 15:22:26
+[v58] pair 3  MIXED DEVICE first  15:22:56
+=== whole run
+   expert  273 slots, 4.8 GB in 4.4 s = 1077 MB/s
+   trunk   1.3 GB in 4.4 s = 290 MB/s
+   aggregate 6.1 GB = 1367 MB/s
+   engine 891 MB/s -> ratio 1.53x
+   ABORTED: short reads (expert 0, trunk 1)
+[v58] pair 3  ENGINE              15:23:01
+    trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+    trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+    3 tokens in 251.1 s, 83.70 s/token average
+      of those hits : 1416 came from the batch prefetch, i.e. read from disk
+      read from disk: 24.85 GB in 51.47 s (483 MB/s while loading)
+      hit I/O   : 76.51 GB in 156.53 s (wall) = 489 MB/s [pread 1975.63 s, 39 MB/s per-thread]
+    kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 103 MB/s, aggregate 863 MB/s, concurrency 8.3x | queue 67.6 s (3.2% of io), submit-lock 3.8 s, worker-lock 0.1 s, sleep 2018.2 s in 8282 waits (50% of worker-time)
+          group0: 235 reqs, 140.16 GB | per-stream 754 MB/s | queue 0.1 s (0.1%)
+          group1: 4360 reqs, 76.51 GB | per-stream 40 MB/s | queue 67.5 s (3.5%)
+         experts the prefetcher had just read from disk, so it is not a
+    [spread]   mean=0.581  median=0.598  p10=0.249  p90=0.887
+    [spread]   median  0.60    75.0%    59.71   8.4%
+    [spread] == VERDICT ==
+    [spread]   GO-ish: frac~0.60 -> 8.4% predicted (ceiling is pool-limited). Proceed to the per-expert streaming refactor on the PC and validate bit-exactness with the fixture oracle.
+[v58] pair 3 done 15:27:20
+pair  mix_agg  trunk  expert | engine_agg  s/tok | ratio
+   1     1222    155    1067 |        941  76.72 |  1.30x
+   2     1136    372     764 |        825  87.56 |  1.38x
+   3     1367    290    1077 |        863   83.7 |  1.58x
+start : 15:13:01
+load  : 0.08 0.73 0.52
+engine reference: 891 MB/s aggregate
+end   : 15:27:51

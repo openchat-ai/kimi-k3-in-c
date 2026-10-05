@@ -1,0 +1,14 @@
+== spread distribution (242 full top-k bursts, from /mnt/f/kimi-k3-in-c/reports/gateab_ab/v58_mix/eng3/ctrl.log) ==
+  frac = (last-first)/burst per layer burst
+  mean=0.581  median=0.598  p10=0.249  p90=0.887
+  mean burst=0.5671s  mean nw=15.8
+
+== predicted per-expert pipeline gain (pool=4, bw=1248 MB/s) ==
+    frac  hidden% pred tok  gain%
+     p10  0.25    56.2%    61.09   6.3%
+  median  0.60    75.0%    59.71   8.4%
+     p90  0.89    75.0%    59.71   8.4%
+     max  0.96    75.0%    59.71   8.4%
+
+== VERDICT ==
+  GO-ish: frac~0.60 -> 8.4% predicted (ceiling is pool-limited). Proceed to the per-expert streaming refactor on the PC and validate bit-exactness with the fixture oracle.

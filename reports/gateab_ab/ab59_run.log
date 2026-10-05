@@ -1,0 +1,41 @@
+start HEAD=e4e206a  16:45:33
+idle: load=0.38 0.46 0.20  16:47:33
+
+===== 008449c  16:47:33
+  built, ymm=1425  AVX2-ok
+  83.60 s/token average   [aggregate 864 MB/s]
+      kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 95 MB/s, aggregate 864 MB/s, concurrency 9.1x | queue 75.2 s (3.3% of io), submit-lock 3.0 s, worker-lock 0.0 s, sleep 1950.9 s in 8300 waits (49% of worker-time)
+            group0: 235 reqs, 140.16 GB | per-stream 781 MB/s | queue 0.2 s (0.1%)
+            group1: 4360 reqs, 76.51 GB | per-stream 36 MB/s | queue 75.1 s (3.6%)
+
+===== 40a9e11  16:52:46
+  built, ymm=1431  AVX2-ok
+  84.63 s/token average   [aggregate 853 MB/s]
+      kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 99 MB/s, aggregate 853 MB/s, concurrency 8.7x | queue 69.2 s (3.2% of io), submit-lock 3.3 s, worker-lock 0.1 s, sleep 1927.8 s in 8251 waits (47% of worker-time)
+            group0: 235 reqs, 140.16 GB | per-stream 831 MB/s | queue 0.1 s (0.1%)
+            group1: 4360 reqs, 76.51 GB | per-stream 38 MB/s | queue 69.1 s (3.4%)
+
+===== ca0e9b9  16:57:49
+  built, ymm=1433  AVX2-ok
+  86.70 s/token average   [aggregate 833 MB/s]
+      kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 92 MB/s, aggregate 833 MB/s, concurrency 9.0x | queue 65.6 s (2.8% of io), submit-lock 3.3 s, worker-lock 0.0 s, sleep 1917.7 s in 8234 waits (46% of worker-time)
+            group0: 235 reqs, 140.16 GB | per-stream 826 MB/s | queue 0.2 s (0.1%)
+            group1: 4360 reqs, 76.51 GB | per-stream 35 MB/s | queue 65.5 s (3.0%)
+
+===== 3ea020c  17:02:57
+  built, ymm=1433  AVX2-ok
+  89.88 s/token average   [aggregate 804 MB/s]
+      kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 90 MB/s, aggregate 804 MB/s, concurrency 9.0x | queue 75.9 s (3.1% of io), submit-lock 3.1 s, worker-lock 0.1 s, sleep 2003.8 s in 8260 waits (46% of worker-time)
+            group0: 235 reqs, 140.16 GB | per-stream 772 MB/s | queue 0.1 s (0.1%)
+            group1: 4360 reqs, 76.51 GB | per-stream 34 MB/s | queue 75.8 s (3.4%)
+
+restored src/include to e4e206a
+rebuilt at e4e206a
+
+== summary
+  commit     s/token                      aggregate
+  008449c	83.60 s/token average	aggregate 864 MB/s
+  40a9e11	84.63 s/token average	aggregate 853 MB/s
+  ca0e9b9	86.70 s/token average	aggregate 833 MB/s
+  3ea020c	89.88 s/token average	aggregate 804 MB/s
+end 17:08:29

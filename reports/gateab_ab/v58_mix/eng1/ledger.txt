@@ -1,0 +1,10 @@
+    trunk stream: 56.60 GB packed, 22/93 layers PINNED (29.30 GB), ring 2 x 1.30 GB
+    trunk streaming enabled from /mnt/nvme/trunk_layers_out in 0.0 s
+    3 tokens in 230.2 s, 76.72 s/token average
+      of those hits : 1416 came from the batch prefetch, i.e. read from disk
+      read from disk: 24.85 GB in 51.75 s (480 MB/s while loading)
+      hit I/O   : 76.49 GB in 146.28 s (wall) = 523 MB/s [pread 1826.67 s, 42 MB/s per-thread]
+    kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 112 MB/s, aggregate 941 MB/s, concurrency 8.4x | queue 62.6 s (3.2% of io), submit-lock 3.4 s, worker-lock 0.1 s, sleep 1996.7 s in 8290 waits (54% of worker-time)
+          group0: 235 reqs, 140.16 GB | per-stream 836 MB/s | queue 0.1 s (0.1%)
+          group1: 4360 reqs, 76.51 GB | per-stream 43 MB/s | queue 62.5 s (3.5%)
+         experts the prefetcher had just read from disk, so it is not a
