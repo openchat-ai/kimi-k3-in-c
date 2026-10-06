@@ -1,0 +1,42 @@
+start HEAD=3d15cd9  12:06:10
+-- building 4c664a4
+   ymm=1431
+   saved reports/gateab_ab/v61_burst/k3_noburst  (308120 bytes, built from 4c664a4)
+-- building 3ea020c
+   ymm=1433
+   saved reports/gateab_ab/v61_burst/k3_burst  (312496 bytes, built from 3ea020c)
+
+idle: load=0.26 4.95 7.87  12:09:39
+[pair 1] 12:09:39
+  noburst_p1      87.56 s/tok  agg=825   g0=847   g1=35   sleep=47 % conc=8.9
+  burst_p1        91.17 s/tok  agg=792   g0=762   g1=34   sleep=47 % conc=8.8
+[pair 2] 12:19:46
+  noburst_p2      88.51 s/tok  agg=816   g0=809   g1=36   sleep=48 % conc=8.6
+  burst_p2       100.10 s/tok  agg=721   g0=620   g1=38   sleep=55 % conc=7.5
+[pair 3] 12:30:21
+  noburst_p3     111.26 s/tok  agg=649   g0=560   g1=35   sleep=61 % conc=7.3
+  burst_p3        93.88 s/tok  agg=769   g0=653   g1=35   sleep=50 % conc=8.4
+[pair 4] 12:42:04
+  noburst_p4      79.51 s/tok  agg=908   g0=824   g1=41   sleep=49 % conc=8.6
+  burst_p4        89.82 s/tok  agg=804   g0=689   g1=33   sleep=44 % conc=9.3
+[pair 5] 12:51:41
+  noburst_p5      84.05 s/tok  agg=859   g0=790   g1=37   sleep=47 % conc=8.9
+  burst_p5        77.54 s/tok  agg=931   g0=823   g1=41   sleep=48 % conc=8.7
+
+== paired differences (positive aggregate / negative s/token favours the burst)
+  pair   agg nob  agg burst  d agg %  s/tok nob  s/tok burst  d s/tok %   d g1 %
+  1          825        792    -4.0%      87.56        91.17       4.1%    -2.9%
+  2          816        721   -11.6%      88.51       100.10      13.1%     5.6%
+  3          649        769    18.5%     111.26        93.88     -15.6%     0.0%
+  4          908        804   -11.5%      79.51        89.82      13.0%   -19.5%
+  5          859        931     8.4%      84.05        77.54      -7.7%    10.8%
+
+  aggregate MB/s (burst-nob) median   -4.0%   spread  753%   pairs ['-4.0', '-11.6', '+18.5', '-11.5', '+8.4']
+  s/token (burst-noburst) median   -4.1%   spread  696%   pairs ['+4.1', '+13.1', '-15.6', '+13.0', '-7.7']
+  group1 per-stream      median   +0.0%   spread    0%   pairs ['-2.9', '+5.6', '+0.0', '-19.5', '+10.8']
+
+  VERDICT (primary = aggregate): median -4.0%, threshold 10%
+  NO DIFFERENCE -- the two commits change nothing measurable here;
+               do not keep or revert them on performance grounds
+end 13:00:54
+tree restored to 3d15cd9, bin/k3 rebuilt (312496 bytes)

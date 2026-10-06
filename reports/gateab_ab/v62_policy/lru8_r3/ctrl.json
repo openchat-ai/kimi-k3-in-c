@@ -1,0 +1,1 @@
+{"prompt_ids":[1008],"generated_ids":[220,802,24],"full_ids":[1008,220,802,24],"layers":93,"layers_requested":93,"layers_completed":93,"expert_drops":0,"peak_rss_bytes":30158749696,"wall_seconds":326.4782,"seconds_per_token":108.8261,"expert_bytes_read":77488717824,"trunk_bytes_read":140155150336,"stopped_at":-1,"generated_text":null}

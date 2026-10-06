@@ -1,0 +1,29 @@
+idle: load=0.19 0.54 0.27  14:44:31
+[round 1] 14:44:31
+  lru8_r1          policy=lru  cache=8    expert  77.49 GB / 3 tok = 25.83 GB/token   80.63 s/tok
+  heat8_r1         policy=heat cache=8    expert  76.51 GB / 3 tok = 25.50 GB/token   86.69 s/tok
+  lru15_r1         policy=lru  cache=15   expert  77.49 GB / 3 tok = 25.83 GB/token   87.49 s/tok
+  heat15_r1        policy=heat cache=15   expert  76.51 GB / 3 tok = 25.50 GB/token   91.07 s/tok
+[round 2] 15:04:00
+  lru8_r2          policy=lru  cache=8    expert  77.49 GB / 3 tok = 25.83 GB/token   88.70 s/tok
+  heat8_r2         policy=heat cache=8    expert  76.51 GB / 3 tok = 25.50 GB/token   94.10 s/tok
+  lru15_r2         policy=lru  cache=15   expert  77.49 GB / 3 tok = 25.83 GB/token   109.82 s/tok
+  heat15_r2        policy=heat cache=15   expert  76.51 GB / 3 tok = 25.50 GB/token   92.99 s/tok
+[round 3] 15:25:09
+  lru8_r3          policy=lru  cache=8    expert  77.49 GB / 3 tok = 25.83 GB/token   108.83 s/tok
+  heat8_r3         policy=heat cache=8    expert  76.51 GB / 3 tok = 25.50 GB/token   94.94 s/tok
+  lru15_r3         policy=lru  cache=15   expert  77.49 GB / 3 tok = 25.83 GB/token   103.31 s/tok
+  heat15_r3        policy=heat cache=15   expert  76.51 GB / 3 tok = 25.50 GB/token   116.62 s/tok
+
+== per-round expert GB/token, and the two pairs the paper's claim rests on
+  arm         runs                   values GB/token   median
+  lru8           3          25.83,  25.83,  25.83    25.83
+  heat8          3          25.50,  25.50,  25.50    25.50
+  lru15          3          25.83,  25.83,  25.83    25.83
+  heat15         3          25.50,  25.50,  25.50    25.50
+
+  paper table 3 claims (gen=8, cgroup 26 GB):  LRU 25.83 -> heat 20.99 GB/token (-19%)
+                                            and  LRU 25.83 -> heat 17.44 GB/token (-32%)
+  this run is gen=3, no cgroup cap; the byte column is the decidable one, the
+  speed column is not, so no speed verdict is drawn.
+end 15:48:13
