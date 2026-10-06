@@ -142,9 +142,10 @@ for n in media:
         notes.append(f"{n} 宽 {w}px，模板建议 ≥600")
 
 # ---- figure captions below ----
-# A caption is a centred paragraph whose text begins with 图 N and which is immediately
-# followed by an image. Matching on the prefix alone flags every body sentence that happens to
-# start with 图 1 给出... , which is what the first version of this check did.
+# The template's 图题置于图下方 means the figure's TITLE sits below the FIGURE, so the image
+# paragraph must come BEFORE the caption. Two earlier versions of this check had the sense
+# reversed and rejected a correct document, and also flagged body sentences that merely begin
+# 图 1 给出... as if they were captions.
 print("\n== 图题位置（模板：图题置于图下方）")
 CAPRE = re.compile(r"^图\s*\d+\s*[　\s]")
 def has_img(p):
@@ -153,11 +154,16 @@ for i, p in enumerate(paras):
     t = (p.text or "").strip()
     if not CAPRE.match(t) or len(t) > 60:
         continue
+    above = any(has_img(q) for q in paras[max(0, i - 3):i])   # image precedes title = compliant
     below = any(has_img(q) for q in paras[i + 1:i + 3])
-    above = any(has_img(q) for q in paras[max(0, i - 3):i])
-    place = "下方 ✓" if below else ("上方 *** 不合规 ***" if above else "附近无图")
+    if above:
+        place = "图在题上方 ✓ 合规"
+    elif below:
+        place = "图在题下方 *** 不合规 ***"
+    else:
+        place = "附近无图"
     print(f"  {t[:36]:<38} {place}")
-    if not below:
+    if not above:
         fails.append(f"figure caption not below image: {t[:20]}")
 
 # ---- table captions above ----

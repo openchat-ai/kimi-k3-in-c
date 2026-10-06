@@ -225,7 +225,11 @@ def main():
         para(doc, f"中图分类号：{cls.group(1)}　　文献标志码：{doc_flag.group(1) if doc_flag else 'A'}",
              cn=SIMHEI, size=9, space_after=8)
 
-    en = re.search(r"## High Cache Hit Rate(.*)", md, re.S)
+    # The English block ends at the first horizontal rule or top-level heading. The original
+    # pattern was re.compile(r"## High Cache Hit Rate(.*)", re.S), whose greedy (.*) ran to
+    # end-of-file: it swallowed the '---', the author bio and the self-check contact into the
+    # front matter, and the body loop then rendered all three a second time.
+    en = re.search(r"## High Cache Hit Rate(.*?)(?=\n---|\n#\s)", md, re.S)
     if en:
         en_lines = [l.strip() for l in en.group(1).splitlines() if l.strip()]
         title_en = "High Cache Hit Rate with Low Token Output: A Slow-Layer Byte Lower Bound Criterion"
@@ -251,10 +255,23 @@ def main():
 
     FIGS = {"bytes_paradox": ("docs/images/bytes_paradox_grey.png"), "trunk_cache_split": ("docs/images/trunk_cache_split_grey.png")}
     i, h1 = 0, 0
+    # Figure captions sit ABOVE the image in the markdown but must be printed BELOW it, so they
+    # are held here instead of being emitted as body text when first encountered.
+    held_cn = held_en = ""
     while i < len(body):
         raw = body[i]
         s = raw.strip()
         if not s:
+            i += 1
+            continue
+        m = re.match(r"^图\s*\d+\s*[　\s].*$", s)                  # figure caption, held
+        if m:
+            held_cn = s
+            i += 1
+            continue
+        m = re.match(r"^(Fig\.?\s*\d+.*)$", s)                     # english figure caption, held
+        if m:
+            held_en = s
             i += 1
             continue
         if s.startswith("|"):                                    # markdown table
@@ -267,29 +284,51 @@ def main():
             if rows:
                 add_md_table(doc, rows)
             continue
-        m = re.match(r"^(#{2,4})\s+(.*)", s)                    # heading
+        m = re.match(r"^(#{1,6})\s+(.*)", s)                     # heading, any depth
         if m:
-            level, txt = len(m.group(1)) - 1, m.group(2).strip()
-            if level == 1:
-                h1 += 1
-                para(doc, f"{h1}  {txt}", cn=SIMHEI, size=10.5, space_before=6, space_after=3)
-            elif level == 2:
-                para(doc, txt, cn=SIMHEI, size=9, space_before=4, space_after=2)
+            txt = m.group(2).strip()
+            # Back-matter blocks are not numbered sections. The sequence number is only used
+            # when the markdown does not already carry one -- otherwise "## 1 引言" became
+            # "1  1 引言", and 附录/参考文献 were numbered 7 and 8 as if they were chapters.
+            if re.match(r"^(附录|参考文献|英文题名|作者简介|自校负责人|稿件信息)", txt):
+                para(doc, txt, cn=SIMHEI, size=10.5, space_before=6, space_after=3)
+                i += 1
+                continue
+            num = re.match(r"^(\d+(?:\.\d+)*)\s+(\S.*)$", txt)
+            app = re.match(r"^([A-Z](\.\d+)+)\s+(\S.*)$", txt)     # A.1 / A.2.1
+            if app:
+                # Appendix subsections keep their own letters; auto-numbering turned them into
+                # "1  A.1 数据出处", "2  A.2 …", "3  A.2.1 …".
+                depth = min(app.group(1).count(".") + 1, 3)
+                label = f"{app.group(1)}  {app.group(3)}"
+                para(doc, label, cn=SIMHEI if depth == 2 else KAITI,
+                     size=9, space_before=4 if depth == 2 else 3, space_after=2)
+                i += 1
+                continue
+            if num:
+                depth = num.group(1).count(".") + 1
+                label = num.group(2)
             else:
-                para(doc, txt, cn=KAITI, size=9, space_before=3, space_after=2)
+                h1 += 1
+                depth, label = 1, txt
+            if depth == 1:
+                para(doc, f"{h1 if not num else num.group(1)}  {label}",
+                     cn=SIMHEI, size=10.5, space_before=6, space_after=3)
+            elif depth == 2:
+                para(doc, f"{num.group(1)}  {label}" if num else label,
+                     cn=SIMHEI, size=9, space_before=4, space_after=2)
+            else:
+                para(doc, f"{num.group(1)}  {label}" if num else label,
+                     cn=KAITI, size=9, space_before=3, space_after=2)
             i += 1
             continue
         m = re.match(r"^!\[(.*?)\]\((.*?)\)", s)               # image
         if m:
             key = pathlib.Path(m.group(2)).stem.replace("_grey", "")
             img = pathlib.Path(FIGS.get(key, ("docs/images/%s_grey.png" % key)))
-            nxt = body[i + 1] if i + 1 < len(body) else ""
-            cn_cap = re.match(r"^图\s*\d+.*$", nxt.strip())
-            en_cap = body[i + 2].strip() if i + 2 < len(body) else ""
-            en_cap = en_cap if en_cap.startswith("Fig") else ""
-            figure_block(doc, img, cn_cap.group(0) if cn_cap else f"图（{key}）",
-                         en_cap, width_cm=8.0)
-            i += 3 if en_cap else 2
+            figure_block(doc, img, held_cn or f"图（{key}）", held_en, width_cm=8.0)
+            held_cn = held_en = ""
+            i += 1
             continue
         m = re.match(r"^(表\s*\d+[a-z]?)\s+(.*)", s)          # table caption, goes on top
         if m:
