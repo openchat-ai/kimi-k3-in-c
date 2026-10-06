@@ -141,6 +141,28 @@ for n in media:
     if w < 600:
         notes.append(f"{n} 宽 {w}px，模板建议 ≥600")
 
+# ---- CCF membership ----
+# Template item 12: the article's end must state whether the first author is a CCF member, with
+# the membership number; if unstated, the paper is billed at the non-member rate. The template
+# does not require the author TO BE a member -- both answers are compliant -- but a blank
+# number is not, because the 8.5 discount depends on it.
+print("\n== CCF 会员标注（模板第 12 条）")
+_all = "\n".join((p.text or "") for p in paras)
+_m = re.search(r"CCF\s*会员[:：]\s*(是|否)", _all)
+if not _m:
+    print("  *** 未找到 CCF 会员标注 ***")
+    fails.append("CCF membership not stated")
+elif _m.group(1) == "否":
+    print("  标注为『否』  按非会员标准计版面费，不适用 8.5 折")
+else:
+    print("  标注为『是』  按 8.5 折计（依模板第 12 条）")
+    if "＿" in _all:
+        print("  *** 会员号仍是下划线占位符，投稿前必须填入 ***")
+        fails.append("CCF member number is a blank placeholder")
+    else:
+        _num = re.search(r"会员号[:：]\s*([A-Za-z0-9]+)", _all)
+        print("  会员号 %s" % (_num.group(1) if _num else "未检出"))
+
 # ---- figure captions below ----
 # The template's 图题置于图下方 means the figure's TITLE sits below the FIGURE, so the image
 # paragraph must come BEFORE the caption. Two earlier versions of this check had the sense
