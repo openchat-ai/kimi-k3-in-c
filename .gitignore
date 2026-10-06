@@ -90,3 +90,8 @@ benchmarks/medium-ladder-out/seq_pread.c
 benchmarks/medium-ladder-out/run.log
 benchmarks/medium-ladder-out/run*.log
 benchmarks/medium-ladder-out/expert_offsets.py
+
+# 探针编译产物与 Windows 重解析点（git 无法读取 ReparsePoint 内容）
+reports/**/nvmebench
+reports/**/bench.latest.log
+reports/**/*.exe
