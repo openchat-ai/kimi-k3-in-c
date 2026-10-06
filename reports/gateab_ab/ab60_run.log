@@ -1,0 +1,13 @@
+geometry: 14589 slots x 17547264, stride 4096 coprime
+  (same file for both shapes, so the comparison isolates the request shape alone)
+
+== smoke
+  SMOKE_17.5MB_8s                 0 MB/s aggregate,     0 per stream  (0.0 GB in 18.456s, 1545 reads, bs=17547264)
+  SMOKE_4MB_8s                    0 MB/s aggregate,     0 per stream  (0.0 GB in 15.146s, 2341 reads, bs=4194304)
+idle: load=0.47 21.70 17.89  08:21:20
+
+[pair 1] 08:21:20
+  A_17.5MB_s1                     0 MB/s aggregate,     0 per stream  (0.0 GB in 166.303s, 13179 reads, bs=17547264)
+  B_4MB_s1                        0 MB/s aggregate,     0 per stream  (0.0 GB in 118.634s, 13105 reads, bs=4194304)
+
+[pair 2] 08:34:51

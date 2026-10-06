@@ -1,0 +1,32 @@
+geometry: 14589 slots x 17547264, stride 4096 coprime
+
+== smoke: both shapes must parse and must land in a plausible band
+  SMOKE_17.5MB             1274 MB/s aggregate,   159 per stream  (12.24 GB in 9.604s, 680 reads of 17547264)
+  SMOKE_4MB                 609 MB/s aggregate,    76 per stream  (11.99 GB in 19.694s, 2856 reads of 4194304)
+  (both parsed and reported; continuing)
+idle: load=0.46 166.07 538.77  08:50:35
+
+[pair 1] 08:50:35
+  A_17.5MB_s1              1560 MB/s aggregate,   195 per stream  (12.24 GB in 7.844s, 680 reads of 17547264)
+  B_4MB_s1                  516 MB/s aggregate,    64 per stream  (11.99 GB in 23.241s, 2856 reads of 4194304)
+
+[pair 2] 08:52:23
+  A_17.5MB_s2              1471 MB/s aggregate,   184 per stream  (12.24 GB in 8.322s, 680 reads of 17547264)
+  B_4MB_s2                  407 MB/s aggregate,    51 per stream  (11.99 GB in 29.494s, 2856 reads of 4194304)
+
+[pair 3] 08:54:15
+  A_17.5MB_s3              1519 MB/s aggregate,   190 per stream  (12.24 GB in 8.059s, 680 reads of 17547264)
+  B_4MB_s3                  650 MB/s aggregate,    81 per stream  (11.99 GB in 18.446s, 2856 reads of 4194304)
+
+== penalty, and the verdict
+  pair      17.5MB       4MB   penalty   GB each
+  1           1560       516     0.33x    12.24
+  2           1471       407     0.28x    12.24
+  3           1519       650     0.43x    12.24
+
+  penalty: min 0.28x  max 0.43x
+  verdict: ARTEFACT   (REAL if every pair >2x, ARTEFACT if every pair <1.5x)
+  -> no shape penalty. The 368 MB/s figure was a single-probe artefact and the
+     1.30-1.58x from v58 is the whole story; the open question is why
+     concurrency is 9 and not 16.
+end 08:55:59
