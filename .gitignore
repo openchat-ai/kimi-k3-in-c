@@ -56,6 +56,19 @@ venv/
 *~
 
 # ----------------------------------------------------------------------------------
+# Benchmark scratch: per-read and per-probe intermediates. The summary each run produces
+# is the record; these are regenerated on every run and were previously being staged --
+# v60_shape/spool alone contributed 2856 files to one commit.
+#
+# The binaries are here too for the same reason. v61_burst keeps a pair of 300 KB builds so
+# it can alternate between two commits without rebuilding; they are reproducible from the
+# refs named in the script.
+reports/gateab_ab/**/spool/
+reports/gateab_ab/**/k3_noburst
+reports/gateab_ab/**/k3_burst
+reports/gateab_ab/**/steady58
+
+# ----------------------------------------------------------------------------------
 # Test fixtures are PART OF THE REPOSITORY and must survive every rule above.
 #
 # `make test` is this project's correctness gate, and it deliberately runs without model
