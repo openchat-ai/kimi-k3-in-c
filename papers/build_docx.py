@@ -286,10 +286,10 @@ def main():
     en = re.search(r"## High Cache Hit Rate(.*?)(?=\n---|\n#\s)", md, re.S)
     if en:
         en_lines = [l.strip() for l in en.group(1).splitlines() if l.strip()]
-        title_en = "High Cache Hit Rate with Low Token Output: A Slow-Layer Byte Lower Bound Criterion"
+        title_en = "High Cache Hit Rate with Low Token Output: A Byte-Level Acceptance Method over a Trivial Lower Bound"
         para(doc, title_en, cn=TNR, size=14, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=4)
         para(doc, "TANG Haiyong", cn=TNR, size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=1)
-        para(doc, "China Nuclear Industry Huaxing Construction Co., Ltd., Nanning 531110, China",
+        para(doc, "China Nuclear Industry Huaxing Construction Co., Ltd., Ningde 355110, Fujian, China",
              cn=TNR, size=9, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=6)
         words = 0
         for l in en_lines:
