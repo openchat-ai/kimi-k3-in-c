@@ -24,8 +24,9 @@
 **核数直接约束 worker 配置**：16 worker 的有效并发实测 8.9–10.0×，与
 `16 ×（1 − 睡眠 40–49%）= 8.2–9.6` 一致，也与 8 物理核 × 1.1–1.25 倍 SMT 增益重合。
 **故 worker 数超过 8–10 不再增加并行度**；这是配置结论，不是性能结论 ——
-那 3046 次 `cond_wait` 属于"请求迟到"还是"被换下核"仍未判定，
-见 `reports/gateab_ab/FINDINGS.md` 第 3.4 节。
+那 3046 次 `cond_wait` 属于"请求迟到"还是"被换下核"，
+**已于 2026-10-07 判定为前者（非 CPU 受限，在核仅占 8 核的 40%）**，
+见 `reports/gateab_ab/FINDINGS.md` 第 3.5 节与 `probe_schedstat.sh`。
 
 > WSL 侧 `nproc`=16，但 `lscpu` 报 16 socket × 1 thread/core，是 WSL 合成拓扑，
 > 与 Windows 宿主的 8 核 16 线程不符。**以宿主 `Win32_Processor` 为准。**

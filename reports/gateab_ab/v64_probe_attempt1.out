@@ -1,0 +1,33 @@
+== 几何门禁
+  ok   /mnt/nvme/trunk_layers_out
+  ok   /mnt/nvme/embed
+== schedstat 可用性自检
+  1 个线程可读 schedstat，可用
+  样例（comm : on_cpu_ns runqueue_wait_ns timeslices）:
+    systemd : 1608873000 18396500 862
+
+== 本机拓扑
+  nproc = 16
+  loadavg = 2.21 1.04 0.41 2/385 556
+  model name	: Hygon C86-3G (OPN:3350)
+
+== 空闲门禁（与 ab56.sh 同口径：loadavg(1min) < 0.5）
+  idle: load=0.48  08:18:20
+
+== 启动引擎（真实几何：trunk 32GB / cache 15GB，ids 1008，gen 3）
+  reports/gateab_ab/v64_schedstat/run-20261007_081820
+  pid=674 线程数=26
+  运行中（不轮询日志）……
+  引擎退出 rc=0  08:23:40
+
+== 引擎自报（作为对照）
+  3 tokens in 296.7 s, 98.90 s/token average
+  kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 81 MB/s, aggregate 730 MB/s, concurrency 9.1x | queue 63.5 s (2.4% of io), submit-lock 8.1 s, worker-lock 0.1 s, sleep 2302.9 s in 8583 waits (49% of worker-time)
+        group0: 235 reqs, 140.16 GB | per-stream 833 MB/s | queue 0.2 s (0.1%)
+        group1: 4360 reqs, 76.51 GB | per-stream 30 MB/s | queue 63.3 s (2.5%)
+
+== 逐线程 schedstat 增量（on_cpu_ns  runqueue_wait_ns  timeslices）
+  comm              tid      on_cpu_ms    runqueue_ms   timesl wait/oncpu
+  ★ 无线程有可读增量 —— 判据不可用
+
+  原始件：reports/gateab_ab/v64_schedstat/run-20261007_081820

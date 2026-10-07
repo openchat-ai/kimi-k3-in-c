@@ -1,0 +1,59 @@
+== 几何门禁
+  ok   /mnt/nvme/trunk_layers_out
+  ok   /mnt/nvme/embed
+== schedstat 可用性自检
+  1 个线程可读 schedstat，可用
+  样例（comm : on_cpu_ns runqueue_wait_ns timeslices）:
+    systemd : 1687290900 18409500 846
+
+== 本机拓扑
+  nproc = 16
+  loadavg = 1.71 0.39 0.13 1/352 540
+  model name	: Hygon C86-3G (OPN:3350)
+
+== 空闲门禁（与 ab56.sh 同口径：loadavg(1min) < 0.5）
+  idle: load=0.39  08:27:30
+
+== 启动引擎（真实几何：trunk 32GB / cache 15GB，ids 1008，gen 3）
+  reports/gateab_ab/v64_schedstat/run-20261007_082730
+  pid=670 线程数=26
+  运行中（不轮询日志）……
+  引擎退出 rc=0  08:33:09  采样轮次≈0
+
+== 引擎自报（作为对照）
+  3 tokens in 314.0 s, 104.66 s/token average
+  kio tier0: 4595 reqs, 216.66 GB delivered | per-stream 77 MB/s, aggregate 690 MB/s, concurrency 9.0x | queue 75.4 s (2.7% of io), submit-lock 6.2 s, worker-lock 0.2 s, sleep 2480.4 s in 8450 waits (49% of worker-time)
+        group0: 235 reqs, 140.16 GB | per-stream 745 MB/s | queue 0.1 s (0.1%)
+        group1: 4360 reqs, 76.51 GB | per-stream 29 MB/s | queue 75.3 s (2.9%)
+
+== 逐线程 schedstat 增量（on_cpu_ns  runqueue_wait_ns  timeslices）
+  tid         on_cpu_ms    runqueue_ms   timesl wait/oncpu
+  670           92150.0         2590.3    11430    0.0281
+  689           57898.7         2501.0     1405    0.0432
+  690           52947.7         3349.4     1498    0.0633
+  686           52619.9         2848.8     1433    0.0541
+  691           51844.8         2901.7     1445    0.0560
+  684           52284.3         2379.9     1490    0.0455
+  682           52319.9         2188.8     1396    0.0418
+  680           51794.3         2092.1     1421    0.0404
+  677           50758.8         2553.6     1368    0.0503
+  688           50160.4         3134.7     1481    0.0625
+  683           51013.7         2252.5     1467    0.0442
+  681           50842.8         2389.7     1383    0.0470
+  679           50450.7         2226.3     1333    0.0441
+  676           49782.3         2771.3     1410    0.0557
+  687           49999.1         2041.5     1392    0.0408
+  678           48789.8         1903.6     1403    0.0390
+  685           48099.9         2461.8     1399    0.0512
+  674           23549.2         2614.1     1116    0.1110
+  672           23487.4         2471.4     1057    0.1052
+  675           23337.0         2478.6     1264    0.1062
+  673           23228.1         2521.1     1218    0.1085
+  合计          1007358.7        52672.3
+  参与统计线程数 21 / 26
+
+  主线程（producer）在核 92150.0 ms，运行队列等待 2590.3 ms，比值 0.0281
+
+  判定：介于两者之间（等待/在核 = 0.0523）。既有调度损失也有等活。
+
+  原始件：reports/gateab_ab/v64_schedstat/run-20261007_082730
