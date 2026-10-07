@@ -129,17 +129,71 @@ def rich(p, text, cn=SIMSUN, size=9, base_bold=False):
             set_cjk(p.add_run(tok), cn, size, base_bold)
 
 
-def add_md_table(doc, rows):
+def _disp_width(s):
+    """Display width in half-ems: a CJK glyph occupies two, everything else one."""
+    return sum(2 if ord(ch) > 0x2000 else 1 for ch in s)
+
+
+def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
+    """Add a table whose column widths follow the content instead of being equal.
+
+    python-docx creates equal-width columns. Tables in this paper carry one long label column
+    ("分相位实测（第二次，主干常驻档）", "16 路并发，层内取 16（见 5.2.1）") beside several short
+    numeric ones, so equal widths waste space on the numbers and push the label past the
+    column edge. Widths are allocated in proportion to the widest cell in each column, with a
+    floor so a one-character column does not collapse, and the total is held at the measure of
+    the two-column body so the table cannot exceed the text block.
+    """
     cols = len(rows[0])
+    if any(len(r) != cols for r in rows):
+        raise SystemExit("表格各行列数不一致: %s" % [len(r) for r in rows])
+
+    widest = []
+    for ci in range(cols):
+        w = 1
+        for r in rows:
+            w = max(w, _disp_width(r[ci]))
+        widest.append(w)
+
+    share = total_cm - min_cm * cols
+    per = total_cm / float(sum(widest))
+    widths = [min_cm + share * w / float(sum(widest)) for w in widest]
+
     t = doc.add_table(rows=0, cols=cols)
     t.style = "Table Grid"
+    # python-docx sets cell widths but Word ignores them unless the table layout is fixed and
+    # the grid itself carries the widths. Without both, the first version of this change read
+    # back as five equal-width tables totalling 17.80 cm -- more than twice the 8.6 cm measure
+    # of a body column.
+    t.autofit = False
+    tblPr = t._tbl.tblPr
+    for tag in ("w:tblLayout",):
+        for el in tblPr.findall(qn(tag)):
+            tblPr.remove(el)
+    layout = OxmlElement("w:tblLayout")
+    layout.set(qn("w:type"), "fixed")
+    tblPr.append(layout)
+    grid = t._tbl.find(qn("w:tblGrid"))
+    if grid is not None:
+        t._tbl.remove(grid)
+    grid = OxmlElement("w:tblGrid")
+    for w in widths:
+        gc = OxmlElement("w:gridCol")
+        gc.set(qn("w:w"), str(int(Cm(w).twips)))
+        grid.append(gc)
+    t._tbl.insert(list(t._tbl).index(tblPr) + 1, grid)
+
     for ri, row in enumerate(rows):
         cells = t.add_row().cells
         for ci, val in enumerate(row):
             cells[ci].text = ""
+            cells[ci].width = Cm(widths[ci])
             p = cells[ci].paragraphs[0]
             p.paragraph_format.space_after = Pt(0)
-            set_cjk(p.add_run(val.strip()), SIMHEI if ri == 0 else SIMSUN, 8, ri == 0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.line_spacing = 1.0
+            set_cjk(p.add_run(val.strip()), SIMHEI if ri == 0 else SIMSUN,
+                    8 if ri == 0 else 7.5, ri == 0)
     return t
 
 
