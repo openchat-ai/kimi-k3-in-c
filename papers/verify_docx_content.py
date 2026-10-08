@@ -42,7 +42,7 @@ MUST = [
     ("CCF 会员号", "64053M"),
     ("模型名（中文）", "Moonshot开源的KimiK3混合专家模型"),
     ("英文题名", "HighCacheHitRatewithLowTokenOutput"),
-    ("模型名（英文摘要）", "theKimiK3Mixture-of-Expertsmodel"),
+    ("模型名（英文摘要）", "KimiK3(2.8TMoE)"),
     ("原则名（第3章题名）", "慢速层只读一次原则：下界与可验证性"),
     ("小节 3.1 题名", "原则：慢速层只读一次"),
     ("无「平凡」自辩", "平凡"),
