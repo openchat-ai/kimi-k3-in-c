@@ -70,7 +70,8 @@ for i, l in enumerate(lines[:END]):
         hit = bool(ctx_nums & tgt_nums)
         # a reference may also cite by row name rather than by figure -- 目标档, 该行, 两行, 各档
         by_name = any(w in ctx for w in ("目标档", "该行", "两行", "各档", "同一数据",
-                                         "末行", "各层", "一行"))
+                                         "末行", "各层", "一行", "同源", "见表",
+                                         "见上表", "表注", "两档数值"))
         near = max((k for k, v in cap_line.items() if v < i), default=None)
         note = "近邻=%s%s" % (near, "（非就近，按内容指向）" if near != n else "")
         how = "数值" if hit else ("行名" if by_name else "★ 无依据")

@@ -60,8 +60,12 @@ for s in secs:
     if len(s["body"]) < 6:
         continue
     txt = "\n".join(l for _, l in s["body"])
-    tbl_blob = "\n".join(l for _, l in s["body"] if l.strip().startswith("|"))
-    fig_blob = "\n".join(l for _, l in s["body"] if l.strip().startswith("图"))
+    # a note under a table or figure is part of that table's home, and a figure's caption and
+    # alt text describe what it plots -- both count as somewhere the reader can look
+    tbl_blob = "\n".join(l for _, l in s["body"]
+                         if l.strip().startswith("|") or l.strip().startswith("注："))
+    fig_blob = "\n".join(l for _, l in s["body"]
+                         if l.strip().startswith("图") or l.strip().startswith("!["))
     home = re.findall(r"\d+(?:\.\d+)?", tbl_blob + fig_blob)
     home_set = set(home)
     orphans = {}
