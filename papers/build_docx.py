@@ -163,10 +163,27 @@ def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
     t.style = "Table Grid"
     # python-docx sets cell widths but Word ignores them unless the table layout is fixed and
     # the grid itself carries the widths. Without both, the first version of this change read
-    # back as five equal-width tables totalling 17.80 cm -- more than twice the 8.6 cm measure
+    # back as five equal-width tables totalling 17.20 cm -- more than twice the 8.6 cm measure
     # of a body column.
     t.autofit = False
     tblPr = t._tbl.tblPr
+    # A named style is not a border. "Table Grid" is referenced here and the style id exists in
+    # styles.xml, but the style carries no border definition in this document, so Word rendered
+    # all eight tables as vertical rules with no lines. Borders are therefore set explicitly on
+    # the table rather than inherited, because a table whose visibility depends on style
+    # resolution is a table that can silently lose its rules.
+    for el in tblPr.findall(qn("w:tblBorders")):
+        tblPr.remove(el)
+    borders = OxmlElement("w:tblBorders")
+    for tag, sz in (("top", "8"), ("left", "4"), ("bottom", "8"),
+                    ("right", "4"), ("insideH", "4"), ("insideV", "4")):
+        b = OxmlElement("w:%s" % tag)
+        b.set(qn("w:val"), "single")
+        b.set(qn("w:sz"), sz)
+        b.set(qn("w:space"), "0")
+        b.set(qn("w:color"), "000000")
+        borders.append(b)
+    tblPr.append(borders)
     for tag in ("w:tblLayout",):
         for el in tblPr.findall(qn(tag)):
             tblPr.remove(el)
@@ -194,6 +211,13 @@ def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
             p.paragraph_format.line_spacing = 1.0
             set_cjk(p.add_run(val.strip()), SIMHEI if ri == 0 else SIMSUN,
                     8 if ri == 0 else 7.5, ri == 0)
+            if ri == 0:
+                # a shaded header row is what makes a grid read as a table rather than as
+                # ruled text; the border alone leaves the first row looking like the rest
+                shd = OxmlElement("w:shd")
+                shd.set(qn("w:val"), "clear")
+                shd.set(qn("w:fill"), "F2F2F2")
+                cells[ci]._tc.get_or_add_tcPr().append(shd)
     return t
 
 
