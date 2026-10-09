@@ -1,0 +1,5 @@
+stream	gb_tok	rate_MBps	exposure_s	pct_e2e
+expert	22.5	379	59.39	79.6
+compute_pure			14.85	19.9
+trunk	41.8	890	0.38	0.5
+e2e	64.3		74.57	100.0

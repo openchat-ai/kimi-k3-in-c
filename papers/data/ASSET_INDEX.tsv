@@ -1,0 +1,18 @@
+asset	path	fields_or_series	paper_use	priority
+tier_bytes_ab	papers/data/tier_bytes_ab.tsv	landing,window,slow,fast,dram	Fig tier stack / Table 5 viz	P0
+hit_triplet	papers/data/hit_triplet.tsv	STEP,L2-read,disk_total	Fig hit triplet / Table 3b	P0
+session_cum	papers/data/session_cumulative_stageA.tsv	N,B_i,B_actual,E_i	Fig cum + E_i	P0
+stageB_anchors	papers/data/stageB_slow_anchors.tsv	aggregate only	cannot tok-series without inventing	P0-gap
+byte_vs_time	papers/data/byte_vs_time_30runs.tsv	run,spt,gb	Fig 3	P0
+v58_pairs	papers/data/v58_device_engine_pairs.tsv	device,engine,ratio	Table 7 fig	P1
+bottleneck	papers/data/bottleneck_bound.tsv	ratio A-D	Table 6 fig	P1
+phase	papers/data/phase_exposure.tsv	gb,exposure	Table 5 fig	P1
+v62_policy	papers/data/v62_policy_bytes.tsv	policy,cache,gb	appendix	P2
+trunk_split	papers/data/trunk_cache_split.tsv	trunk_gb,spt,gb_read	A1 only	P2
+memory_ladder	papers/data/memory_ladder.tsv	total_gb,hit,gb_read	optional ladder	P2
+byteflow	papers/byteflow-matrix.md	narrative ledger	source of truth for A/B	source
+scatter_json	papers/scatter_data.json	30 runs	Fig 3 source	source
+v58_ratios	reports/gateab_ab/v58_mix/ratios.txt	1.30-1.58	Table 7	source
+v62_raw	reports/gateab_ab/v62_policy/raw.tsv	4arm x3	policy appendix	source
+v32_trace	reports/gateab_ab/v32_table2b/*/trace.csv	token,phase,bytes,dur	Table 5 rebuild	source
+schedstat	reports/gateab_ab/v64_schedstat/	oncpu,wait	Table 8	source

@@ -1,0 +1,5 @@
+landing	window	slow_gb_tok	fast_gb_tok	dram_gb_tok	source_note
+A	baseline	25.83	0.0	0.0	stage A; byteflow :345-:347
+B	cold_window_mean	6.7	19.1	0.0	32-tok mean; writeback confound risk; :358,:392
+B	steady_tail	1.7	19.1	0.0	last 16 tok slow=27/16; L2 hit not re-split; :378
+C	target_unobserved	0.0	0.0	25.83	design target; NOT measured

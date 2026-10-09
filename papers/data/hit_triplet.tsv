@@ -1,0 +1,4 @@
+stage	step_hit_pct_print	l2_hit_read_gb_tok	l1_true_resident_full	disk_total_gb_tok	slow_gb_tok	note
+A	100.0		0	25.83	25.83	STEP may print 100% without L2; byteflow :345; not proof of tuned cache
+B	100.0	19.1	0	25.83_cold_window_only	cold≈6.7 / steady≈1.7	steady STEP 100% from tok>=5; disk_total 25.83 is cold-window/session口径 only — NOT steady-tail stack (Table4 note3)
+C						unobserved target

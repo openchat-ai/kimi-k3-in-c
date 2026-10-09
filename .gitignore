@@ -91,7 +91,15 @@ benchmarks/medium-ladder-out/run.log
 benchmarks/medium-ladder-out/run*.log
 benchmarks/medium-ladder-out/expert_offsets.py
 
+# Submission-period reminders. These track which manuscript is going where and how the
+# sibling manuscript relates to it; they are the author's own notes, never review
+# material, and must not travel with the repository the paper points readers at.
+papers/README-稿件状态.md
+papers/_archive/
+
 # 探针编译产物与 Windows 重解析点（git 无法读取 ReparsePoint 内容）
 reports/**/nvmebench
 reports/**/bench.latest.log
 reports/**/*.exe
+reports/**/.sched_cur.txt
+papers/*.json.bak

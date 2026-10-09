@@ -1,0 +1,5 @@
+tier	bytes_gb_tok	bandwidth	bound_s	measured_s	ratio
+A	25.83	85 MB/s	303.9	303.58	1.0
+B	25.83	419 MB/s	61.6	191.6	3.11
+C	77.5	1.5 GB/s	51.7	82.86	1.6
+D	64.3	mixed	70.4	74.57	1.06

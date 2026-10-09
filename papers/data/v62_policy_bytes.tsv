@@ -1,0 +1,13 @@
+run_id	policy	cache_gb	expert_gb_tok	s_per_tok	tok_per_hour
+lru8_r1	lru	8	25.83	80.63	900
+heat8_r1	heat	8	25.50	86.69	831
+lru15_r1	lru	15	25.83	87.49	829
+heat15_r1	heat	15	25.50	91.07	793
+lru8_r2	lru	8	25.83	88.70	818
+heat8_r2	heat	8	25.50	94.10	767
+lru15_r2	lru	15	25.83	109.82	661
+heat15_r2	heat	15	25.50	92.99	777
+lru8_r3	lru	8	25.83	108.83	667
+heat8_r3	heat	8	25.50	94.94	761
+lru15_r3	lru	15	25.83	103.31	702
+heat15_r3	heat	15	25.50	116.62	619

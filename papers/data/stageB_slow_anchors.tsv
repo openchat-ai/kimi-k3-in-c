@@ -1,0 +1,10 @@
+anchor	value	unit	source
+gen32_l2_hit_pct_cumulative	74.89	percent	byteflow :367
+gen32_sdd7_read_total	612.22	GB	byteflow :368
+gen32_sdd7_written_total	214.3	GB	byteflow :368
+gen32_slow_mean_per_tok	6.7	GB/tok	214.3/32; paper table 4
+gen32_fast_hit_read_per_tok	19.1	GB/tok	612/32; paper table 4
+gen32_slow_tail_16tok_total	27.0	GB	byteflow :378
+gen32_slow_tail_per_tok	1.7	GB/tok	27/16
+gen32_head4_slow_approx	86.0	GB	byteflow :397; 86/205=42%
+note	no_per_token_slow_series_on_disk		cannot plot tok-wise B curve without inventing

@@ -1,0 +1,4 @@
+pair	device_mix_MBps	device_trunk_MBps	device_expert_MBps	engine_agg_MBps	s_per_tok	device_over_engine
+1	1222.0	155.0	1067.0	941.0	76.72	1.3
+2	1136.0	372.0	764.0	825.0	87.56	1.38
+3	1367.0	290.0	1077.0	863.0	83.7	1.58
