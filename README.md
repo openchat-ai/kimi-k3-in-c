@@ -253,9 +253,14 @@ python3 tools/sim_cache.py tests/fixtures/expert_trace.bin
 [`expert-cache-capacity.txt`](docs/data/expert-cache-capacity.txt).
 
 The research paper on the hit-rate metric's blind spot — *《命中率指标掩盖的慢介质
-全量重读：MoE 推理平台的实证分析与排查判据》* — lives with its measurement ledger,
-trace-replay scripts and full reproduction path in [`papers/`](papers/). Start at
-[`papers/REPRODUCING.md`](papers/REPRODUCING.md).
+  全量重读：MoE 推理平台的实证分析与排查判据》* — lives with its measurement ledger,
+  trace-replay scripts and full reproduction path in [`papers/`](papers/). Start at
+  [`papers/REPRODUCING.md`](papers/REPRODUCING.md).
+
+  The paper on the three measurement planes — *《命中率通胀：缓存复用度量在键—字节—时间
+  三平面的分离与验收判据》* ([`papers/论文-命中率通胀三平面分离.md`](papers/论文-命中率通胀三平面分离.md))
+  — indexes every table and figure to the ledger behind it in
+  [`papers/取数索引.md`](papers/取数索引.md).
 
 ## Full setup
 
