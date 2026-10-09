@@ -38,16 +38,20 @@ from docx.oxml import OxmlElement
 # Which manuscript to typeset. The parser below is generic -- it reads the byline, abstract,
 # captions and figures out of the markdown -- so a second paper only needs its own paths here
 # rather than a forked copy of this file, which is how the two DOCX files drifted apart before.
-#   python papers/build_docx.py [SRC [OUT]]
-SRC = pathlib.Path("papers/论文-慢层只读一次原则.md")
-OUT = pathlib.Path("papers/提交稿-缓存高命中与词元低输出.docx")
-
-if len(sys.argv) > 1:
-    SRC = pathlib.Path(sys.argv[1])
-    OUT = (pathlib.Path(sys.argv[2]) if len(sys.argv) > 2
-           else SRC.with_name("提交稿-" + SRC.stem.split("论文-")[-1] + ".docx"))
+#   python papers/build_docx.py SRC [OUT]
+if len(sys.argv) < 2:
+    # 该脚本被两篇互不相关的稿件共用。给它设一个默认源文件，等于让一次裸跑悄悄去构建
+    # 另一篇稿子——两稿内容不可混用，故此处要求显式指定，不提供默认值。
+    sys.exit("用法: python papers/build_docx.py <源 .md> [输出 .docx]")
+SRC = pathlib.Path(sys.argv[1])
+OUT = (pathlib.Path(sys.argv[2]) if len(sys.argv) > 2
+       else SRC.with_name("提交稿-" + SRC.stem.split("论文-")[-1] + ".docx"))
 
 SIMSUN, SIMHEI, KAITI, FANGSONG, TNR = "宋体", "黑体", "楷体", "仿宋", "Times New Roman"
+
+# 官方模板未单独规定表内字号，只规定正文为宋体小五（9 pt）、图表题为 6 号（7.5 pt）。
+# 表内文字取与正文相同的 9 pt，是"模板未规定处随正文"这一惯例的选择，而非模板明文要求。
+TABLE_PT = 9
 
 
 def set_cjk(run, cn_font, size_pt, bold=False):
@@ -157,16 +161,31 @@ def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
     if any(len(r) != cols for r in rows):
         raise SystemExit("表格各行列数不一致: %s" % [len(r) for r in rows])
 
-    widest = []
+    # 中文可在任意两字之间换行，故只有不可断开的英文/数字串（"B_distinct"、"216.66"）
+    # 会因列宽不足而被裁切。列宽先给到该下限，余下宽度再按内容比例分配。
+    pt_cm = TABLE_PT / 72.0 * 2.54
+
+    def _min_need(cell):
+        runs = re.findall(r"[A-Za-z0-9_.]+", cell)
+        return max((len(x) for x in runs), default=0) * 0.5 * pt_cm
+
+    widest, floors = [], []
     for ci in range(cols):
         w = 1
+        f = 0.0
         for r in rows:
             w = max(w, _disp_width(r[ci]))
+            f = max(f, _min_need(r[ci]))
         widest.append(w)
+        floors.append(f)
 
-    share = total_cm - min_cm * cols
-    per = total_cm / float(sum(widest))
-    widths = [min_cm + share * w / float(sum(widest)) for w in widest]
+    base = [max(min_cm, f + 0.10) for f in floors]
+    spare = total_cm - sum(base)
+    if spare < 0:                       # 词元本身已占满整栏，只能按比例压缩
+        base = [b * total_cm / sum(base) for b in base]
+        spare = 0.0
+    tot = float(sum(widest))
+    widths = [b + spare * w / tot for b, w in zip(base, widest)]
 
     t = doc.add_table(rows=0, cols=cols)
     t.style = "Table Grid"
@@ -184,15 +203,36 @@ def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
     for el in tblPr.findall(qn("w:tblBorders")):
         tblPr.remove(el)
     borders = OxmlElement("w:tblBorders")
-    for tag, sz in (("top", "8"), ("left", "4"), ("bottom", "8"),
-                    ("right", "4"), ("insideH", "4"), ("insideV", "4")):
+    # 官方模板要求三线表（投稿指南原文："Make your columns in three-line tables"），
+    # 即只有顶线、表头下的中线和底线三道横线，无竖线、无底纹。python-docx 的
+    # "Table Grid" 是全网格，样式本身也不带边框定义，因此边框在此显式声明。
+    for tag, sz in (("top", "12"), ("bottom", "12"),
+                    ("left", "0"), ("right", "0"), ("insideH", "0"), ("insideV", "0")):
         b = OxmlElement("w:%s" % tag)
-        b.set(qn("w:val"), "single")
-        b.set(qn("w:sz"), sz)
-        b.set(qn("w:space"), "0")
-        b.set(qn("w:color"), "000000")
+        if sz == "0":
+            b.set(qn("w:val"), "none")
+            b.set(qn("w:sz"), "0")
+            b.set(qn("w:color"), "auto")
+        else:
+            b.set(qn("w:val"), "single")
+            b.set(qn("w:sz"), sz)
+            b.set(qn("w:space"), "0")
+            b.set(qn("w:color"), "000000")
         borders.append(b)
     tblPr.append(borders)
+
+    # Word 默认左右各留 108 twip（0.19 cm），在 8 列的台账表里合计占去 3 cm，比一行数字
+    # 还宽。台账表按密排处理，把左右边距压到 40 twip。
+    for el in tblPr.findall(qn("w:tblCellMar")):
+        tblPr.remove(el)
+    cellmar = OxmlElement("w:tblCellMar")
+    for tag, tw in (("left", "40"), ("right", "40")):
+        m = OxmlElement("w:%s" % tag)
+        m.set(qn("w:w"), tw)
+        m.set(qn("w:type"), "dxa")
+        cellmar.append(m)
+    tblPr.append(cellmar)
+
     for tag in ("w:tblLayout",):
         for el in tblPr.findall(qn(tag)):
             tblPr.remove(el)
@@ -219,14 +259,19 @@ def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.line_spacing = 1.0
             set_cjk(p.add_run(val.strip()), SIMHEI if ri == 0 else SIMSUN,
-                    8 if ri == 0 else 7.5, ri == 0)
+                    TABLE_PT, ri == 0)
             if ri == 0:
-                # a shaded header row is what makes a grid read as a table rather than as
-                # ruled text; the border alone leaves the first row looking like the rest
-                shd = OxmlElement("w:shd")
-                shd.set(qn("w:val"), "clear")
-                shd.set(qn("w:fill"), "F2F2F2")
-                cells[ci]._tc.get_or_add_tcPr().append(shd)
+                # 三线表的中线画在表头行下沿；模板同时明确"不宜加底色及阴影"，
+                # 故表头不再铺灰底。
+                tcPr = cells[ci]._tc.get_or_add_tcPr()
+                tcBorders = OxmlElement("w:tcBorders")
+                bottom = OxmlElement("w:bottom")
+                bottom.set(qn("w:val"), "single")
+                bottom.set(qn("w:sz"), "6")
+                bottom.set(qn("w:space"), "0")
+                bottom.set(qn("w:color"), "000000")
+                tcBorders.append(bottom)
+                tcPr.append(tcBorders)
     return t
 
 
