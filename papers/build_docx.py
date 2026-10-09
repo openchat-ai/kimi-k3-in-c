@@ -35,8 +35,17 @@ from docx.enum.section import WD_SECTION
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
+# Which manuscript to typeset. The parser below is generic -- it reads the byline, abstract,
+# captions and figures out of the markdown -- so a second paper only needs its own paths here
+# rather than a forked copy of this file, which is how the two DOCX files drifted apart before.
+#   python papers/build_docx.py [SRC [OUT]]
 SRC = pathlib.Path("papers/论文-慢层只读一次原则.md")
 OUT = pathlib.Path("papers/提交稿-缓存高命中与词元低输出.docx")
+
+if len(sys.argv) > 1:
+    SRC = pathlib.Path(sys.argv[1])
+    OUT = (pathlib.Path(sys.argv[2]) if len(sys.argv) > 2
+           else SRC.with_name("提交稿-" + SRC.stem.split("论文-")[-1] + ".docx"))
 
 SIMSUN, SIMHEI, KAITI, FANGSONG, TNR = "宋体", "黑体", "楷体", "仿宋", "Times New Roman"
 
@@ -249,7 +258,11 @@ def parse(md):
 
 
 def main():
-    md = SRC.read_text(encoding="utf-8")
+    # utf-8-sig, not utf-8: a BOM left by a Windows editor becomes part of the first line's
+    # text, so the "# " title test silently fails and the run dies on a missing key. Accepting
+    # the optional BOM costs nothing and makes the script independent of which editor wrote
+    # the draft.
+    md = SRC.read_text(encoding="utf-8-sig")
     head, body = parse(md)
 
     ab = re.sub(r"\*\*(关键词|中图分类号)：\*\*", "", head["abstract"])
@@ -280,7 +293,12 @@ def main():
          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=1)
     unit = head["author"].split("；", 1)[1] if "；" in head["author"] else ""
     para(doc, unit, cn=FANGSONG, size=9, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=1)
-    para(doc, "（2338953@qq.com）第一作者邮箱", cn=FANGSONG, size=9,
+# the corresponding author's address comes from the draft's byline note, so changing it there
+# changes the DOCX. It was a literal in this file, which meant the two could disagree.
+    _em = re.search(r"邮箱：([^\s（(]+)", md)
+    if not _em:
+        sys.exit("★ 源文中未找到通讯作者邮箱")
+    para(doc, "（%s）第一作者邮箱" % _em.group(1), cn=FANGSONG, size=9,
          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=6)
 
     para(doc, "摘  要", cn=SIMHEI, size=10.5, align=WD_ALIGN_PARAGRAPH.LEFT, space_after=2)
@@ -307,16 +325,38 @@ def main():
     # pattern was re.compile(r"## High Cache Hit Rate(.*)", re.S), whose greedy (.*) ran to
     # end-of-file: it swallowed the '---', the author bio and the self-check contact into the
     # front matter, and the body loop then rendered all three a second time.
-    en = re.search(r"## High Cache Hit Rate(.*?)(?=\n---|\n#\s)", md, re.S)
+    en = re.search(r"^##\s*High Cache Hit Rate.*$(.*?)(?=^\s*---\s*$|^\#\s)", md, re.S | re.M)
     if en:
         en_lines = [l.strip() for l in en.group(1).splitlines() if l.strip()]
-        title_en = "High Cache Hit Rate with Low Token Output: A Slow-Layer Byte Lower Bound Criterion"
-        para(doc, title_en, cn=TNR, size=14, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=4)
-        para(doc, "TANG Haiyong", cn=TNR, size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=1)
-        para(doc, "China Nuclear Industry Huaxing Construction Co., Ltd., Ningde 355110, Fujian, China",
-             cn=TNR, size=9, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=6)
+        # The English title, byline and affiliation are read from the markdown block rather than
+        # written here. They were duplicated in this file and drifted: the Chinese title was
+        # changed and the English one was not, and the DOCX -- generated from this file -- printed
+        # the stale English while the markdown carried the new one. The fix is a single source,
+        # not care: the block at the end of the draft holds all of them.
+        first = re.match(r"##\s*(High Cache Hit Rate.*)", md).group(1).strip() \
+            if re.search(r"^##\s*High Cache Hit Rate", md, re.M) else ""
+        if not first:
+            sys.exit("★ 源文中未找到英文题名")
+        para(doc, first, cn=TNR, size=14, bold=True,
+             align=WD_ALIGN_PARAGRAPH.CENTER, space_after=4)
+        print(f"  英文题名（取自 md）{first[:56]}")
+
+        byline_en = next((l for l in en_lines if l.startswith("TANG ")), "")
+        if not byline_en:
+            sys.exit("★ 英文块中未找到署名行")
+        parts = byline_en.split(";")
+        para(doc, parts[0].strip(), cn=TNR, size=10.5,
+             align=WD_ALIGN_PARAGRAPH.CENTER, space_after=1)
+        if len(parts) > 1:
+            para(doc, parts[1].strip(), cn=TNR, size=9,
+                 align=WD_ALIGN_PARAGRAPH.CENTER, space_after=6)
+
+        # en_lines still holds the title and the byline, which are printed above with their own
+        # formatting. Skipping them here keeps them from being rendered a second time as body text.
+        abstract_lines = [l for l in en_lines
+                          if l != first and l != byline_en]
         words = 0
-        for l in en_lines:
+        for l in abstract_lines:
             if l.startswith("**Keywords:**"):
                 para(doc, "Keywords: " + l.split(":", 1)[1].strip(), cn=TNR, size=9, space_after=8)
             else:
@@ -402,8 +442,18 @@ def main():
             continue
         m = re.match(r"^!\[(.*?)\]\((.*?)\)", s)               # image
         if m:
+            # Resolve the image the way the markdown names it, relative to the manuscript's own
+            # directory. The old code threw that path away and rebuilt one from the filename stem
+            # against a docs/images/*_grey.png convention, which only happened to match the
+            # earlier paper; every other manuscript died on FileNotFoundError. The grey variants
+            # stay as a fallback for the drafts that ship them.
             key = pathlib.Path(m.group(2)).stem.replace("_grey", "")
-            img = pathlib.Path(FIGS.get(key, ("docs/images/%s_grey.png" % key)))
+            cand = [SRC.parent / m.group(2),
+                    pathlib.Path(m.group(2)),
+                    pathlib.Path(FIGS.get(key, ("docs/images/%s_grey.png" % key)))]
+            img = next((c for c in cand if c.exists()), cand[0])
+            if not img.exists():
+                sys.exit("★ 找不到图片：%s（源文 %s）" % (m.group(2), SRC))
             figure_block(doc, img, held_cn or f"图（{key}）", held_en, width_cm=8.0)
             held_cn = held_en = ""
             i += 1
