@@ -27,10 +27,11 @@ The body is two columns per the template; the front matter is single column, whi
 journal templates of this shape are set, so the section carries one column and the body
 section two.
 """
-import re, sys, pathlib
+import re, sys, pathlib, copy
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.section import WD_SECTION
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -52,6 +53,12 @@ SIMSUN, SIMHEI, KAITI, FANGSONG, TNR = "宋体", "黑体", "楷体", "仿宋", "
 # 官方模板未单独规定表内字号，只规定正文为宋体小五（9 pt）、图表题为 6 号（7.5 pt）。
 # 表内文字取与正文相同的 9 pt，是"模板未规定处随正文"这一惯例的选择，而非模板明文要求。
 TABLE_PT = 9
+
+# 正文双栏时每栏 8.6 cm，八列的台账表挤不进这个宽度。模板对通栏的图宽给的是
+# "13~14 厘米左右为宜"，宽表按同一量级取 13.5 cm，居中排。
+COL_CM = 8.6
+FULL_CM = 13.5
+FULL_MIN_COLS = 7
 
 
 def set_cjk(run, cn_font, size_pt, bold=False):
@@ -94,6 +101,81 @@ def two_col(section, gap_cm=0.6):
     cols.set(qn("w:num"), "2")
     cols.set(qn("w:space"), str(int(Cm(gap_cm).twips)))
     cols.set(qn("w:equalWidth"), "1")
+
+
+def sect_clone(base, ncols):
+    """A copy of the body section properties carrying a different column count.
+
+    A section break in OOXML sits in the pPr of the paragraph that *ends* a section, and it
+    has to restate the page setup -- Word resets margins at a break whose sectPr omits them.
+    So the body sectPr is cloned and only w:cols and w:type are touched.
+    """
+    sp = copy.deepcopy(base)
+    for el in sp.findall(qn("w:type")):
+        sp.remove(el)
+    t = OxmlElement("w:type")
+    t.set(qn("w:val"), "continuous")
+    anchor = sp.find(qn("w:pgSz"))                 # w:type must precede w:pgSz
+    (anchor.addprevious(t) if anchor is not None else sp.append(t))
+    cols = sp.find(qn("w:cols"))
+    if cols is None:
+        cols = OxmlElement("w:cols")
+        sp.append(cols)
+    cols.set(qn("w:num"), str(ncols))
+    cols.set(qn("w:equalWidth"), "1")
+    cols.set(qn("w:space"), str(int(Cm(0.6).twips)) if ncols > 1 else "0")
+    return sp
+
+
+def open_wide(doc, base):
+    """End the two-column run so the caption and table that follow get a full-width section.
+
+    The break rides on the last paragraph already written, so no blank line is introduced.
+    """
+    ps = doc.paragraphs
+    if not ps:
+        doc.add_paragraph()
+        ps = doc.paragraphs
+    pPr = ps[-1]._p.get_or_add_pPr()
+    for el in pPr.findall(qn("w:sectPr")):
+        pPr.remove(el)
+    pPr.append(sect_clone(base, 2))
+
+
+def close_wide(doc, base):
+    """End the full-width section; a 1 pt empty paragraph carries the break invisibly.
+
+    w:sectPr may only live in a paragraph, and a table cannot hold one, so a zero-height
+    paragraph has to sit between the table and the two-column text that resumes after it.
+    """
+    p = doc.add_paragraph()
+    pPr = p._p.get_or_add_pPr()
+    rPr = OxmlElement("w:rPr")
+    sz = OxmlElement("w:sz")
+    sz.set(qn("w:val"), "2")                        # half-points: 2 = 1 pt
+    rPr.append(sz)
+    pPr.append(rPr)
+    pPr.append(sect_clone(base, 1))
+    pf = p.paragraph_format
+    pf.space_before = pf.space_after = Pt(0)
+    pf.line_spacing = 1.0
+
+
+def table_cols_ahead(body, i):
+    """Column count of the markdown table coming at or after index i, else 0.
+
+    A caption precedes its table in the markdown, so the only way to know whether a table
+    needs the full width is to look ahead -- and the answer decides whether the full-width
+    section has to be opened before the caption is written.
+    """
+    while i < len(body):
+        t = body[i].strip()
+        if t.startswith("|"):
+            return len(t.strip("|").split("|"))
+        if t:
+            return 0                                 # something else came first
+        i += 1
+    return 0
 
 
 def figure_block(doc, img, cap_cn, cap_en, width_cm=8.0):
@@ -147,7 +229,7 @@ def _disp_width(s):
     return sum(2 if ord(ch) > 0x2000 else 1 for ch in s)
 
 
-def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
+def add_md_table(doc, rows, total_cm=COL_CM, min_cm=1.0):
     """Add a table whose column widths follow the content instead of being equal.
 
     python-docx creates equal-width columns. Tables in this paper carry one long label column
@@ -155,7 +237,7 @@ def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
     numeric ones, so equal widths waste space on the numbers and push the label past the
     column edge. Widths are allocated in proportion to the widest cell in each column, with a
     floor so a one-character column does not collapse, and the total is held at the measure of
-    the two-column body so the table cannot exceed the text block.
+    the text block the table sits in -- 8.6 cm for a column, 13.5 cm for a full-width one.
     """
     cols = len(rows[0])
     if any(len(r) != cols for r in rows):
@@ -189,6 +271,10 @@ def add_md_table(doc, rows, total_cm=8.6, min_cm=1.0):
 
     t = doc.add_table(rows=0, cols=cols)
     t.style = "Table Grid"
+    if total_cm > COL_CM:
+        # A full-width table is centred on the page; inside a two-column body Word already
+        # puts a column-width table at the left margin, which is what the other tables want.
+        t.alignment = WD_TABLE_ALIGNMENT.CENTER
     # python-docx sets cell widths but Word ignores them unless the table layout is fixed and
     # the grid itself carries the widths. Without both, the first version of this change read
     # back as five equal-width tables totalling 17.20 cm -- more than twice the 8.6 cm measure
@@ -421,6 +507,7 @@ def main():
     # Figure captions sit ABOVE the image in the markdown but must be printed BELOW it, so they
     # are held here instead of being emitted as body text when first encountered.
     held_cn = held_en = ""
+    wide_active = False
     while i < len(body):
         raw = body[i]
         s = raw.strip()
@@ -445,7 +532,10 @@ def main():
                     rows.append(cells)
                 i += 1
             if rows:
-                add_md_table(doc, rows)
+                add_md_table(doc, rows, total_cm=FULL_CM if wide_active else COL_CM)
+                if wide_active:
+                    close_wide(doc, s1._sectPr)
+                    wide_active = False
             continue
         m = re.match(r"^(#{1,6})\s+(.*)", s)                     # heading, any depth
         if m:
@@ -506,8 +596,16 @@ def main():
         m = re.match(r"^(表\s*\d+[a-z]?)\s+(.*)", s)          # table caption, goes on top
         if m:
             en = body[i + 1].strip() if i + 1 < len(body) else ""
+            step = 2 if en.startswith("Table") else 1
+            # A wide table gets its own full-width section, and the section has to open
+            # above the caption -- a caption left in the column while its table spans the
+            # page would no longer be centred on it.
+            wide = table_cols_ahead(body, i + step) >= FULL_MIN_COLS
+            if wide:
+                open_wide(doc, s1._sectPr)
             table_caption(doc, s, en if en.startswith("Table") else "")
-            i += 2 if en.startswith("Table") else 1
+            wide_active = wide
+            i += step
             continue
         if s.startswith("```"):                                 # code block
             i += 1
