@@ -86,12 +86,22 @@ typedef struct K3L2 {
      * the fast sdd7 hit reads vs the slow /model HDD miss reads. Effective MB/s is the
      * classic trap here: a 199 MB/s average hides a 1.5 GB/s NVMe hit path dragging a
      * ~200 MB/s HDD miss path. */
+    /* Per-thread I/O time, accumulated at the I/O site: each of the 16 parallel pread threads
+     * adds its own duration. Reporting MB/s against these divides by the concurrency and so
+     * understates the true aggregate bandwidth. Not atomic -- they are advisory only. */
     double       hit_seconds, miss_seconds;
-    /* Wall-clock equivalents. hit_seconds/miss_seconds are accumulated per-thread by
-     * phase-2 read (each of the 16 parallel pread threads adds its own duration), so
-     * reporting MB/s against them divides by the concurrency and understates the true
-     * aggregate bandwidth. cache_getmany folds each batch's wall time (t2) into these
-     * fields, split by the hit/miss share, so the report's MB/s reflects real throughput. */
+    /* Wall-clock equivalents, accumulated where the hit/miss decision is actually made (in
+     * k3_l2_get), so the attribution needs no cross-thread differencing.
+     *
+     * The previous implementation snapshotted hit_seconds/miss_seconds at the top of
+     * cache_getmany and attributed the batch's wall time t2 by the delta. That delta is not
+     * "this batch's thread time": all 16 threads keep accumulating into the same fields, so
+     * every other thread's I/O completed inside the window lands in dt_h/dt_m as well. Under
+     * concurrency the delta is larger than the batch's own contribution and the two sides no
+     * longer describe the same set of reads, which is why hit_wall reported 0.00 s against a
+     * pread_seconds of 1742.60 s. That contrast is what exposed the bug: the two counters
+     * are printed next to each other, so an attribution that collapses cannot hide. The
+     * counter is now cross-checked against pread_seconds in the manuscript's ledger. */
     double       hit_wall, miss_wall;
 
     /* Unified media-tier I/O scheduler; hit reads go through the NVMe tier so the

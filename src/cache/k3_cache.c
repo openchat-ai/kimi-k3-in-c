@@ -307,7 +307,6 @@ static void burst_phase2(K3BurstJob *j)
     const int nw = j->nw;
     const int layer = j->layer;
     const double hs0 = c->l2 ? c->l2->hit_seconds : 0;
-    const double ms0 = c->l2 ? c->l2->miss_seconds : 0;
     const uint64_t hs0_l2 = c->l2 ? c->l2->hits : 0;   /* for the K3_TRACE row below */
     const uint64_t ms0_l2 = c->l2 ? c->l2->misses : 0;
     const double t0 = now_s();
@@ -359,17 +358,12 @@ static void burst_phase2(K3BurstJob *j)
     c->phase2_seconds += t2;
     c->phase2_bytes += (uint64_t)nw * (uint64_t)c->slot_bytes;
     c->load_seconds += t2;
-    if (c->l2 && t2 > 0) {
-        /* Fold this batch's wall time into the L2 wall counters, split by the share of
-         * thread-cumulative pread time that went to hits vs misses. */
-        const double dt_h = c->l2->hit_seconds - hs0;
-        const double dt_m = c->l2->miss_seconds - ms0;
-        const double tot = dt_h + dt_m;
-        if (tot > 0) {
-            c->l2->hit_wall += t2 * (dt_h / tot);
-            c->l2->miss_wall += t2 * (dt_m / tot);
-        }
-    }
+    /* hit_wall/miss_wall are no longer folded in here. They used to be attributed from
+     * (hit_seconds|miss_seconds - snapshot) scaled by this batch's t2, but that delta also
+     * contains every other thread's I/O finished inside the window, so the numerator and
+     * denominator described different sets of reads and the sum collapsed to 0.00 s against
+     * 1742.60 s of pread time. k3_l2_get now credits each read's own duration at the point
+     * the hit/miss decision is made, which needs no cross-thread differencing. */
     /* One row per expert batch: the wall this layer's expert reads cost the caller, and
      * how the batch split between RAM-resident slots, L2-resident slots and the NVMe
      * pool. bytes is what actually came off the disk (a RAM hit moves nothing), so the

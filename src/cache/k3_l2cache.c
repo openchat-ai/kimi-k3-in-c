@@ -289,7 +289,13 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
         } else {
             n = pread(rfd, buf, (size_t)want, (off_t)s * l2->slot_bytes);
         }
-        l2->hit_seconds += now_s() - t0;
+        const double dt_hit = now_s() - t0;
+        l2->hit_seconds += dt_hit;
+        /* The hit's own wall time, credited here rather than at the batch level: cache_getmany
+         * used to attribute t2 by the delta of this field, and that delta also contains every
+         * other thread's I/O finished inside the window, so the two sides stopped describing the
+         * same set of reads and hit_wall came out 0.00 against 1742.60 s of pread. */
+        l2->hit_wall += dt_hit;
         if (n != (ssize_t)want) return -1;
         l2->hits++;
         l2->bytes_read += (uint64_t)want;
@@ -310,7 +316,12 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
      * the expert's bytes start at buf + pad. The caller must know that offset or its
      * fill_q resolves the expert to the wrong bytes and the MoE multiplies garbage. */
     if (payload_off) *payload_off = pad;
-    if (got != r->nbytes) { l2->miss_seconds += now_s() - tm0; return got; }
+    if (got != r->nbytes) {
+        const double dt_miss = now_s() - tm0;
+        l2->miss_seconds += dt_miss;
+        l2->miss_wall += dt_miss;
+        return got;
+    }
 
     /* Defensive: only a contiguous expert is stored as one aligned run. A fragmented
      * expert (not seen in real K3, but k3_expert_ref can report it) is served from the
@@ -368,7 +379,11 @@ int64_t k3_l2_load_direct(K3L2 *l2, const K3St *st, const K3ExpertRef *r,
             }
         }
     }
-    l2->miss_seconds += now_s() - tm0;
+    const double dt_miss = now_s() - tm0;
+    l2->miss_seconds += dt_miss;
+    /* Credited here, at the miss site, for the same reason as hit_wall above. This includes the
+     * fill read plus the store onto sdd7, which is what the caller actually waited for. */
+    l2->miss_wall += dt_miss;
     return got;
 }
 
@@ -396,10 +411,18 @@ void k3_l2_report(const K3L2 *l2, const char *label)
            l2->hit_wall > 0 ? (double)l2->bytes_read / 1e6 / l2->hit_wall : 0.0,
            l2->hit_seconds, l2->hit_seconds > 0
                ? (double)l2->bytes_read / 1e6 / l2->hit_seconds : 0.0);
-    printf("  miss I/O  : %llu misses, %.2f GB from /model in %.2f s (wall) = %.0f MB/s\n",
-           (unsigned long long)l2->misses, l2->misses * (double)l2->slot_bytes / 1e9,
-           l2->miss_wall, l2->miss_wall > 0
-               ? l2->misses * (double)l2->slot_bytes / 1e6 / l2->miss_wall : 0.0);
+    if (l2->misses == 0) {
+        /* "no misses" and "miss time measured as zero" are different claims that used to print
+         * identically, and only the counter fix made them distinguishable at all -- before it,
+         * miss_wall was 0 for every run regardless of the real value. */
+        printf("  miss I/O  : no misses this run (miss_wall %.2f s, n/a)\n",
+               l2->miss_wall);
+    } else {
+        printf("  miss I/O  : %llu misses, %.2f GB from /model in %.2f s (wall) = %.0f MB/s\n",
+               (unsigned long long)l2->misses, l2->misses * (double)l2->slot_bytes / 1e9,
+               l2->miss_wall, l2->miss_wall > 0
+                   ? l2->misses * (double)l2->slot_bytes / 1e6 / l2->miss_wall : 0.0);
+    }
     if (l2->meta_loaded)
         printf("  restored from meta: %llu slots\n",
                (unsigned long long)l2->meta_loaded);
