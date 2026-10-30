@@ -1,9 +1,8 @@
 # Reproducing the paper: 《命中率指标掩盖的慢介质全量重读》
 
-This repository is the single source from which the CJAS submission
-(`papers/paper-submit-cjas.md`) and its English cut
-(`papers/paper-cuteng-slow-medium-read-once.md`) can be reproduced. Every figure in the
-papers maps to a committed script, a committed binary fixture, or a public 1.56 TB
+This repository is the single source from which the CJAS submission and its English cut
+can be reproduced; the manuscript sources themselves are not kept here. Every figure in
+the papers maps to a committed script, a committed binary fixture, or a public 1.56 TB
 checkpoint fetchable by `scripts/download-model.sh`.
 
 The papers describe an empirical finding on MoE inference: an L2 cache hit-rate
@@ -101,13 +100,7 @@ state the environment alongside any reproduction.
 
 | path | what it is |
 |------|------------|
-| `papers/paper-submit-cjas.md` | CJAS submission, Chinese, master version |
-| `papers/paper-submit-cjas.pdf` | compiled PDF of the master |
-| `papers/paper-cuteng-slow-medium-read-once.md` | English translation |
-| `papers/paper-cuteng.tex` / `.pdf` | LaTeX source of the English paper |
 | `papers/byteflow-matrix.md` | the measurement ledger, the single source of truth for every number |
-| `papers/overlap-ch{1,2,3,4,5,6}-*.md` | the paper's section drafts |
-| `papers/cover-letter-cjas.md` | submission cover letter |
 | `tools/paper/*.py` | the three trace-replay scripts (tier 0) |
 | `tools/sim_cache.py` | LRU/PPR capacity simulation over the same trace |
 | `tests/fixtures/expert_trace.bin` | the committed 100,096-record capture |
