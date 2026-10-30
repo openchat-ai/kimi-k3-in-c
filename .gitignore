@@ -103,3 +103,15 @@ reports/**/bench.latest.log
 reports/**/*.exe
 reports/**/.sched_cur.txt
 papers/*.json.bak
+
+# Manuscripts and cover letters stay out of the public tree. They remain on disk; only the
+# index entries are dropped. History still holds them -- removing them from history is a
+# separate rewrite, not something this file can do.
+papers/*.docx
+papers/论文-*.md
+papers/投稿信-*.md
+papers/paper-submit-*.md
+papers/paper-cuteng-*.md
+papers/cover-letter-*.md
+papers/摘要候选.md
+papers/评审团综合修改说明.md
