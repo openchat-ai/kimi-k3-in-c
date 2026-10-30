@@ -60,6 +60,11 @@ COL_CM = 8.6
 FULL_CM = 13.5
 FULL_MIN_COLS = 7
 
+# 通栏图：模板对跨栏图给的量级就是 13~14 cm。6.6 in 的图源插进 8.6 cm 栏宽要缩到 0.51，
+# 7.5 pt 的题注字号在图上只剩 4.3 pt。这几张刻度和曲线都密的图改走通栏，等效字号回到 7 pt 上下。
+FIG_WIDE = {"fig_hri_ladder", "fig_decoupling_split", "fig_detectability",
+            "fig_policy_effect_vs_noise"}
+
 
 def set_cjk(run, cn_font, size_pt, bold=False):
     """python-docx sets the Latin face only; Chinese glyphs need w:eastAsia set explicitly."""
@@ -178,6 +183,27 @@ def table_cols_ahead(body, i):
     return 0
 
 
+def fig_caption_ahead(body, i):
+    """True only when the line at i is a real figure caption, i.e. an image follows.
+
+    A caption precedes its image in the markdown, but so does ordinary prose that merely
+    starts with "图 3 中……".  Matching on the prefix alone silently swallowed four body
+    paragraphs of this manuscript: the line was held as the caption and then overwritten by
+    the next real caption.  Look past the optional English caption for the image instead.
+    """
+    j = i + 1
+    while j < len(body) and not body[j].strip():
+        j += 1
+    if j < len(body) and body[j].strip().startswith("!["):
+        return True
+    if j < len(body) and re.match(r"^Fig\.?\s*\d+", body[j].strip()):
+        j += 1
+        while j < len(body) and not body[j].strip():
+            j += 1
+        return j < len(body) and body[j].strip().startswith("![")
+    return False
+
+
 def figure_block(doc, img, cap_cn, cap_en, width_cm=8.0):
     """Image centred, then the bilingual caption below it -- the template puts figure titles
     under the figure."""
@@ -213,12 +239,15 @@ def rich(p, text, cn=SIMSUN, size=9, base_bold=False):
     for tok in INLINE.split(text):
         if not tok:
             continue
-        if tok.startswith("**") and tok.endswith("**"):
-            set_cjk(p.add_run(tok[2:-2]), cn, size, True)
+        if len(tok) > 4 and tok.startswith("**") and tok.endswith("**"):
+            # Recurse: the manuscript bolds whole sentences that contain `code`, and stripping
+            # the outer markers in one go left the backticks in the run ("…的 `hit I/O`。").
+            rich(p, tok[2:-2], cn, size, True)
         elif tok.startswith("`") and tok.endswith("`"):
             r = p.add_run(CODE.match(tok).group(1))
             r.font.size = Pt(size)
             r.font.name = "Consolas"
+            r.font.bold = base_bold
             r.font.color.rgb = RGBColor(0, 0, 0x80)
         else:
             set_cjk(p.add_run(tok), cn, size, base_bold)
@@ -344,8 +373,9 @@ def add_md_table(doc, rows, total_cm=COL_CM, min_cm=1.0):
             p.paragraph_format.space_after = Pt(0)
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.line_spacing = 1.0
-            set_cjk(p.add_run(val.strip()), SIMHEI if ri == 0 else SIMSUN,
-                    TABLE_PT, ri == 0)
+            # Cells carry **emphasis** and `code` too; without the inline pass the markers
+            # landed in the submitted table as literal asterisks and backticks.
+            rich(p, val.strip(), SIMHEI if ri == 0 else SIMSUN, TABLE_PT, ri == 0)
             if ri == 0:
                 # 三线表的中线画在表头行下沿；模板同时明确"不宜加底色及阴影"，
                 # 故表头不再铺灰底。
@@ -429,7 +459,7 @@ def main():
     _em = re.search(r"邮箱：([^\s（(]+)", md)
     if not _em:
         sys.exit("★ 源文中未找到通讯作者邮箱")
-    para(doc, "（%s）第一作者邮箱" % _em.group(1), cn=FANGSONG, size=9,
+    para(doc, "E-mail：%s" % _em.group(1), cn=FANGSONG, size=9,
          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=6)
 
     para(doc, "摘  要", cn=SIMHEI, size=10.5, align=WD_ALIGN_PARAGRAPH.LEFT, space_after=2)
@@ -443,7 +473,9 @@ def main():
 
     for line in (head["abstract"].split("关键词")[-1].split("\n") if "关键词" in head["abstract"] else []):
         pass
-    kw = re.search(r"关键词：([^\n]+)", head["abstract"])
+    # The abstract block is joined into one string, so the keyword capture must stop at the
+    # classification line -- [^\n]+ ran past it and printed 中图分类号 twice.
+    kw = re.search(r"关键词：(.+?)(?:中图分类号：|\Z)", head["abstract"])
     cls = re.search(r"中图分类号：(\w+)", head["abstract"])
     doc_flag = re.search(r"文献标志码：(\w)", head["abstract"])
     if kw:
@@ -515,12 +547,12 @@ def main():
             i += 1
             continue
         m = re.match(r"^图\s*\d+\s*[　\s].*$", s)                  # figure caption, held
-        if m:
+        if m and fig_caption_ahead(body, i):
             held_cn = s
             i += 1
             continue
         m = re.match(r"^(Fig\.?\s*\d+.*)$", s)                     # english figure caption, held
-        if m:
+        if m and fig_caption_ahead(body, i):
             held_en = s
             i += 1
             continue
@@ -545,6 +577,12 @@ def main():
             # "1  1 引言", and 附录/参考文献 were numbered 7 and 8 as if they were chapters.
             if re.match(r"^(附录|参考文献|英文题名|作者简介|自校负责人|稿件信息)", txt):
                 para(doc, txt, cn=SIMHEI, size=10.5, space_before=6, space_after=3)
+                i += 1
+                continue
+            if not re.search(r"[\u4e00-\u9fff]", txt):               # English title
+                # Not a numbered Chinese section: the h1 counter used to prefix it with "1  ".
+                para(doc, txt, cn=TNR, size=12, bold=True,
+                     align=WD_ALIGN_PARAGRAPH.CENTER, space_before=8, space_after=3)
                 i += 1
                 continue
             num = re.match(r"^(\d+(?:\.\d+)*)\s+(\S.*)$", txt)
@@ -589,7 +627,13 @@ def main():
             img = next((c for c in cand if c.exists()), cand[0])
             if not img.exists():
                 sys.exit("★ 找不到图片：%s（源文 %s）" % (m.group(2), SRC))
-            figure_block(doc, img, held_cn or f"图（{key}）", held_en, width_cm=8.0)
+            wide_fig = key in FIG_WIDE and not wide_active
+            if wide_fig:
+                open_wide(doc, s1._sectPr)
+            figure_block(doc, img, held_cn or f"图（{key}）", held_en,
+                         width_cm=FULL_CM if wide_fig else 8.0)
+            if wide_fig:
+                close_wide(doc, s1._sectPr)
             held_cn = held_en = ""
             i += 1
             continue

@@ -5,6 +5,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 plt.rcParams.update({"font.size":9,"axes.grid":True,"grid.alpha":.3,"figure.dpi":170,
+                     "savefig.dpi":400,   # 8 cm 栏宽下需 ≥300 dpi；170 时三张图只有 190—250
                      "font.family":"DejaVu Sans","axes.spines.top":False,"axes.spines.right":False})
 out={}
 FULL=25.83
@@ -94,17 +95,30 @@ print(json.dumps(out,ensure_ascii=False,indent=1,default=str))
 
 # ================= FIGURES =================
 C1,C2,C3,C4="#2c6fbb","#c0392b","#1e8449","#7d7d7d"
+def legend_below(fig,ax,ncol,ax2=None,fs=8):
+    """Legend under the axes: the wide panels have no free interior, and an outside legend
+    never covers a data line.  A twin axis keeps its own handles, so they must be merged in
+    explicitly -- otherwise the wall-clock series silently loses its key entry."""
+    h,l=ax.get_legend_handles_labels()
+    if ax2 is not None:
+        h2,l2=ax2.get_legend_handles_labels()
+        h,l=h+h2,l+l2
+    fig.tight_layout(rect=(0,0.075,1,1))
+    fig.legend(h,l,loc="lower center",bbox_to_anchor=(0.5,0.002),ncol=ncol,
+               frameon=False,fontsize=fs,handlelength=1.9,columnspacing=1.3,
+               handletextpad=0.5)
 # Fig1: inflation ladder
-fig,ax=plt.subplots(figsize=(6.6,3.1))
+fig,ax=plt.subplots(figsize=(6.6,3.5))
 x=np.arange(len(ml))
-ax.plot(x,ml.expert_hit_naive,"-o",ms=4,color=C2,label="Reported request hit rate $H_{key}$ (counts prefetch-from-disk as hit)")
-ax.plot(x,ml.X_byte,"-s",ms=4,color=C1,label="Byte hit ratio $X_{byte}$ (audited)")
+ax.plot(x,ml.expert_hit_naive,"-o",ms=4,color=C2,label="reported $H_{key}$ (prefetch counts as hit)")
+ax.plot(x,ml.X_byte,"-s",ms=4,color=C1,label="audited $X_{byte}$")
 ax.fill_between(x,ml.X_byte,ml.expert_hit_naive,color=C2,alpha=.13)
-ax.set_xticks(x);ax.set_xticklabels(ml.total_gb)
+ax.set_xticks(x);ax.set_xticklabels(ml.total_gb,fontsize=8)
 ax.set_xlabel("Provisioned host memory (GB)");ax.set_ylabel("percent")
-ax.set_ylim(-4,108);ax.legend(frameon=False,loc="center left",fontsize=8)
-ax.annotate("inflation gap\nup to 100 pts",xy=(1,52),fontsize=8,color=C2,ha="center")
-fig.tight_layout();fig.savefig(os.path.join(F,"fig_hri_ladder.png"));plt.close(fig)
+ax.set_ylim(-4,108)
+ax.annotate("inflation gap\nup to 100 pts",xy=(2.6,52),fontsize=8,color=C2,ha="center")
+legend_below(fig,ax,2)
+fig.savefig(os.path.join(F,"fig_hri_ladder.png"));plt.close(fig)
 
 # Fig2: identity scatter true vs X_byte
 fig,ax=plt.subplots(figsize=(3.5,3.3))
@@ -117,32 +131,32 @@ ax.set_title("max |dev| = %.3f pt (n=%d)"%(a.t.sub(a.X_byte).abs().max(),len(a))
 fig.tight_layout();fig.savefig(os.path.join(F,"fig_identity_scatter.png"));plt.close(fig)
 
 # Fig3: decoupling triangle (128GB split scan)
-fig,ax=plt.subplots(figsize=(6.6,3.1))
+fig,ax=plt.subplots(figsize=(6.6,3.6))
 xx=t128.trunk_gb.values
-ax2=ax.twinx();ax2.grid(False)
-l1,=ax.plot(xx,t128.gb_read,"-o",ms=4,color=C2,label="source-tier read $B_{act}$ (GB/tok)")
-l2,=ax.plot(xx,t128.hit_pct,"-^",ms=4,color=C1,label="engine-reported byte hit ratio (mirror of $B_{act}$; not a request-plane field)")
-l3,=ax2.plot(xx,t128.s_per_tok,"-s",ms=4,color=C3,label="wall-clock, single sample per point (s/tok)")
+ax2=ax.twinx();ax2.grid(False);ax2.tick_params(axis="y",length=0)
+ax.plot(xx,t128.gb_read,"-o",ms=4,color=C2,label="source-tier read $B_{act}$")
+ax.plot(xx,t128.hit_pct,"-^",ms=4,color=C1,label="reported byte hit (mirror of $B_{act}$)")
+ax2.plot(xx,t128.s_per_tok,"-s",ms=4,color=C3,label="wall-clock (s/tok)")
 ax.set_xlabel("pinned trunk allocation (GB), host A total = 128 GB, N = 8")
 ax.set_ylabel("GB/tok  |  percent");ax2.set_ylabel("s/tok")
-ax.legend(handles=[l1,l2,l3],frameon=False,fontsize=8,loc="center right")
-fig.tight_layout();fig.savefig(os.path.join(F,"fig_decoupling_split.png"));plt.close(fig)
+legend_below(fig,ax,3,ax2=ax2)
+fig.savefig(os.path.join(F,"fig_decoupling_split.png"));plt.close(fig)
 
 # Fig4: detectability 鈥?bytes flat, time scattered
-fig,ax=plt.subplots(figsize=(6.6,2.9))
+fig,ax=plt.subplots(figsize=(6.6,3.5))
 r30=np.arange(1,31)
-ax.plot(r30,bt.gb_per_tok_constant,"-o",ms=3.5,color=C1,label="delivered bytes = 216.66 GB/session = trunk 140.16 + experts 76.51 (0% spread)")
+ax.plot(r30,bt.gb_per_tok_constant,"-o",ms=3.5,color=C1,
+        label="delivered bytes 216.66 GB/session (0% spread)")
 ax.set_ylabel("GB / token-session",color=C1);ax.set_ylim(200,232)
 ax.tick_params(axis="y",colors=C1)
-ax2=ax.twinx();ax2.grid(False)
+ax2=ax.twinx();ax2.grid(False);ax2.tick_params(axis="y",length=0)
 ax2.plot(r30,bt.s_per_tok,"-s",ms=3.5,color=C2,label="wall-clock (s/tok)")
 ax2.axhline(bt.s_per_tok.mean(),ls=":",lw=1,color=C4)
 ax2.fill_between(r30,bt.s_per_tok.mean()*.9,bt.s_per_tok.mean()*1.1,color=C4,alpha=.12)
 ax2.set_ylabel("s/tok",color=C2);ax2.tick_params(axis="y",colors=C2)
-ax.set_xlabel("run index (host B, 30 runs grouped by one byte-level accounting: 4 engine versions, burst/no-burst, heat8/heat15)")
-h1,la1=ax.get_legend_handles_labels();h2,la2=ax2.get_legend_handles_labels()
-ax.legend(h1+h2,la1+la2,frameon=False,fontsize=8,loc="upper left")
-fig.tight_layout();fig.savefig(os.path.join(F,"fig_detectability.png"));plt.close(fig)
+ax.set_xlabel("run index (host B, 30 runs, 4 engine versions)")
+legend_below(fig,ax,2,ax2=ax2)
+fig.savefig(os.path.join(F,"fig_detectability.png"));plt.close(fig)
 
 # Fig5: policy arms 鈥?byte effect vs time effect with error bars
 fig,ax=plt.subplots(figsize=(6.2,2.9))
@@ -154,8 +168,8 @@ for i,(lab,cg,po) in enumerate(arms):
     sp.append((sub.s_per_tok.mean(),sub.s_per_tok.std(ddof=1)))
 xs=np.arange(4)
 ax.errorbar(xs-0.0,[b[0] for b in bp],yerr=[b[1] for b in bp],fmt="o",color=C1,capsize=3,label="expert bytes (GB/tok)")
-ax.set_ylabel("GB/tok",color=C1);ax.tick_params(axis="y",colors=C1);ax.set_ylim(25.2,26.1)
-ax2=ax.twinx();ax2.grid(False)
+ax.set_ylabel("GB/tok",color=C1);ax.tick_params(axis="y",colors=C1);ax.set_ylim(25.2,26.22)
+ax2=ax.twinx();ax2.grid(False);ax2.tick_params(axis="y",length=0)
 ax2.errorbar(xs+0.0,[b[0] for b in sp],yerr=[b[1] for b in sp],fmt="s",color=C2,capsize=3,label="wall-clock (s/tok)")
 ax2.set_ylabel("s/tok",color=C2);ax2.tick_params(axis="y",colors=C2)
 ax.set_xticks(xs);ax.set_xticklabels([a[0] for a in arms],fontsize=8)
@@ -165,10 +179,11 @@ fig.tight_layout();fig.savefig(os.path.join(F,"fig_policy_effect_vs_noise.png"))
 
 # Fig6: bottleneck ratio
 fig,ax=plt.subplots(figsize=(4.4,2.8))
-ax.bar(bb.tier,bb.ratio,color=[C1,C2,C3,C4])
+cols=[C2 if v>3 else C1 for v in bb.ratio]
+ax.bar(bb.tier,bb.ratio,color=cols,width=.6)
 ax.axhline(1.0,ls="--",lw=1,color=C4)
-ax.set_ylabel("measured / bandwidth lower bound");ax.set_xlabel("residence configuration")
-for i,v in enumerate(bb.ratio):ax.text(i,v+.06,"%.2f"%v,ha="center",fontsize=8)
+ax.set_ylabel("measured / lower bound\n(dashed = 1)");ax.set_xlabel("residence configuration")
+for i,v in enumerate(bb.ratio):ax.text(i,v+.06,"%.2f"%v,ha="center",fontsize=9.5)
 ax.set_ylim(0,3.6)
 fig.tight_layout();fig.savefig(os.path.join(F,"fig_bound_ratio.png"));plt.close(fig)
 
@@ -177,9 +192,9 @@ fig,ax=plt.subplots(figsize=(4.6,2.9))
 m=sc.newkeys_source=="measured"
 ax.plot(sc.token,sc.E_i_stageA,"-",color=C4,lw=1,label="$E_i(N)$ (fit tail)")
 ax.plot(sc.token[m],sc.E_i_stageA[m],"o",color=C2,ms=5,label="measured tokens 1-4")
-ax.axhline(1,ls=":",color=C1,lw=1);ax.text(20,1.05,"lower bound $E_i$=1",fontsize=8,color=C1)
+ax.axhline(1,ls=":",color=C1,lw=1);ax.text(20,1.06,"lower bound $E_i$=1",fontsize=9,color=C1)
 ax.set_xlabel("session length N (tokens)");ax.set_ylabel("over-read factor $E_i$")
-ax.legend(frameon=False,fontsize=8)
+ax.legend(frameon=False,fontsize=9)
 fig.tight_layout();fig.savefig(os.path.join(F,"fig_Ei_curve.png"));plt.close(fig)
 print("FIGURES_OK", os.listdir(F))
 
